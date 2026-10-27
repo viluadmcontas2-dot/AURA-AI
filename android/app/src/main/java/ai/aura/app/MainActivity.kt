@@ -14,6 +14,7 @@ import ai.aura.app.integration.AuraEngineClient
 import ai.aura.app.integration.EngineCredentialStore
 import ai.aura.app.integration.RealEngineGateway
 import ai.aura.app.integration.TermuxBridge
+import ai.aura.app.permissions.AppPermissions
 import ai.aura.app.ui.AuraApp
 
 /** Native AURA shell. No simulated provider results are ever shown in production. */
@@ -31,6 +32,15 @@ class MainActivity : ComponentActivity() {
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         // Só preferências de UI (onboarding e rascunho). Nunca token ou segredo aqui.
         val prefs = getSharedPreferences("aura_prefs", MODE_PRIVATE)
+        // Pede de uma vez tudo que o app usa (notificação, mídia, Bluetooth, Wi-Fi, microfone, câmera).
+        // Depois, abre uma vez a tela de "acesso a todos os arquivos", que o Android só libera por lá.
+        val askAll = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+        ) { askAllFilesOnce(prefs) }
+        val missing = AppPermissions.missing(android.os.Build.VERSION.SDK_INT) {
+            checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) runCatching { askAll.launch(missing.toTypedArray()) } else askAllFilesOnce(prefs)
         setContent {
             val gateway = remember {
                 RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext)))
@@ -69,6 +79,20 @@ class MainActivity : ComponentActivity() {
                 onOnboardingFinished = { prefs.edit().putBoolean("onboarding_done", true).apply() },
                 initialDraft = prefs.getString("draft", "") ?: "",
                 onSaveDraft = { prefs.edit().putString("draft", it).apply() },
+            )
+        }
+    }
+
+    private fun askAllFilesOnce(prefs: android.content.SharedPreferences) {
+        if (android.os.Build.VERSION.SDK_INT < 30 || android.os.Environment.isExternalStorageManager()) return
+        if (prefs.getBoolean("all_files_asked", false)) return
+        prefs.edit().putBoolean("all_files_asked", true).apply()
+        runCatching {
+            startActivity(
+                Intent(
+                    android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName"),
+                ),
             )
         }
     }
