@@ -9,7 +9,7 @@ Date: 2026-10-27. Source of truth: `viluadmcontas2-dot/AURA-AI` on `main`.
 - Execution adapters: native/system/files/shell, Android ADB, GitHub (gh/git), Drive (rclone), Claude Code, Gemini CLI, Antigravity CLI, Claude/Gemini APIs and portable Agent Skills.
 - Runtime interface: loopback HTTP with bearer authentication, job lifecycle, approval/cancel, capabilities, event polling, memory, schedules and actual reported usage.
 - Novice experience support: local deterministic routing, available skill selection, doctor with actionable warnings and native-app handoff.
-- Test suite: `engine/tests/test_engine.py` contains 30 named tests as of the source inspection; CI workflow runs compile + test on Python 3.12 and 3.14.
+- Test suite: `engine/tests/test_engine.py` contains 31 named tests as of the source inspection; CI workflow runs compile + test on Python 3.12 and 3.14.
 - Portable skills: 3 bundled `SKILL.md` workflows with lazy metadata discovery.
 
 ## Explicitly NOT proven
@@ -30,7 +30,7 @@ Date: 2026-10-27. Source of truth: `viluadmcontas2-dot/AURA-AI` on `main`.
 
 ## Deliverable split
 
-**Motor:** this repository, `engine/` and `docs/ENGINE_CONTRACT.md` with 30 test specifications.
+**Motor:** this repository, `engine/` and `docs/ENGINE_CONTRACT.md` with 31 test specifications.
 **Interface:** Claude's separate UI work, to integrate by `docs/ANDROID_HANDOFF.md` without rewriting the engine.
 
 ## Engineering verdict
