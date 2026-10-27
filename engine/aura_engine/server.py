@@ -80,18 +80,20 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         job = engine.store.job(parts[3])
                         return self.send(200, job) if job else self.send(404, {"error": "job not found"})
                 else:
-                    data = self.body()
                     if path == "/v1/jobs":
+                        data = self.body()
                         request = data.get("request")
                         if not isinstance(request, dict):
                             raise ValueError("request is required")
                         job = engine.submit(request, request_id=data.get("request_id"))
                         return self.send(202, job)
                     if path == "/v1/route":
+                        data = self.body()
                         return self.send(200, engine.route(
                             data.get("text"), workspace=data.get("workspace", "default"),
                             preferred_provider=data.get("preferred_provider", "auto")))
                     if path == "/v1/memory":
+                        data = self.body()
                         from .security import workspace_name
                         ws = workspace_name(data.get("workspace", "default"))
                         key = data.get("key")
@@ -103,6 +105,7 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         engine.store.remember(ws, key, value)
                         return self.send(200, {"stored": True})
                     if path == "/v1/schedules":
+                        data = self.body()
                         return self.send(201, engine.add_schedule(data))
                     if len(parts) == 5 and parts[:3] == ["", "v1", "jobs"]:
                         job_id, action = parts[3:]
