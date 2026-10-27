@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ideia vira projeto — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:84px;padding:32px 8px 0;display:flex;align-items:center;gap:4px">
+<a href="Projeto-Ideia.dc.html" aria-label="Voltar para a ideia" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0">
+<div style="font-size:17px;line-height:22px;font-weight:700">Ideia vira projeto</div>
+</div>
+</header>
+
+<main style="flex:1;min-height:0;padding:8px 20px 0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+
+<div style="align-self:flex-end;max-width:310px;background:#15141A;color:#FFFFFF;border-radius:22px 22px 6px 22px;padding:12px 16px;font-size:16px;line-height:23px">Crie um aplicativo de finanças completo</div>
+
+<section aria-label="Projeto organizado pelo AURA" style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05)">
+<div style="display:flex;align-items:center;gap:8px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">
+<span aria-hidden="true" style="width:20px;height:20px;border-radius:10px;background:radial-gradient(circle at 30% 26%,#FFFFFF 0,rgba(255,255,255,0) 42%),radial-gradient(circle at 78% 76%,#FFA98A 0,rgba(255,169,138,0) 60%),radial-gradient(circle at 20% 80%,#79E6CF 0,rgba(121,230,207,0) 58%),radial-gradient(circle at 80% 20%,#8C9DFF 0,rgba(140,157,255,0) 64%),#EADFFB"></span>AURA
+</div>
+<h1 style="margin:6px 0 0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:22px;line-height:26px;letter-spacing:-.03em">Organizei sua ideia</h1>
+
+<dl style="margin:10px 0 0;display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;gap:12px;font-size:15px;line-height:21px"><dt style="flex:none;width:84px;color:#4F4C57">Nome</dt><dd style="margin:0;font-weight:700">Minhas Finanças</dd></div>
+<div style="display:flex;gap:12px;font-size:15px;line-height:21px"><dt style="flex:none;width:84px;color:#4F4C57">Objetivo</dt><dd style="margin:0;font-weight:600">Controlar gastos e metas do mês</dd></div>
+<div style="display:flex;gap:12px;font-size:15px;line-height:21px"><dt style="flex:none;width:84px;color:#4F4C57">Plataforma</dt><dd style="margin:0;font-weight:600">Android, Kotlin + Compose</dd></div>
+</dl>
+
+<div style="height:1px;background:#E6E3DC;margin:12px 0"></div>
+
+<div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">TELAS</div>
+<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">
+<span style="height:30px;padding:0 10px;border-radius:15px;background:#E4E8FF;display:flex;align-items:center;font-size:14px;line-height:20px;font-weight:600">Entrar</span>
+<span style="height:30px;padding:0 10px;border-radius:15px;background:#D9F3E8;display:flex;align-items:center;font-size:14px;line-height:20px;font-weight:600">Resumo</span>
+<span style="height:30px;padding:0 10px;border-radius:15px;background:#FBEFC9;display:flex;align-items:center;font-size:14px;line-height:20px;font-weight:600">Lançamentos</span>
+<span style="height:30px;padding:0 10px;border-radius:15px;background:#FADDE6;display:flex;align-items:center;font-size:14px;line-height:20px;font-weight:600">Metas</span>
+</div>
+
+<div style="margin-top:12px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">PRONTO QUANDO</div>
+<ul style="list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px">
+<li style="display:flex;align-items:center;gap:8px;font-size:15px;line-height:21px"><span aria-hidden="true" style="flex:none;width:20px;height:20px;border-radius:10px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Abre sem travar no celular</li>
+<li style="display:flex;align-items:center;gap:8px;font-size:15px;line-height:21px"><span aria-hidden="true" style="flex:none;width:20px;height:20px;border-radius:10px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Lançamento salvo em até 2 toques</li>
+<li style="display:flex;align-items:center;gap:8px;font-size:15px;line-height:21px"><span aria-hidden="true" style="flex:none;width:20px;height:20px;border-radius:10px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Testes passam no GitHub</li>
+</ul>
+
+<div style="margin-top:12px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">ENTREGAS</div>
+<ol style="list-style:none;margin:6px 0 0;padding:0;display:flex;gap:6px">
+<li style="flex:1;min-width:0;height:36px;padding:0 8px;border-radius:14px;background:#EEECE7;display:flex;align-items:center;gap:4px;font-size:13px;line-height:20px;font-weight:600"><span style="flex:none;font-weight:700">1</span>Fundação</li>
+<li style="flex:1;min-width:0;height:36px;padding:0 8px;border-radius:14px;background:#EEECE7;display:flex;align-items:center;gap:4px;font-size:13px;line-height:20px;font-weight:600"><span style="flex:none;font-weight:700">2</span>Lançamentos</li>
+<li style="flex:1;min-width:0;height:36px;padding:0 8px;border-radius:14px;background:#EEECE7;display:flex;align-items:center;gap:4px;font-size:13px;line-height:20px;font-weight:600"><span style="flex:none;font-weight:700">3</span>Metas</li>
+</ol>
+</section>
+
+<div role="note" style="background:#FFF1D6;color:#8A4B00;border-radius:16px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:20px;font-weight:600"><svg style="flex:none;margin-top:1px" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E08A00" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Criar o repositório privado minhas-financas no GitHub precisa da sua aprovação.</span></div>
+
+</main>
+
+<footer style="flex:none;padding:12px 20px 24px;display:flex;gap:8px">
+<a href="Projeto-Detalhe.dc.html" style="flex:1;height:52px;border-radius:26px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">Criar projeto</a>
+<a href="Chat-2-Teclado-Comandos.dc.html" style="flex:none;height:52px;padding:0 24px;border-radius:26px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;font-size:16px;font-weight:600">Ajustar</a>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

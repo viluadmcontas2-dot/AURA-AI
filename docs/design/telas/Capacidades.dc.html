@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Capacidades — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:76px;padding:32px 8px 0;display:flex;align-items:center;gap:4px">
+<a href="Ajustes.dc.html" aria-label="Voltar para Ajustes" style="flex:none;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<h1 style="margin:0;flex:1;font-size:17px;line-height:22px;font-weight:700">Capacidades</h1>
+</header>
+
+<main style="flex:1;min-height:0;padding:8px 20px 0;display:flex;flex-direction:column">
+
+<p style="margin:0;font-size:15px;line-height:21px;color:#4F4C57">O AURA escolhe sozinho. Aqui você vê e ajusta o que ele pode usar.</p>
+
+<div style="margin-top:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<a href="Capacidade-Detalhe.dc.html" style="min-height:132px;padding:14px;border-radius:24px;background:#E4E8FF;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+<span style="display:flex;align-items:center;justify-content:space-between">
+<span aria-hidden="true" style="width:36px;height:36px;border-radius:18px;background:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg></span>
+<span style="min-width:28px;height:28px;padding:0 8px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:16px;font-weight:700">6</span>
+</span>
+<span><span style="display:block;font-size:15px;line-height:20px;font-weight:700">Engenharia de software</span><span style="display:block;margin-top:2px;font-size:13px;line-height:18px;color:#4F4C57">Testes, revisão, Git</span></span>
+</a>
+<a href="Capacidade-Detalhe.dc.html" style="min-height:132px;padding:14px;border-radius:24px;background:#FBEFC9;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+<span style="display:flex;align-items:center;justify-content:space-between">
+<span aria-hidden="true" style="width:36px;height:36px;border-radius:18px;background:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></span>
+<span style="min-width:28px;height:28px;padding:0 8px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:16px;font-weight:700">3</span>
+</span>
+<span><span style="display:block;font-size:15px;line-height:20px;font-weight:700">Clareza e interpretação</span><span style="display:block;margin-top:2px;font-size:13px;line-height:18px;color:#4F4C57">Intenção e explicações</span></span>
+</a>
+<a href="Capacidade-Detalhe.dc.html" style="min-height:132px;padding:14px;border-radius:24px;background:#D9F3E8;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+<span style="display:flex;align-items:center;justify-content:space-between">
+<span aria-hidden="true" style="width:36px;height:36px;border-radius:18px;background:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span>
+<span style="min-width:28px;height:28px;padding:0 8px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:16px;font-weight:700">5</span>
+</span>
+<span><span style="display:block;font-size:15px;line-height:20px;font-weight:700">Controle Android</span><span style="display:block;margin-top:2px;font-size:13px;line-height:18px;color:#4F4C57">ADB, capturas, diagnósticos</span></span>
+</a>
+<a href="Capacidade-Detalhe.dc.html" style="min-height:132px;padding:14px;border-radius:24px;background:#FADDE6;display:flex;flex-direction:column;justify-content:space-between;gap:10px">
+<span style="display:flex;align-items:center;justify-content:space-between">
+<span aria-hidden="true" style="width:36px;height:36px;border-radius:18px;background:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
+<span style="min-width:28px;height:28px;padding:0 8px;border-radius:14px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:16px;font-weight:700">4</span>
+</span>
+<span><span style="display:block;font-size:15px;line-height:20px;font-weight:700">Organização e pesquisa</span><span style="display:block;margin-top:2px;font-size:13px;line-height:18px;color:#4F4C57">Arquivos, projetos, Drive</span></span>
+</a>
+</div>
+
+<h2 style="margin:20px 0 0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:18px;line-height:24px;letter-spacing:-.03em">Em uso agora</h2>
+
+<ul style="list-style:none;margin:8px 0 0;padding:0;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;overflow:hidden">
+<li style="display:flex;align-items:center;min-height:60px;padding:0 8px 0 16px;gap:8px">
+<a href="Capacidade-Detalhe.dc.html" style="flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:10px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+<span style="font-size:16px;line-height:22px;font-weight:600">Corrigir e testar código</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6A6772" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:auto"><path d="m9 18 6-6-6-6"/></svg>
+</a>
+<button type="button" role="switch" aria-checked="true" aria-label="Corrigir e testar código" style="flex:none;width:52px;height:44px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span aria-hidden="true" style="position:relative;display:block;width:48px;height:28px;border-radius:14px;background:#15141A"><span style="position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:11px;background:#FFFFFF"></span></span></button>
+</li>
+<li style="display:flex;align-items:center;min-height:60px;padding:0 8px 0 16px;gap:8px;border-top:1px solid #E6E3DC">
+<a href="Capacidade-Detalhe.dc.html" style="flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:10px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+<span style="font-size:16px;line-height:22px;font-weight:600">Explicar de forma simples</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6A6772" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:auto"><path d="m9 18 6-6-6-6"/></svg>
+</a>
+<button type="button" role="switch" aria-checked="true" aria-label="Explicar de forma simples" style="flex:none;width:52px;height:44px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span aria-hidden="true" style="position:relative;display:block;width:48px;height:28px;border-radius:14px;background:#15141A"><span style="position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:11px;background:#FFFFFF"></span></span></button>
+</li>
+<li style="display:flex;align-items:center;min-height:60px;padding:0 8px 0 16px;gap:8px;border-top:1px solid #E6E3DC">
+<a href="Capacidade-Detalhe.dc.html" style="flex:1;min-width:0;min-height:56px;display:flex;align-items:center;gap:10px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+<span style="font-size:16px;line-height:22px;font-weight:600">Capturar tela do aparelho</span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6A6772" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:auto"><path d="m9 18 6-6-6-6"/></svg>
+</a>
+<button type="button" role="switch" aria-checked="true" aria-label="Capturar tela do aparelho" style="flex:none;width:52px;height:44px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span aria-hidden="true" style="position:relative;display:block;width:48px;height:28px;border-radius:14px;background:#15141A"><span style="position:absolute;top:3px;left:23px;width:22px;height:22px;border-radius:11px;background:#FFFFFF"></span></span></button>
+</li>
+</ul>
+
+<div style="margin-top:16px;display:flex;align-items:center;gap:12px">
+<button type="button" style="flex:none;height:44px;padding:0 18px;border-radius:22px;border:1px solid #D5D1C7;background:#FFFFFF;color:#15141A;display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Importar skill</button>
+<p style="margin:0;flex:1;font-size:13px;line-height:18px;color:#4F4C57">Importar não libera comandos sozinho.</p>
+</div>
+
+</main>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

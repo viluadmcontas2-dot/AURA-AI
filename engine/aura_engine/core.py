@@ -5,17 +5,21 @@ import secrets
 import threading
 import time
 
-from . import adapters
+from . import adapters, routing
+from .auth import AuthManager
+from .config import ConfigStore
 from .security import RiskPolicy, workspace_name, load_or_create_token
 from .store import Store
 
 
 class Engine:
-    def __init__(self, home=None, auto_worker=True, max_workers=2):
+    def __init__(self, home=None, auto_worker=True, max_workers=2, auth_timeout=300):
         self.home = pathlib.Path(home or (pathlib.Path.home() / ".aura" / "engine"))
         self.token = load_or_create_token(self.home)
         self.store = Store(self.home / "engine.sqlite3")
-        self.policy = RiskPolicy()
+        self.config = ConfigStore(self.home, self.store)
+        self.policy = RiskPolicy(self.config)
+        self.auth = AuthManager(self.home, self.store, timeout=auth_timeout)
         self.stop_event = threading.Event()
         self.process_lock = threading.RLock()
         self.context = threading.local()
@@ -31,6 +35,7 @@ class Engine:
 
     def close(self):
         self.stop_event.set()
+        self.auth.close()
         with self.process_lock:
             for proc in list(self.processes.values()):
                 if proc.poll() is None:
@@ -49,7 +54,79 @@ class Engine:
         if not isinstance(request.get("kind"), str):
             raise ValueError("kind is required")
         workspace_name(request.get("workspace", "default"))
-        return self.store.submit(request, self.policy.classify(request), request_id)
+        risk = self.policy.classify(request)
+        # policy.json e models.json sao relidos a cada job: mudar o arquivo vale no proximo pedido.
+        try:
+            routing.validate_request(request, self.config.models())
+        except routing.ModelRefused as err:
+            raise ValueError(str(err))
+        decision, why, version = self.policy.decide(request, risk)
+        status = "queued" if decision == "auto" else "awaiting_approval"
+        created = {"policy_version": version, "decision": decision, "why": why}
+        note, events = None, []
+        for hit in self._caps_reached(request):
+            note = note or hit["note"]
+            events.append(("spend.cap_reached", {
+                "scope": hit["scope"], "cap": hit["cap"], "spent": hit["spent"],
+                "action": hit["action"], "phase": "antes", "kind": request.get("kind")}))
+            if hit["action"] == "pausar":
+                status = "awaiting_approval"
+                created["decision"], created["why"] = "ask", "limite de gasto atingido (pausar)"
+        if note and status != "awaiting_approval":
+            note = None  # só avisar: o job segue, o aviso fica no evento
+        return self.store.submit(request, risk, request_id, status=status, note=note,
+                                 created=created, events=events)
+
+    SCOPE_LABEL = {"per_job": "tarefa", "per_day": "dia", "per_month": "mês"}
+
+    def _caps_reached(self, request):
+        """Limites de gasto ja atingidos por este pedido. Nunca altera a politica."""
+        if request.get("kind") not in self.store.SPEND_PROVIDERS:
+            return []
+        cap = self.config.policy().get("spend_cap", {})
+        report = None
+        hits = []
+        action = cap.get("on_reach", "avisar")
+        declared = request.get("max_cost_usd")
+        if cap.get("per_job") is not None and type(declared) in (int, float) and declared > cap["per_job"]:
+            hits.append(("per_job", cap["per_job"], declared))
+        for scope, window in (("per_day", "today"), ("per_month", "month")):
+            if cap.get(scope) is None:
+                continue
+            report = report or self.store.spend()
+            total = report[window]["total_usd"]
+            spent = total if type(total) in (int, float) else 0
+            if spent >= cap[scope]:
+                hits.append((scope, cap[scope], spent))
+        return [{"scope": s, "cap": limit, "spent": spent, "action": action,
+                 "note": "Limite por %s atingido: gasto %s de %s. Aprove só se quiser continuar; "
+                         "o limite não muda sozinho." % (self.SCOPE_LABEL[s], spent, limit)}
+                for s, limit, spent in hits]
+
+    def _warn_after_finish(self, job):
+        """Avisa quando este job fez o gasto cruzar um limite."""
+        if job.get("status") != "completed" or job["request"].get("kind") not in self.store.SPEND_PROVIDERS:
+            return
+        cost = self.store.reported_cost(job.get("result"))
+        cap = self.config.policy().get("spend_cap", {})
+        if not cost:
+            return
+        action = cap.get("on_reach", "avisar")
+        report = self.store.spend()
+        crossed = []
+        if cap.get("per_job") is not None and cost > cap["per_job"]:
+            crossed.append(("per_job", cap["per_job"], cost))
+        for scope, window in (("per_day", "today"), ("per_month", "month")):
+            limit = cap.get(scope)
+            total = report[window]["total_usd"]
+            if limit is None or type(total) not in (int, float):
+                continue
+            if total - cost < limit <= total:
+                crossed.append((scope, limit, total))
+        for scope, limit, spent in crossed:
+            self.store.emit("spend.cap_reached", {
+                "scope": scope, "cap": limit, "spent": spent, "action": action,
+                "phase": "depois", "job_id": job["id"]})
 
     def approve(self, job_id):
         return self.store.approve(job_id)
@@ -79,7 +156,16 @@ class Engine:
                 with self.process_lock:
                     if job["id"] in self.cancelled:
                         raise adapters.ActionError("cancelled", "Execution cancelled")
-                outcome = adapters.dispatch(job["request"], self)
+                request = job["request"]
+                try:
+                    injected, info = routing.resolve(request, self.config.models())
+                except routing.ModelRefused as err:
+                    raise adapters.ActionError("model_denied", str(err))
+                if info is not None:
+                    self.store.emit("job.model", dict(info, id=job["id"]))
+                if injected:
+                    request = dict(request, model=injected)
+                outcome = adapters.dispatch(request, self)
             except adapters.ActionError as err:
                 self.store.finish(job["id"], "failed", error={
                     "code": err.code, "message": adapters.redact(str(err))[:2000]})
@@ -91,7 +177,12 @@ class Engine:
                     "code": "unexpected", "message": "Unexpected engine error; inspect local diagnostic logs"})
             else:
                 self.store.finish(job["id"], "completed", result=outcome)
-            return self.store.job(job["id"])
+            final = self.store.job(job["id"])
+            try:
+                self._warn_after_finish(final)
+            except Exception:
+                pass  # aviso de gasto nunca derruba o job
+            return final
         finally:
             with self.process_lock:
                 self.cancelled.discard(job["id"])
@@ -134,8 +225,15 @@ class Engine:
         valid = ("claude_cli", "gemini_cli", "agy_cli", "claude_api", "gemini_api")
         capabilities = self.capabilities()
         available = capabilities.get("providers", {})
+        models = self.config.models()
+        why_extra = None
         if preferred_provider in valid:
             provider = preferred_provider
+            cli_twin = {"claude_api": ("claude_cli", "claude"), "gemini_api": ("gemini_cli", "gemini")}.get(provider)
+            if (cli_twin and models.get("api_fallback") == "never" and models.get("prefer_subscription")
+                    and available.get(cli_twin[1], {}).get("installed")):
+                provider = cli_twin[0]
+                why_extra = "assinatura primeiro: usei o CLI logado em vez da API paga (api_fallback=never)"
         else:
             provider = next((kind for kind, executable in (
                 ("claude_cli", "claude"), ("gemini_cli", "gemini"), ("agy_cli", "agy"))
@@ -144,9 +242,21 @@ class Engine:
                       "agy_cli": "agy"}.get(provider)
         enabled = (available.get(executable, {}).get("installed", False) if executable else
                    capabilities.get("api", {}).get("claude" if provider == "claude_api" else "gemini", False))
-        return {"request": {"kind": provider, "prompt": text, "workspace": workspace},
-                "reason": "model required; prefer installed authenticated CLI, no automatic API billing",
-                "provider_installed_or_configured": bool(enabled), "requires_model": True}
+        proposed = {"kind": provider, "prompt": text, "workspace": workspace}
+        answer = {"request": proposed,
+                  "reason": "model required; prefer installed authenticated CLI, no automatic API billing",
+                  "provider_installed_or_configured": bool(enabled), "requires_model": True}
+        try:
+            picked, info = routing.resolve(proposed, models)
+        except routing.ModelRefused:
+            picked, info = None, None
+        if info is not None:
+            answer.update(info)
+            if why_extra:
+                answer["why"] = why_extra + "; " + info["why"]
+        elif why_extra:
+            answer["why"] = why_extra
+        return answer
 
     def add_schedule(self, request):
         if not isinstance(request, dict):

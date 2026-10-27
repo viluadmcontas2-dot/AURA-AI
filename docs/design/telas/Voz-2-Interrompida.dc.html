@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Voz, voltando a ouvir — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #9AA9FF;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes aura-ring{0%{transform:scale(.9);opacity:.5}100%{transform:scale(1.25);opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#0C0B12;color:#F4F3F8;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<div aria-hidden="true" style="position:absolute;left:-60px;top:20px;width:510px;height:510px;border-radius:50%;background:radial-gradient(circle at 50% 50%,rgba(140,157,255,.22) 0%,rgba(255,158,184,.10) 45%,rgba(12,11,18,0) 70%)"></div>
+
+<header style="position:relative;flex:none;height:84px;padding:32px 12px 0 24px;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:8px;font-size:15px;line-height:20px;font-weight:700"><span aria-hidden="true" style="display:block;width:8px;height:8px;border-radius:4px;background:#FFC76B"></span>Voltando a ouvir</div>
+<a href="Voz-3-Compacta.dc.html" aria-label="Minimizar voz" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:#A09EAA"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></a>
+</header>
+
+<main style="position:relative;flex:1;min-height:0;padding:0 28px;display:flex;flex-direction:column;align-items:flex-start">
+
+<h1 style="margin:8px 0 0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:38px;line-height:42px;letter-spacing:-.03em">Voltando a ouvir…</h1>
+
+<div style="margin-top:16px;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 16px 0 12px;border-radius:22px;background:#17161E;border:1px solid #2A2833;font-size:15px;line-height:21px;font-weight:600"><span aria-hidden="true" style="color:#FFC76B;display:flex"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>A ligação terminou</div>
+
+<div style="margin-top:24px;display:flex;align-items:center;gap:14px">
+<div aria-hidden="true" style="position:relative;width:56px;height:56px;flex:none;border-radius:50%;border:2px solid #9AA9FF;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:26px;color:#F4F3F8">3</div>
+<p role="status" style="margin:0;font-size:18px;line-height:24px;font-weight:700">Volto sozinho em 3 s</p>
+</div>
+
+<section aria-label="O que você já disse" style="margin-top:28px;width:100%">
+<h2 style="margin:0 0 8px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#A09EAA;text-transform:uppercase">O que você já disse</h2>
+<div style="padding:16px 18px;border-radius:24px;background:#17161E;border:1px solid #2A2833">
+<p style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:500;font-size:22px;line-height:30px;letter-spacing:-.01em;color:#F4F3F8">AURA, pega o aplicativo que eu comecei, arruma aquela tela horrível e deixa funcionando na minha<span aria-hidden="true" style="display:inline-block;width:2px;height:22px;margin-left:3px;vertical-align:-4px;background:#9AA9FF"></span></p>
+<p style="margin:8px 0 0;font-size:13px;line-height:18px;color:#A09EAA">Guardado. Nada se perde.</p>
+</div>
+</section>
+
+</main>
+
+<footer style="position:relative;flex:none;padding:0 28px 28px;display:flex;flex-direction:column;gap:8px">
+<a href="Voz-1-Ouvindo.dc.html" style="height:56px;border-radius:28px;background:#F4F3F8;color:#15141A;display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;line-height:24px;font-weight:700"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/></svg>Voltar a ouvir agora</a>
+<a href="Chat-1-Entendi.dc.html" style="height:52px;border-radius:26px;border:1px solid #2A2833;background:transparent;color:#F4F3F8;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:24px;font-weight:700">Enviar assim mesmo</a>
+<a href="Chat-2-Teclado-Comandos.dc.html" style="height:48px;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:24px;font-weight:700;color:#9AA9FF">Editar texto</a>
+<p style="margin:0;text-align:center;font-size:13px;line-height:18px;color:#A09EAA">Só peço um toque se o Android exigir.</p>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

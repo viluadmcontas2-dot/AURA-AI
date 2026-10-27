@@ -1,150 +1,99 @@
 package ai.aura.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import ai.aura.app.integration.AuraEngineClient
 import ai.aura.app.integration.EngineCredentialStore
-import ai.aura.app.integration.PairState
+import ai.aura.app.integration.RealEngineGateway
 import ai.aura.app.integration.TermuxBridge
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import org.json.JSONObject
+import ai.aura.app.permissions.AppPermissions
+import ai.aura.app.ui.AuraApp
 
-/** Temporary integration harness. Claude owns the final Compose AURA + lifeOS screens. */
+/** Native AURA shell. No simulated provider results are ever shown in production. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Guarda o último erro que fechou o app, para mostrar na próxima abertura (sem logcat).
+        val crashFile = java.io.File(filesDir, "last_crash.txt")
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { crashFile.writeText(error.stackTraceToString().take(6000)) }
+            previousHandler?.uncaughtException(thread, error)
+        }
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        val bridge = TermuxBridge(this)
-        val client = AuraEngineClient(EngineCredentialStore(this))
+        // Só preferências de UI (onboarding e rascunho). Nunca token ou segredo aqui.
+        val prefs = getSharedPreferences("aura_prefs", MODE_PRIVATE)
+        // Pede de uma vez tudo que o app usa (notificação, mídia, Bluetooth, Wi-Fi, microfone, câmera).
+        // Depois, abre uma vez a tela de "acesso a todos os arquivos", que o Android só libera por lá.
+        val askAll = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+        ) { askAllFilesOnce(prefs) }
+        val missing = AppPermissions.missing(android.os.Build.VERSION.SDK_INT) {
+            checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) runCatching { askAll.launch(missing.toTypedArray()) } else askAllFilesOnce(prefs)
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme(
-                background = Color(0xFFF5F4F1), surface = Color.White,
-                onBackground = Color(0xFF15141A), primary = Color(0xFF15141A))) {
-                IntegrationHarness(bridge, client, onPermission = { bridge.askPermission(this) })
+            val gateway = remember {
+                RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext)))
             }
-        }
-    }
-}
-
-@Composable
-private fun IntegrationHarness(
-    bridge: TermuxBridge,
-    client: AuraEngineClient,
-    onPermission: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    var prompt by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Motor não verificado") }
-    var activeJob by remember { mutableStateOf("") }
-    val pairStatus by PairState.message.collectAsState()
-
-    LaunchedEffect(activeJob) {
-        if (activeJob.isBlank()) return@LaunchedEffect
-        repeat(120) {
-            delay(1000)
-            val state = runCatching { client.job(activeJob) }.getOrNull() ?: return@repeat
-            status = state.optString("status", "desconhecido")
-            if (status in listOf("completed", "cancelled", "failed", "interrupted")) {
-                val outcome = state.optJSONObject("result")
-                val failure = state.optJSONObject("error")
-                status = if (status == "completed") {
-                    "Concluído. " + (outcome?.optString("stdout", outcome.toString()) ?: "")
-                } else {
-                    "Falha: " + (failure?.optString("message", status) ?: status)
-                }
-                return@LaunchedEffect
-            }
-        }
-    }
-    Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFFF5F4F1)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize().imePadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("aura", style = MaterialTheme.typography.headlineMedium)
-            Text("Integração Android + Termux", style = MaterialTheme.typography.titleLarge)
-            Text("Interface de diagnóstico. O design final está sendo integrado a partir da PR #1.")
-            Text("Pareamento: " + pairStatus)
-            Button(onClick = onPermission, modifier = Modifier.fillMaxWidth()) {
-                Text("Autorizar acesso ao Termux")
-            }
-            Button(onClick = {
-                runCatching { bridge.pair() }.onFailure { status = it.message ?: "Erro no pareamento" }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Conectar motor local") }
-            Button(onClick = {
-                runCatching { bridge.startEngine() }
-                    .onFailure { status = it.message ?: "Falha ao iniciar" }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Iniciar AURA Engine") }
-            Button(onClick = {
-                scope.launch {
-                    status = runCatching { client.health().toString() }
-                        .getOrElse { it.message ?: "Conexão indisponível" }
-                }
-            }, modifier = Modifier.fillMaxWidth()) { Text("Verificar conexão real") }
-            OutlinedTextField(
-                value = prompt,
-                onValueChange = { prompt = it },
-                label = { Text("Sua ideia ou comando") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2
-            )
-            Button(
-                enabled = prompt.isNotBlank(),
-                onClick = {
-                    scope.launch {
-                        status = "Interpretando..."
-                        try {
-                            val routing = client.route(prompt)
-                            val submitted = client.submit(routing.getJSONObject("request"))
-                            activeJob = submitted.getString("id")
-                            status = submitted.optString("status")
-                        } catch (e: Exception) {
-                            status = e.message ?: "Erro ao enviar"
-                        }
+            var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
+            AuraApp(
+                lastCrash = lastCrash,
+                onDismissCrash = {
+                    runCatching { crashFile.delete() }
+                    lastCrash = null
+                },
+                gateway = gateway,
+                onOpenUrl = { url ->
+                    val uri = runCatching { Uri.parse(url) }.getOrNull()
+                    if (uri?.scheme == "https" && !uri.host.isNullOrBlank()) {
+                        // Sem navegador instalado o app não fecha.
+                        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Enviar ao motor") }
-            if (activeJob.isNotBlank() && status == "awaiting_approval") {
-                Button(onClick = {
-                    scope.launch { status = runCatching {
-                        client.approve(activeJob).optString("status")
-                    }.getOrElse { it.message ?: "Erro na autorização" } }
-                }) { Text("Autorizar tarefa selecionada") }
-            }
-            Text("Estado real: " + status)
-            Spacer(Modifier.height(20.dp))
+                onRequestTermuxPermission = {
+                    runCatching { TermuxBridge(this).askPermission(this) }
+                },
+                onOpenTermux = {
+                    runCatching {
+                        packageManager.getLaunchIntentForPackage("com.termux")?.let { startActivity(it) }
+                    }
+                },
+                // Sinais locais do aparelho: Termux instalado e permissão RUN_COMMAND concedida.
+                termuxInstalled = {
+                    runCatching { packageManager.getLaunchIntentForPackage("com.termux") != null }.getOrDefault(false)
+                },
+                termuxPermissionGranted = {
+                    runCatching { TermuxBridge(this).hasPermission() }.getOrDefault(false)
+                },
+                onboardingDone = prefs.getBoolean("onboarding_done", false),
+                onOnboardingFinished = { prefs.edit().putBoolean("onboarding_done", true).apply() },
+                initialDraft = prefs.getString("draft", "") ?: "",
+                onSaveDraft = { prefs.edit().putString("draft", it).apply() },
+            )
+        }
+    }
+
+    private fun askAllFilesOnce(prefs: android.content.SharedPreferences) {
+        if (android.os.Build.VERSION.SDK_INT < 30 || android.os.Environment.isExternalStorageManager()) return
+        if (prefs.getBoolean("all_files_asked", false)) return
+        prefs.edit().putBoolean("all_files_asked", true).apply()
+        runCatching {
+            startActivity(
+                Intent(
+                    android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
         }
     }
 }

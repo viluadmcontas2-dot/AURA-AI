@@ -1,0 +1,11 @@
+# Cache e build locais do Gradle/Android (não versionar)
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# wrapper gerado para validação local (a CI usa o Gradle do sistema)
+/gradlew
+/gradlew.bat
+/gradle/

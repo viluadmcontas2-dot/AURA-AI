@@ -5,7 +5,58 @@ import os
 import secrets
 
 
+ROOT_COMMANDS = ("su", "tsu")
+
+
 class RiskPolicy:
+    """Classifica o risco e decide, com base em policy.json lido a cada chamada, se pede aprovacao."""
+
+    def __init__(self, config=None):
+        self.config = config
+
+    @staticmethod
+    def root_command(request):
+        """Nome do comando root pedido (su/tsu), 'root' para kind root, ou None."""
+        if request.get("kind") == "root":
+            argv = request.get("argv")
+            return argv[0] if isinstance(argv, list) and argv and argv[0] in ROOT_COMMANDS else "root"
+        if request.get("kind") in ("shell", "adb"):
+            argv = request.get("argv")
+            if isinstance(argv, list) and argv and isinstance(argv[0], str) and argv[0] in ROOT_COMMANDS:
+                return argv[0]
+        return None
+
+    def decide(self, request, risk):
+        """(decisao, motivo, versao). Levanta ValueError se a politica proibe (root desligado)."""
+        policy = self.config.policy() if self.config is not None else {}
+        version = policy.get("version", 0)
+        mode = policy.get("mode", "pergunta")
+        kind = request.get("kind")
+        root = self.root_command(request)
+        if root is not None:
+            allowed = policy.get("root", {})
+            if not allowed.get("enabled") or (root != "root" and root not in allowed.get("via", [])):
+                raise ValueError("root não permitido pela política: ligue root e o comando em Ajustes")
+        tag = "política v%s (%s)" % (version, mode)
+        if mode == "total":
+            return "auto", "%s: tudo automático" % tag, version
+        by_risk = policy.get("by_risk", {})
+        by_kind = policy.get("by_kind", {})
+        if mode == "pergunta":
+            if risk == "read":
+                return "auto", "%s: leitura é automática" % tag, version
+            return "ask", "%s: pergunta antes de agir" % tag, version
+        if mode == "equilibrado" and risk in ("spend", "critical"):
+            return "ask", "%s: %s sempre pergunta" % (tag, risk), version
+        if by_risk.get(risk, "ask") != "auto":
+            return "ask", "%s: risco %s pede aprovação" % (tag, risk), version
+        if risk != "read":
+            if root is not None and by_kind.get("root", "ask") != "auto":
+                return "ask", "%s: root pede aprovação" % tag, version
+            if by_kind.get(kind, "auto") != "auto":
+                return "ask", "%s: tipo %s pede aprovação" % (tag, kind), version
+        return "auto", "%s: risco %s=auto" % (tag, risk), version
+
     def classify(self, request):
         kind = request.get("kind")
         action = request.get("action", "")

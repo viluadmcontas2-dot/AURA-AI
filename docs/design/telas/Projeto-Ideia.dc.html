@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Contar a ideia — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-blink{0%,100%{opacity:1}50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+<header style="flex:none;height:84px;padding:32px 8px 0;display:flex;align-items:center;gap:4px">
+<a href="Main.dc.html" aria-label="Voltar para o início" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="font-size:17px;line-height:22px;font-weight:700">Novo aplicativo</div>
+</header>
+<main style="flex:1;min-height:0;padding:16px 20px 0;display:flex;flex-direction:column;gap:20px">
+<div>
+<h1 style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:34px;line-height:38px;letter-spacing:-.03em;text-wrap:balance">Qual é a sua ideia?</h1>
+<p style="margin:8px 0 0;font-size:16px;line-height:23px;color:#4F4C57">Conte do seu jeito, em uma frase. Eu organizo o resto.</p>
+</div>
+<div style="background:#FFFFFF;border:1px solid #D5D1C7;border-radius:24px;padding:16px 16px 12px;box-shadow:0 10px 30px rgba(21,20,26,.06)">
+<p style="margin:0;min-height:96px;font-size:19px;line-height:28px">Um app de finanças para eu controlar meus gastos e metas do mês<span aria-hidden="true" style="display:inline-block;width:2px;height:22px;margin-left:3px;vertical-align:-4px;background:#3340C9;animation:aura-blink 1s step-end infinite"></span></p>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+<span style="font-size:13px;line-height:18px;color:#4F4C57">Pode falar ou escrever</span>
+<a href="Voz-1-Ouvindo.dc.html" aria-label="Falar a ideia" style="width:44px;height:44px;border-radius:22px;background:#EEECE7;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></a>
+</div>
+</div>
+<div>
+<div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57;margin-bottom:8px">SEM IDEIA AINDA? TOQUE EM UMA</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px"><a href="Projeto-Novo.dc.html" style="min-height:44px;padding:0 16px;border-radius:22px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;font-size:15px;font-weight:600">Controle de gastos</a><a href="Projeto-Novo.dc.html" style="min-height:44px;padding:0 16px;border-radius:22px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;font-size:15px;font-weight:600">Player de música para o carro</a><a href="Projeto-Novo.dc.html" style="min-height:44px;padding:0 16px;border-radius:22px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;font-size:15px;font-weight:600">Lista de tarefas</a></div>
+</div>
+<p style="margin:0;font-size:14px;line-height:20px;color:#4F4C57">Não precisa de detalhes. Se faltar algo importante, eu pergunto uma vez só.</p>
+</main>
+<footer style="flex:none;padding:12px 20px 28px">
+<a href="Projeto-Novo.dc.html" style="height:56px;border-radius:28px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700">Organizar minha ideia</a>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

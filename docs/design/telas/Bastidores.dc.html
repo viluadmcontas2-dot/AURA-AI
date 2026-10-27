@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Bastidores — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #9AA9FF;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#0F0E14;color:#F4F3F8;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:84px;padding:32px 8px 0;display:flex;align-items:center;gap:4px">
+<a href="Chat-5-Resultado.dc.html" aria-label="Voltar para o resultado" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0">
+<h1 style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:22px;line-height:26px;letter-spacing:-.03em">Bastidores</h1>
+<div style="font-size:13px;line-height:16px;color:#A09EAA">Corrigir tela de login · Minhas Finanças</div>
+</div>
+</header>
+
+<main style="flex:1;min-height:0;padding:8px 20px 0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+
+<div style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:16px;background:#17161E;border:1px solid #2A2833">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9AA9FF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+<p style="margin:0;font-size:14px;line-height:20px;color:#F4F3F8">É o que o AURA fez por baixo. Você não precisa entender, mas pode conferir tudo.</p>
+</div>
+
+<div role="tablist" aria-label="Seções dos bastidores" style="flex:none;display:flex;gap:4px;padding:4px;border-radius:24px;background:#17161E;border:1px solid #2A2833">
+<button type="button" role="tab" aria-selected="true" style="flex:1;height:44px;border-radius:20px;border:0;background:#F4F3F8;color:#15141A;font-size:14px;font-weight:700">Comandos 14</button>
+<button type="button" role="tab" aria-selected="false" style="flex:1;height:44px;border-radius:20px;border:0;background:transparent;color:#A09EAA;font-size:14px;font-weight:600">Logs</button>
+<button type="button" role="tab" aria-selected="false" style="flex:1;height:44px;border-radius:20px;border:0;background:transparent;color:#A09EAA;font-size:14px;font-weight:600">Mudanças 3</button>
+</div>
+
+<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+
+<li style="padding:10px 14px;border-radius:16px;background:#17161E;border:1px solid #2A2833">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:#9AA9FF">$ </span>git pull origin main</div>
+<div style="margin-top:4px;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#A09EAA"><span style="display:flex;align-items:center;gap:6px;color:#6EE7A8;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>ok</span>0,9 s<span style="margin-left:auto;padding:1px 10px;border-radius:10px;background:#1F1E28;color:#A09EAA;font-size:12px;line-height:18px;font-weight:700">Só lê</span></div>
+</li>
+
+<li style="padding:10px 14px 12px;border-radius:16px;background:#17161E;border:1px solid #9AA9FF">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:#9AA9FF">$ </span>./gradlew testDebugUnitTest</div>
+<div style="margin-top:4px;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#A09EAA"><span style="display:flex;align-items:center;gap:6px;color:#6EE7A8;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>ok</span>41 s</div>
+<div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:#0C0B12;border:1px solid #2A2833;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:18px;color:#A09EAA">
+<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&gt; Task :app:compileDebugKotlin</div>
+<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&gt; Task :app:testDebugUnitTest</div>
+<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">LoginScreenTest &gt; botão Entrar PASSED</div>
+<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">LoginScreenTest &gt; layout 16:9 PASSED</div>
+<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">BUILD SUCCESSFUL in 41s</div>
+<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#6EE7A8;font-weight:500">12 tests completed, 0 failed</div>
+</div>
+<div style="margin-top:8px;display:flex;gap:6px">
+<button type="button" style="flex:none;height:44px;padding:0 14px;border-radius:22px;border:1px solid #2A2833;background:#1F1E28;color:#F4F3F8;font-size:13px;font-weight:600">Copiar</button>
+<button type="button" style="flex:none;height:44px;padding:0 14px;border-radius:22px;border:1px solid #2A2833;background:#1F1E28;color:#F4F3F8;font-size:13px;font-weight:600">Rodar de novo</button>
+<button type="button" style="flex:1;min-width:0;height:44px;padding:0 10px;border-radius:22px;border:0;background:#F4F3F8;color:#15141A;font-size:13px;font-weight:700;white-space:nowrap">Explicar simples</button>
+</div>
+</li>
+
+<li style="padding:10px 14px;border-radius:16px;background:#17161E;border:1px solid #2A2833">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:#9AA9FF">$ </span>git commit -m "Corrige layout da tela de login"</div>
+<div style="margin-top:4px;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#A09EAA"><span style="display:flex;align-items:center;gap:6px;color:#6EE7A8;font-weight:700"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>ok</span>0,3 s<span style="margin-left:auto;padding:1px 10px;border-radius:10px;background:rgba(255,199,107,.14);color:#FFC76B;font-size:12px;line-height:18px;font-weight:700">Altera arquivos</span></div>
+</li>
+
+<li style="padding:10px 14px;border-radius:16px;background:#17161E;border:1px solid #2A2833">
+<div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:#9AA9FF">$ </span>gh run watch</div>
+<div style="margin-top:4px;display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#A09EAA"><span style="display:flex;align-items:center;gap:6px;color:#9AA9FF;font-weight:700"><span aria-hidden="true" style="width:14px;height:14px;border-radius:7px;background:linear-gradient(135deg,#8C9DFF,#FF9EB8,#FFB48C);display:flex;align-items:center;justify-content:center"><span style="display:block;width:8px;height:8px;border-radius:4px;background:#17161E"></span></span>rodando</span>1 min 12 s</div>
+</li>
+
+</ul>
+
+</main>
+
+<div style="flex:none;padding:8px 16px 12px">
+<div style="display:flex;align-items:center;gap:6px;height:60px;padding:8px;background:#17161E;border:1px solid #2A2833;border-radius:30px">
+<a href="Chat-2-Teclado-Comandos.dc.html" style="flex:1;min-width:0;height:44px;padding:0 14px;display:flex;align-items:center;font-size:16px;color:#A09EAA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Pergunte sobre este comando…</a>
+<a href="Voz-1-Ouvindo.dc.html" aria-label="Perguntar por voz" style="flex:none;width:44px;height:44px;border-radius:22px;background:#F4F3F8;color:#15141A;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></a>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
