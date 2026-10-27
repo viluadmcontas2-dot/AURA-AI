@@ -40,3 +40,9 @@ Use `status`, `risk`, `result`, `error.code`, `events` to paint the interface. N
 - Network/provider offline, expired credentials and missing executable: distinct errors and actionable next step.
 - Cancellation: best effort terminates subprocess and persists cancelled. A provider response arriving late must not overwrite cancelled status.
 - Secrets: redacted before event persistence where known; no stdout of login/auth commands.
+
+## Additional verified protocol interfaces
+GET `/v1/usage`: aggregate actually reported model input/output/cache tokens, with no guessed money values.
+Request kind `drive`: `list`, `download`, `upload` against a user-configured rclone remote. Upload needs critical approval.
+The engine uses a bounded parallel worker pool, default 2 and max 4. Cancelling a job targets its own process only.
+One-time Android pairing runs `python -m aura_engine.pair --emit-token` **only** through the user-authorised Termux RUN_COMMAND result channel. The token must be stored privately in the Android application; plain `python -m aura_engine.pair` never prints it.
