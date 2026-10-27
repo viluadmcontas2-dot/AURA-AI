@@ -18,9 +18,11 @@ One extensible runtime, with modules for authenticated device-local RPC, durable
 ## Quick start in Termux
 
 ```sh
-pkg install python
-git clone https://github.com/viluadmcontas2-dot/AURA-AI.git
+pkg install -y python git gh android-tools
+gh auth login
+gh repo clone viluadmcontas2-dot/AURA-AI
 cd AURA-AI/engine
+python -m unittest discover -s tests -v
 python -m aura_engine
 ```
 
@@ -31,3 +33,7 @@ See `docs/ENGINE_CONTRACT.md` and `docs/OPERATIONS.md` before wiring the Android
 ## Evidence standard
 
 An adapter being present is not equivalent to authentication, functionality or compatibility on a given Android. CI and actual-device checks are separate gates. Never report tests green or production-ready unless current evidence supports the claim.
+
+## Current implementation / evidence
+
+See [implementation ledger](docs/ENGINE_IMPLEMENTATION_STATE.md), [traceability matrix](docs/TRACEABILITY.md), [Android design handoff](docs/ANDROID_HANDOFF.md) and [GitHub CI](.github/workflows/engine-ci.yml). Source published does not imply CI or real-device verification. Engine includes headless Claude/Gemini/Antigravity sessions, scheduling, approvals, ADB, GitHub, files, Drive, local skills, usage and a doctor. Native Android UI is built in parallel and is not present in this repository yet.
