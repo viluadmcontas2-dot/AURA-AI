@@ -42,6 +42,13 @@ class MainActivity : ComponentActivity() {
                         packageManager.getLaunchIntentForPackage("com.termux")?.let { startActivity(it) }
                     }
                 },
+                // Sinais locais do aparelho: Termux instalado e permissão RUN_COMMAND concedida.
+                termuxInstalled = {
+                    runCatching { packageManager.getLaunchIntentForPackage("com.termux") != null }.getOrDefault(false)
+                },
+                termuxPermissionGranted = {
+                    runCatching { TermuxBridge(this).hasPermission() }.getOrDefault(false)
+                },
                 onboardingDone = prefs.getBoolean("onboarding_done", false),
                 onOnboardingFinished = { prefs.edit().putBoolean("onboarding_done", true).apply() },
                 initialDraft = prefs.getString("draft", "") ?: "",

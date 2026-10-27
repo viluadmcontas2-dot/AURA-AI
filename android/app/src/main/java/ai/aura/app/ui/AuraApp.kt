@@ -67,6 +67,7 @@ import ai.aura.app.ui.screens.onboarding.AccountId
 import ai.aura.app.ui.screens.onboarding.AccountState
 import ai.aura.app.ui.screens.onboarding.OnboardingFlow
 import ai.aura.app.ui.screens.onboarding.TermuxSetupState
+import ai.aura.app.ui.screens.onboarding.termuxSetupFrom
 import ai.aura.app.ui.screens.onboarding.defaultAccounts
 import ai.aura.app.ui.screens.settings.SettingsScreen
 import ai.aura.app.ui.theme.AuraColors
@@ -93,6 +94,8 @@ fun AuraApp(
     onOpenUrl: (String) -> Unit = {},
     onRequestTermuxPermission: () -> Unit = {},
     onOpenTermux: () -> Unit = {},
+    termuxInstalled: () -> Boolean = { false },
+    termuxPermissionGranted: () -> Boolean = { false },
     onboardingDone: Boolean = false,
     onOnboardingFinished: () -> Unit = {},
     initialDraft: String = "",
@@ -124,6 +127,8 @@ fun AuraApp(
                     gateway, onOpenUrl,
                     onRequestTermuxPermission = onRequestTermuxPermission,
                     onOpenTermux = onOpenTermux,
+                    termuxInstalled = termuxInstalled,
+                    termuxPermissionGranted = termuxPermissionGranted,
                     onFinished = { onboardingDoneState = true; onOnboardingFinished() },
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
@@ -170,6 +175,8 @@ private fun OnboardingHost(
     onOpenUrl: (String) -> Unit,
     onRequestTermuxPermission: () -> Unit,
     onOpenTermux: () -> Unit,
+    termuxInstalled: () -> Boolean,
+    termuxPermissionGranted: () -> Boolean,
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -194,8 +201,8 @@ private fun OnboardingHost(
     }
     LaunchedEffect(gateway, tick) {
         val caps = runCatching { gateway.capabilities() }.getOrNull()
-        val up = caps?.any { it.id == "termux" && it.available } == true
-        termux = TermuxSetupState(termuxFound = up, permissionGranted = up, externalAppsAllowed = up)
+        val engineUp = caps?.any { it.id == "termux" && it.available } == true
+        termux = termuxSetupFrom(termuxInstalled(), termuxPermissionGranted(), engineUp)
         val statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList())
         accounts = AccountId.entries.map { id ->
             val st = statuses.firstOrNull { it.provider == providerOf(id) }
