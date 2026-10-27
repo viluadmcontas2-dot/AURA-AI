@@ -8,3 +8,10 @@ Telas: `telas/Voz-1..4-*.dc.html`. Eventos: `telas/Contrato.dc.html`.
 4. Só "parar" ou "fazer agora" confirmado interrompe. O interrompido fica salvo no último checkpoint e pode ser retomado.
 5. Padrão do app: aplicar a recomendação sozinho em 5 s, com botão "Mudar" (menos atrito).
 6. Android: microfone em segundo plano exige serviço em primeiro plano iniciado por ação do usuário. Padrão: apertar para falar; mãos livres é opcional (modo carro).
+
+## Microfone sem toque repetido
+Telas: `telas/Voz-2-Interrompida`, `telas/Voz-5-Modos`, `telas/Notificacoes`.
+- Modos: Apertar e falar (padrão), Conversa (envia sozinho após ~1,5 s de silêncio e volta a ouvir), Mãos livres no carro (chamar pelo nome, opcional, desligado).
+- Interrupção (ligação, outro app, Bluetooth) pausa e retoma sozinha quando a causa termina; só pede toque se o Android exigir.
+- Segundo plano: serviço em primeiro plano com notificação "AURA ouvindo"; só pode ser iniciado com o app aberto.
+- Recepção: a skill de clareza interpreta a fala antes da triagem (conteúdo da skill ainda não recebido; link do ChatGPT exigia login).

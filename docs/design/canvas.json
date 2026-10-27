@@ -304,7 +304,7 @@
       "x": 3616,
       "y": -2500,
       "w": 1280,
-      "h": 1800,
+      "h": 1920,
       "title": "00b · Plano e contrato",
       "radius": 24
     },
@@ -396,6 +396,15 @@
       "title": "12 · Pedido novo no meio",
       "radius": 36,
       "is_interactive": true
+    },
+    "Voz-5-Modos.dc.html": {
+      "x": 4230,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "13 · Modos do microfone",
+      "radius": 36,
+      "is_interactive": true
     }
   },
   "order": [
@@ -414,6 +423,7 @@
     "Projeto-Novo.dc.html",
     "Voz-3-Compacta.dc.html",
     "Voz-4-Triagem.dc.html",
+    "Voz-5-Modos.dc.html",
     "Chat-3-Executando.dc.html",
     "Chat-4-Aprovacao.dc.html",
     "Bastidores.dc.html",
@@ -499,7 +509,7 @@
       "y": 1200,
       "text": "2 · Pedir ao AURA",
       "kind": "title1",
-      "maxW": 4150
+      "maxW": 4620
     },
     "t3": {
       "x": 0,
@@ -640,6 +650,13 @@
       "w": 390,
       "fill": "teal",
       "text": "Tudo que você diz é classificado: pergunta, ajuste, novo pedido ou parar. Novo pedido entra na fila. Só parar, ou fazer agora confirmado, interrompe, e o atual fica salvo."
+    },
+    "n13": {
+      "x": 4230,
+      "y": 2384,
+      "w": 390,
+      "fill": "green",
+      "text": "Sem tocar em continuar toda hora: a voz se recupera sozinha de ligação, Bluetooth ou outro app. Só pede toque quando o Android exigir."
     }
   },
   "designSystems": []
