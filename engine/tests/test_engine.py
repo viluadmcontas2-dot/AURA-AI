@@ -36,6 +36,13 @@ class EngineContracts(unittest.TestCase):
         with urllib.request.urlopen(cancel, timeout=3) as r:
             self.assertEqual(json.load(r)["status"], "cancelled")
 
+    def test_SKILL_discovery_of_builtin_manifest(self):
+        from aura_engine.adapters import scan_skills
+        ids = {s["id"] for s in scan_skills(self.home)}
+        self.assertIn("vibe-coding", ids)
+        self.assertIn("android-diagnosis", ids)
+        self.assertIn("file-organization", ids)
+
     def test_PROVIDER_resume_uses_exact_session(self):
         valid = "055a398f-db14-4c5f-abbb-1bf03f8120a7"
         for kind, flag in (("claude_cli", "--resume"), ("gemini_cli", "--resume"),
