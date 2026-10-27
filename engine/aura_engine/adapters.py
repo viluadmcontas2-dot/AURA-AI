@@ -95,25 +95,37 @@ def run_process(argv, cwd, engine, timeout=180, binary=False):
 
 
 def scan_skills(home):
-    root = home / "skills"
-    if not root.is_dir():
-        return []
-    result = []
-    for p in sorted(root.glob("*/SKILL.md"))[:100]:
-        if p.is_symlink() or not p.resolve().is_relative_to(root.resolve()):
+    """Discover trusted bundled and user-supplied SKILL.md files by metadata."""
+    builtin = pathlib.Path(__file__).resolve().parent.parent / "skills"
+    roots = [builtin, home / "skills"]
+    result, seen = [], set()
+    for root in roots:
+        if not root.is_dir():
             continue
-        doc = p.read_text("utf-8", errors="replace")[:50000]
-        name = p.parent.name
-        description = ""
-        if doc.startswith("---"):
-            head = doc.split("---", 2)[1]
-            for line in head.splitlines():
+        for p in sorted(root.glob("*/SKILL.md"))[:100]:
+            if p.is_symlink() or not p.resolve().is_relative_to(root.resolve()):
+                continue
+            skill_id = p.parent.name
+            if skill_id in seen or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", skill_id):
+                continue
+            doc = p.read_text("utf-8", errors="replace")[:50000]
+            if not doc.startswith("---"):
+                continue
+            parts = doc.split("---", 2)
+            if len(parts) < 3:
+                continue
+            name, description = "", ""
+            for line in parts[1].splitlines():
                 if line.startswith("name:"):
                     name = line[5:].strip().strip('"')
                 elif line.startswith("description:"):
                     description = line[12:].strip().strip('"')
-        result.append({"id": p.parent.name, "name": name,
-                       "description": description, "path": str(p)})
+            if name != skill_id or not 1 <= len(description) <= 1024:
+                continue
+            seen.add(skill_id)
+            result.append({"id": skill_id, "name": name,
+                           "description": description, "path": str(p),
+                           "origin": "bundled" if root == builtin else "user"})
     return result
 
 
