@@ -10,7 +10,7 @@ class RiskPolicy:
         kind = request.get("kind")
         action = request.get("action", "")
         if kind == "system":
-            return "read" if action in {"health", "capabilities", "pwd"} else "critical"
+            return "read" if action in {"health", "capabilities", "pwd", "doctor"} else "critical"
         if kind == "adb":
             return {"devices": "read", "getprop": "read", "screenshot": "read",
                     "connect": "write", "shell": "critical", "install": "critical"}.get(action, "critical")
