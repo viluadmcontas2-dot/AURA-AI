@@ -159,7 +159,9 @@ class MemoryItems(MemoryBase):
     def test_MEM_get_and_post_still_require_the_token(self):
         self.make_engine()
         self.assertEqual(self.call("GET", "/v1/memory", auth=False)[0], 401)
-        self.assertEqual(self.call("POST", "/v1/memory", {"key": "k", "value": "v"}, auth=False)[0], 401)
+        # sem corpo de proposito: o motor responde 401 antes de ler o corpo e, no Windows, fechar o
+        # socket com corpo pendente pode derrubar a resposta no cliente (WinError 10053)
+        self.assertEqual(self.call("POST", "/v1/memory", auth=False)[0], 401)
         self.assertEqual(self.entries(), [])
 
 
@@ -215,11 +217,11 @@ class ForgetOne(MemoryBase):
 
     def test_FORGET_delete_never_reaches_the_post_routes(self):
         self.make_engine()
-        job = {"request": {"kind": "system", "action": "health"}}
-        for path, body in (("/v1/jobs", job), ("/v1/schedules", {"every_seconds": 60, **job}),
-                           ("/v1/route", {"text": "listar dispositivos"}), ("/v1/policy", {"mode": "total"})):
+        # Sem corpo, uma rota de POST que recebesse o DELETE responderia 400 ("corpo JSON ausente"),
+        # nao 404. (Sem corpo tambem evita a corrida de socket do Windows: o 404 sai sem ler o corpo.)
+        for path in ("/v1/jobs", "/v1/schedules", "/v1/route", "/v1/policy", "/v1/auth/start"):
             with self.subTest(path=path):
-                self.assertEqual(self.call("DELETE", path, body)[0], 404)
+                self.assertEqual(self.call("DELETE", path)[0], 404)
         self.assertEqual(self.engine.store.jobs(), [])
         self.assertEqual(self.engine.store.schedules(), [])
         self.assertEqual(self.engine.config.policy()["version"], 1)
