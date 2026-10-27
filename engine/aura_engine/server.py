@@ -119,7 +119,10 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         return self.send(202, engine.trigger_schedule(parts[3]))
                 return self.send(404, {"error": {"code": "not_found", "message": "Unknown endpoint"}})
             except (ValueError, KeyError) as error:
-                return self.send(400, {"error": {"code": "invalid_request", "message": str(error)[:300]}})
+                conflict = "idempotency key reused" in str(error)
+                return self.send(409 if conflict else 400, {"error": {
+                    "code": "conflict" if conflict else "invalid_request",
+                    "message": str(error)[:300]}})
             except Exception:
                 return self.send(500, {"error": {"code": "internal", "message": "Unexpected engine fault"}})
 
