@@ -99,7 +99,7 @@ fun ActivityTab(
         }
     }
 
-    fun run(block: suspend () -> Unit) {
+    fun launchAction(block: suspend () -> Unit) {
         scope.launch {
             try {
                 block()
@@ -119,9 +119,9 @@ fun ActivityTab(
         events = events,
         now = System.currentTimeMillis(),
         actionError = actionError,
-        onApprove = { run { gateway.approve(it.id) } },
-        onRefuse = { run { gateway.cancel(it.id) } },
-        onCancel = { run { gateway.cancel(it.id) } },
+        onApprove = { launchAction { gateway.approve(it.id) } },
+        onRefuse = { launchAction { gateway.cancel(it.id) } },
+        onCancel = { launchAction { gateway.cancel(it.id) } },
         onReload = { tick++ },
         onRetry = onRetry,
         onStartRequest = onStartRequest,
