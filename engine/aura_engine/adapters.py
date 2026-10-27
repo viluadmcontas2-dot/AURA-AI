@@ -291,6 +291,17 @@ def dispatch(request, engine):
             argv = ["gemini", "-p", prompt, "--output-format", "json"]
         else:
             argv = ["agy", "-p", prompt, "--output-format", "json"]
+        sid = request.get("session_id")
+        if sid is not None:
+            if not isinstance(sid, str) or not re.fullmatch(
+                    r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}", sid):
+                raise ActionError("invalid_session", "Session ID must be a UUID")
+            argv.extend(["--conversation" if kind == "agy_cli" else "--resume", sid])
+        model = request.get("model")
+        if model is not None:
+            if not isinstance(model, str) or not re.fullmatch(r"[a-zA-Z0-9._/-]{1,120}", model):
+                raise ActionError("invalid_model", "Invalid CLI model identifier")
+            argv.extend(["--model", model])
         result = run_process(argv, root, engine, request.get("timeout", 600))
         try:
             parsed = json.loads(result["stdout"])
@@ -298,6 +309,8 @@ def dispatch(request, engine):
                 raise ValueError("not an object")
         except (ValueError, TypeError):
             raise ActionError("invalid_provider_response", "CLI did not return expected JSON")
+        if parsed.get("is_error") is True or parsed.get("error"):
+            raise ActionError("provider_failed", "Provider returned a structured failure")
         if kind == "agy_cli" and parsed.get("status") != "SUCCESS":
             raise ActionError("provider_failed", "Antigravity reported non-success; verify authentication and permissions")
         if result.get("stderr") and ("permission" in result["stderr"].lower() or
