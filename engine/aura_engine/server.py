@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import adapters
+from .config import ConfigError, VersionConflict
 
 
 class LocalOnlyHTTP(ThreadingHTTPServer):
@@ -72,6 +73,14 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         return self.send(200, {"skills": adapters.scan_skills(engine.home)})
                     if path == "/v1/usage":
                         return self.send(200, engine.store.usage())
+                    if path == "/v1/auth/status":
+                        return self.send(200, engine.auth.status())
+                    if path == "/v1/policy":
+                        return self.send(200, engine.config.policy())
+                    if path == "/v1/models":
+                        return self.send(200, engine.config.models())
+                    if path == "/v1/spend":
+                        return self.send(200, engine.store.spend())
                     if path == "/v1/memory":
                         return self.send(200, {"entries": engine.store.recall(
                             params.get("workspace", ["default"])[0],
@@ -82,6 +91,14 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         job = engine.store.job(parts[3])
                         return self.send(200, job) if job else self.send(404, {"error": "job not found"})
                 else:
+                    if method == "POST" and path == "/v1/auth/start":
+                        return self.send(200, engine.auth.start(self.body().get("provider")))
+                    if method == "PUT":
+                        if path == "/v1/policy":
+                            return self.send(200, engine.config.update("policy", self.body()))
+                        if path == "/v1/models":
+                            return self.send(200, engine.config.update("models", self.body()))
+                        return self.send(404, {"error": {"code": "not_found", "message": "Unknown endpoint"}})
                     if path == "/v1/jobs":
                         data = self.body()
                         request = data.get("request")
@@ -120,6 +137,10 @@ def make_server(engine, host="127.0.0.1", port=8765):
                     if len(parts) == 5 and parts[:3] == ["", "v1", "schedules"] and parts[4] == "trigger":
                         return self.send(202, engine.trigger_schedule(parts[3]))
                 return self.send(404, {"error": {"code": "not_found", "message": "Unknown endpoint"}})
+            except VersionConflict as error:
+                return self.send(409, {"error": {"code": "conflict", "message": str(error)[:300]}})
+            except ConfigError as error:
+                return self.send(400, {"error": {"code": "invalid_request", "message": str(error)[:300]}})
             except (ValueError, KeyError) as error:
                 conflict = "idempotency key reused" in str(error)
                 return self.send(409 if conflict else 400, {"error": {
@@ -133,5 +154,8 @@ def make_server(engine, host="127.0.0.1", port=8765):
 
         def do_POST(self):
             self.perform("POST")
+
+        def do_PUT(self):
+            self.perform("PUT")
 
     return LocalOnlyHTTP((host, int(port)), Handler)

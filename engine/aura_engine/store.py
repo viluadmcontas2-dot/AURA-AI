@@ -54,6 +54,21 @@ class Store:
         with self.lock, self.db:
             self._emit(kind, payload)
 
+    def scrub_auth_prompts(self, provider):
+        """Depois do login, remove codigo de uso unico e parametros de sessao do link."""
+        from urllib.parse import urlsplit, urlunsplit
+        with self.lock, self.db:
+            rows = self.db.execute("SELECT id,payload FROM events WHERE type='auth.prompt'").fetchall()
+            for row in rows:
+                payload = json.loads(row["payload"])
+                if payload.get("provider") != provider:
+                    continue
+                payload.pop("code", None)
+                if isinstance(payload.get("url"), str):
+                    parts = urlsplit(payload["url"])
+                    payload["url"] = urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+                self.db.execute("UPDATE events SET payload=? WHERE id=?", (packed(payload), row["id"]))
+
     def events(self, since=0, limit=100):
         with self.lock:
             rows = self.db.execute(
@@ -192,6 +207,65 @@ class Store:
                         break
             totals["reported_jobs"] += 1
         return totals
+
+    SPEND_PROVIDERS = {"claude_cli": "claude", "claude_api": "claude", "gemini_cli": "gemini",
+                       "gemini_api": "gemini", "agy_cli": "agy"}
+    NOT_REPORTED = "não informado"
+
+    @staticmethod
+    def _money(value):
+        return value if type(value) in (int, float) and value >= 0 and value == value else None
+
+    def spend(self, now=None):
+        """Gasto de hoje e do mes por provedor e modelo. So valores que o provedor informou."""
+        now = time.time() if now is None else now
+        local = time.localtime(now)
+        windows = {"today": (local.tm_year, local.tm_mon, local.tm_mday),
+                   "month": (local.tm_year, local.tm_mon, None)}
+        report = {name: {"date": "%04d-%02d" % key[:2] + ("-%02d" % key[2] if key[2] else ""),
+                         "providers": {}, "total_usd": self.NOT_REPORTED, "unreported_jobs": 0}
+                  for name, key in windows.items()}
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT request,result,updated FROM jobs WHERE status='completed'").fetchall()
+        for row in rows:
+            request = json.loads(row["request"])
+            provider = self.SPEND_PROVIDERS.get(request.get("kind"))
+            if provider is None:
+                continue
+            result = json.loads(row["result"]) if row["result"] else {}
+            envelope = result.get("response") if isinstance(result.get("response"), dict) else {}
+            cost = None
+            for source in (envelope, result):
+                for name in ("total_cost_usd", "cost_usd"):
+                    cost = self._money(source.get(name)) if cost is None else cost
+            model = request.get("model") or result.get("model") or envelope.get("model")
+            usage = envelope.get("modelUsage")
+            if not model and isinstance(usage, dict) and usage:
+                model = next(iter(usage))
+            model = model if isinstance(model, str) and model else self.NOT_REPORTED
+            when = time.localtime(row["updated"])
+            for name, key in windows.items():
+                if (when.tm_year, when.tm_mon) != key[:2] or (key[2] and when.tm_mday != key[2]):
+                    continue
+                win = report[name]
+                prov = win["providers"].setdefault(provider, {
+                    "jobs": 0, "cost_usd": self.NOT_REPORTED, "unreported_jobs": 0, "models": {}})
+                mod = prov["models"].setdefault(model, {
+                    "jobs": 0, "cost_usd": self.NOT_REPORTED, "unreported_jobs": 0})
+                for bucket in (prov, mod):
+                    bucket["jobs"] += 1
+                    if cost is None:
+                        bucket["unreported_jobs"] += 1
+                    else:
+                        bucket["cost_usd"] = (0 if bucket["cost_usd"] == self.NOT_REPORTED
+                                              else bucket["cost_usd"]) + cost
+                if cost is None:
+                    win["unreported_jobs"] += 1
+                else:
+                    win["total_usd"] = (0 if win["total_usd"] == self.NOT_REPORTED
+                                        else win["total_usd"]) + cost
+        return report
 
     def add_schedule(self, data):
         seconds = data.get("every_seconds")

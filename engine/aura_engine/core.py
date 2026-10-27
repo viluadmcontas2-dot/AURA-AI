@@ -6,16 +6,20 @@ import threading
 import time
 
 from . import adapters
+from .auth import AuthManager
+from .config import ConfigStore
 from .security import RiskPolicy, workspace_name, load_or_create_token
 from .store import Store
 
 
 class Engine:
-    def __init__(self, home=None, auto_worker=True, max_workers=2):
+    def __init__(self, home=None, auto_worker=True, max_workers=2, auth_timeout=300):
         self.home = pathlib.Path(home or (pathlib.Path.home() / ".aura" / "engine"))
         self.token = load_or_create_token(self.home)
         self.store = Store(self.home / "engine.sqlite3")
         self.policy = RiskPolicy()
+        self.config = ConfigStore(self.home, self.store)
+        self.auth = AuthManager(self.home, self.store, timeout=auth_timeout)
         self.stop_event = threading.Event()
         self.process_lock = threading.RLock()
         self.context = threading.local()
@@ -31,6 +35,7 @@ class Engine:
 
     def close(self):
         self.stop_event.set()
+        self.auth.close()
         with self.process_lock:
             for proc in list(self.processes.values()):
                 if proc.poll() is None:
