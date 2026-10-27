@@ -1,0 +1,143 @@
+"""Local-first job orchestrator. Model providers do not own the runtime."""
+import os
+import pathlib
+import secrets
+import threading
+import time
+
+from . import adapters
+from .security import RiskPolicy, workspace_name
+from .store import Store
+
+
+class Engine:
+    def __init__(self, home=None, auto_worker=True):
+        self.home = pathlib.Path(home or (pathlib.Path.home() / ".aura" / "engine"))
+        self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.home, 0o700)
+        token_file = self.home / "token"
+        if not token_file.exists():
+            with os.fdopen(os.open(str(token_file), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600),
+                           "w") as f:
+                f.write(secrets.token_urlsafe(32))
+        os.chmod(token_file, 0o600)
+        self.token = token_file.read_text("utf-8").strip()
+        if len(self.token) < 32:
+            raise RuntimeError("invalid token, refusing to start")
+        self.store = Store(self.home / "engine.sqlite3")
+        self.policy = RiskPolicy()
+        self.stop_event = threading.Event()
+        self.cancel_event = threading.Event()
+        self.process_lock = threading.RLock()
+        self.execution_lock = threading.Lock()
+        self.current_process = None
+        self.worker = None
+        if auto_worker:
+            self.worker = threading.Thread(target=self._loop, daemon=True, name="aura-worker")
+            self.worker.start()
+
+    def close(self):
+        self.stop_event.set()
+        with self.process_lock:
+            if self.current_process and self.current_process.poll() is None:
+                self.current_process.terminate()
+        if self.worker and threading.current_thread() != self.worker:
+            self.worker.join(timeout=3)
+        self.store.close()
+
+    def capabilities(self):
+        return adapters.capabilities(self.home)
+
+    def submit(self, request, request_id=None):
+        if not isinstance(request, dict) or len(str(request)) > 110000:
+            raise ValueError("request must be a bounded JSON object")
+        if not isinstance(request.get("kind"), str):
+            raise ValueError("kind is required")
+        workspace_name(request.get("workspace", "default"))
+        return self.store.submit(request, self.policy.classify(request), request_id)
+
+    def approve(self, job_id):
+        return self.store.approve(job_id)
+
+    def cancel(self, job_id):
+        current = self.store.job(job_id)
+        if not current:
+            raise KeyError("job not found")
+        result = self.store.cancel(job_id)
+        if current["status"] == "running":
+            self.cancel_event.set()
+            with self.process_lock:
+                if self.current_process and self.current_process.poll() is None:
+                    self.current_process.terminate()
+        return result
+
+    def run_once(self):
+        if not self.execution_lock.acquire(blocking=False):
+            return None
+        try:
+            job = self.store.claim()
+            if job is None:
+                return None
+            self.cancel_event.clear()
+            try:
+                outcome = adapters.dispatch(job["request"], self)
+            except adapters.ActionError as err:
+                self.store.finish(job["id"], "failed", error={
+                    "code": err.code, "message": adapters.redact(str(err))[:2000]})
+            except (ValueError, FileNotFoundError, PermissionError, UnicodeError, OSError) as err:
+                self.store.finish(job["id"], "failed", error={
+                    "code": "invalid_or_unavailable", "message": adapters.redact(str(err))[:2000]})
+            except Exception:
+                self.store.finish(job["id"], "failed", error={
+                    "code": "unexpected", "message": "Unexpected engine error; inspect local diagnostic logs"})
+            else:
+                self.store.finish(job["id"], "completed", result=outcome)
+            return self.store.job(job["id"])
+        finally:
+            self.cancel_event.clear()
+            self.execution_lock.release()
+
+    def _loop(self):
+        while not self.stop_event.is_set():
+            try:
+                for _, req in self.store.due_schedules():
+                    self.submit(req)
+                handled = self.run_once()
+                if handled is None:
+                    self.stop_event.wait(0.3)
+            except Exception:
+                self.stop_event.wait(2)
+
+    def route(self, text, workspace="default", preferred_provider="auto"):
+        if not isinstance(text, str) or not text.strip() or len(text) > 100000:
+            raise ValueError("empty or oversized utterance")
+        workspace_name(workspace)
+        lower = text.casefold()
+        adb_words = ("dispositivos", "devices", "adb", "aparelhos conectados")
+        if any(x in lower for x in adb_words) and any(
+                x in lower for x in ("listar", "liste", "mostr", "quais", "conectad")):
+            return {"request": {"kind": "adb", "action": "devices", "workspace": workspace},
+                    "reason": "local deterministic device inventory", "requires_model": False}
+        if any(x in lower for x in ("arquivos", "files", "pasta")) and any(
+                x in lower for x in ("listar", "liste", "mostr")):
+            return {"request": {"kind": "files", "action": "list", "path": ".",
+                                "workspace": workspace},
+                    "reason": "local deterministic file listing", "requires_model": False}
+        provider = preferred_provider if preferred_provider in (
+            "claude_cli", "gemini_cli", "claude_api", "gemini_api") else "claude_cli"
+        return {"request": {"kind": provider, "prompt": text, "workspace": workspace},
+                "reason": "open-ended instruction requires a model", "requires_model": True}
+
+    def add_schedule(self, request):
+        if not isinstance(request, dict):
+            raise ValueError("schedule must be object")
+        body = request.get("request")
+        if not isinstance(body, dict) or not isinstance(body.get("kind"), str):
+            raise ValueError("scheduled task must have a kind")
+        return self.store.add_schedule(request)
+
+    def trigger_schedule(self, schedule_id):
+        sched = next((x for x in self.store.schedules() if x["id"] == schedule_id), None)
+        if sched is None:
+            raise KeyError("schedule not found")
+        return self.submit(sched["request"])
