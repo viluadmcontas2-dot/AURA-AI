@@ -18,7 +18,7 @@ Jobs with side effects require approval by an authenticated user action. Each ap
 GET /v1/events?since=0: durable ordered events with IDs, type, payload, timestamp. Clients poll by `since`; no lost progress on Activity page restart.
 GET /v1/capabilities: real installed tools and API-key presence (never actual credentials). Missing providers explicit.
 GET /v1/skills: scanned local SKILL.md manifests, never executed automatically merely by enumeration.
-POST /v1/memory, GET /v1/memory?workspace=...&q=...: scoped durable notes, no secret storage.
+POST /v1/memory, GET /v1/memory?workspace=...&q=..., DELETE /v1/memory/{id}, DELETE /v1/memory: scoped durable notes with a type (`kind`) and an origin (`source`); forget one or forget all (see "Memoria"). No secret storage.
 POST /v1/schedules, GET /v1/schedules: scheduled commands, no automatic bypass of risk approval.
 GET /v1/health: status and schema version.
 
@@ -92,8 +92,30 @@ Cada job (em `GET /v1/jobs`, `GET /v1/jobs/{id}` e na resposta do POST) tem `not
 ### POST /v1/route: model_used e why
 Alem de `request`, `reason` e `requires_model` (o codigo atual nao devolve `confidence`, apesar do texto acima), quando a rota exige modelo a resposta traz `provider_installed_or_configured` e, se houver escolha a mostrar, `model_used` e `why` (mesma logica de "Escolha do modelo", sem criar job). `model_used` e a familia escolhida ou `"não informado"`; `why` explica em portugues. Com `preferred_provider` `claude_api`/`gemini_api`, `prefer_subscription:true`, `api_fallback:"never"` e o CLI irmao instalado, a rota troca para `claude_cli`/`gemini_cli` e `why` comeca com "assinatura primeiro". `model_used` e `why` podem faltar (rotas deterministicas sem modelo, ou pedido cujo modelo seria recusado).
 
+### Memoria: tipo, origem, esquecer uma, esquecer tudo
+Todas as rotas exigem o Bearer token (401 sem ele). Uma lembranca vive em um `workspace` (padrao `default`) e tem uma `key` unica dentro dele. Fica na tabela `memory` do SQLite do motor (`engine.sqlite3`).
+
+GET `/v1/memory?workspace=default&q=` -> `{"entries":[ITEM, ...]}`. No maximo 50 itens, da ultima gravacao para a mais antiga (`updated`); `q` filtra por trecho de `key` ou `value`. Cada ITEM:
+`{"id":"0b6f3c1e-8a52-4d0e-9c1a-5f2b7e4d9a10","kind":"preference","text":"Respostas curtas, em portugues simples","source":"user","createdAt":1730000000.5,"key":"estilo","value":"Respostas curtas, em portugues simples","updated":1730000000.5}`
+- `id` (texto): unico e estavel (UUID, 36 caracteres: letras minusculas, digitos e `-`; cabe em `[a-zA-Z0-9_-]{1,100}`, o que o app aceita na URL). Nao muda ao atualizar a lembranca nem ao reiniciar o motor.
+- `kind` (texto): `preference|project|device|rule`. Sem informar, vale `preference`.
+- `text` (texto): a lembranca, para mostrar na tela. E o mesmo texto de `value`.
+- `source` (texto, nunca `null`): de onde veio a lembranca, 1 a 60 caracteres, texto livre que o motor nao interpreta (a tela decide a frase e trata valor desconhecido). Sem informar, vale `user`.
+- `createdAt` (numero): epoch em segundos, com fracao, UTC, como `created_at` dos jobs. Quando a lembranca nasceu; nao muda ao atualizar.
+- `key`, `value`, `updated`: campos de antes, com os mesmos valores (`updated` = ultima gravacao). Codigo novo usa `id`, `kind`, `text`, `source` e `createdAt`.
+
+POST `/v1/memory` `{"workspace"?,"key","value","kind"?,"source"?}` -> 200 `{"stored":true}`. `key` (1 a 120 caracteres) e `value` (ate 50000) sao obrigatorios, como antes. `kind` e `source` sao opcionais (ausentes ou `null` = padrao). Gravar de novo o mesmo `workspace`+`key` atualiza no lugar: mesmo `id`, mesmo `createdAt`; `kind` e `source` omitidos ficam como estavam (nao voltam ao padrao). Nao devolve o `id`: leia pelo GET.
+
+DELETE `/v1/memory/{id}` -> 204, sem corpo e sem `Content-Length` (nao leia JSON da resposta). Se nao existe (id errado ou ja esquecida; repetir a chamada da 404) -> 404 `{"error":{"code":"not_found","message":"Lembrança não encontrada. Talvez já tenha sido esquecida."}}`. A mensagem nao repete o id.
+
+DELETE `/v1/memory` -> 200 `{"deleted":N}`: esquece TODAS as lembrancas de TODOS os workspaces (nao so as 50 da lista) e diz quantas; `{"deleted":0}` se ja estava vazio (nao e erro). `?workspace=nome` limita a esse workspace. So esta rota exata apaga tudo: `/v1/memory/` (barra no fim, id vazio) responde 404 e nao apaga nada. Query desconhecida, `workspace` vazio ou invalido -> 400 `invalid_request`, sem apagar nada. Nao ha desfazer.
+
+Compatibilidade: um motor anterior a esta versao guardava a tabela sem `id`, `kind`, `source` e `created`. Ao iniciar, o motor completa cada linha numa transacao so (tudo ou nada): `id` novo, `kind:"preference"`, `source:"user"`, `createdAt` igual a `updated` (a data da ultima gravacao era a unica que existia). Nenhuma lembranca se perde e os ids ficam os mesmos nos proximos inicios. Se a conversao falhar, a base fica como estava e o motor nao inicia.
+Nao existe: filtro por `kind` no GET (a tela filtra), evento no log de eventos, desfazer.
+
 ### Codigos de erro novos
-- 400 `invalid_request`: enum invalido, campo desconhecido ou tipo errado em `/v1/policy` e `/v1/models`; `provider` invalido em `/v1/auth/start`; `to_version` invalido ou nada para desfazer; root nao permitido pela politica; modelo negado ou acima do teto no POST do job.
+- 400 `invalid_request`: enum invalido, campo desconhecido ou tipo errado em `/v1/policy` e `/v1/models`; `provider` invalido em `/v1/auth/start`; `to_version` invalido ou nada para desfazer; root nao permitido pela politica; modelo negado ou acima do teto no POST do job; `kind` fora de `preference|project|device|rule` ou `source` que nao e texto de 1 a 60 caracteres no POST de `/v1/memory`; `workspace` vazio ou invalido, ou query desconhecida, no DELETE de `/v1/memory`.
+- 404 `not_found`: `DELETE /v1/memory/{id}` com id que nao existe.
 - 409 `conflict`: `version` velha em PUT de `/v1/policy` ou `/v1/models`; chave de idempotencia reusada com outro pedido.
 - `error.code:"model_denied"` no job (status `failed`): a politica de modelos passou a recusar o modelo entre a criacao e a execucao.
 Formato: `{"error":{"code":"...","message":"..."}}`. A mensagem nunca repete o valor recebido.
