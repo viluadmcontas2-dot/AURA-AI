@@ -1,27 +1,16 @@
-# AURA AI — Agent Engineering Contract
+# Regras do projeto AURA AI (valem para qualquer agente: Claude, Antigravity, Codex)
 
-This repository is canonical. Follow Codex Engineering Guardrails and Superpowers, especially brainstorming, writing-plans, test-driven-development, systematic-debugging, verification-before-completion.
+## Dono e idioma
+O dono é leigo em programação e acerta o "o quê". Fale português do Brasil, simples e curto. Termo técnico só com uma frase explicando.
 
-## Non-negotiable product invariants
-
-1. Android/Termux performs every device-local execution; no personal PC, remote Claude session, or mandatory cloud execution server.
-2. External models, GitHub, Drive and other APIs are optional network services, not process hosts.
-3. Claude Design Systems owns visual UI; engine team owns `engine/` and `docs/ENGINE_CONTRACT.md`. Do not independently build a competing interface.
-4. User-facing language: Portuguese; command/event protocol: stable English identifiers.
-5. A returned result must be grounded in exit status or API response; missing tools must report unavailable.
-6. Destructive work and spending require explicit immutable-job approval, with targets and consequences visible.
-7. Secrets must not appear in Git, responses, logs, error messages or model prompts.
-8. Repository writes use the canonical `main` unless critical isolation is required. Never overwrite concurrent work.
-9. Validate on GitHub Actions and, separately, on the actual Android/Termux target. No local test equals device proof.
-10. Attach acceptance requirement IDs to tests and document residual risk; nothing is labelled production-ready without evidence.
-
-## Documents
-
-- `docs/PRODUCT_SPEC.md` — product and UX boundaries
-- `docs/ENGINE_CONTRACT.md` — interface-independent wire contract
-- `docs/CONSTRAINTS.md` — hard constraints and negative scenarios
-- `docs/superpowers/plans/2026-10-27-engine.md` — executable plan and verification matrix
-
-## Method
-
-Diagnosis -> design -> plan -> test RED -> implement GREEN -> static/security checks -> remote CI -> real-device validation -> independent review. Every engine job has a persisted request ID, idempotency key, approval policy, status, event and diagnostic record. Do not mistake a passed unit test for successful Android integration.
+## Regras que não mudam
+1. **O app nunca fica morto.** Sem Termux, sem motor ou sem internet, TODAS as abas, telas e botões abrem. O que depende do motor falha com mensagem clara e uma ação ("Iniciar o motor", "Tentar de novo"). Projetos, Atividade, Dispositivos, Ajustes, histórico e rascunhos são locais e aparecem sempre. Nunca tela em branco, spinner infinito, botão mudo ou fechamento sozinho.
+2. **Nenhum APK é entregue antes de estar 100%.** Não gere nem envie APK para o dono até a matriz de testes (docs/MATRIZ_DE_TESTES.md) estar toda verde. APK de teste interno fica fora do chat.
+3. **Prova local, não GitHub.** A CI do GitHub Actions está sem runner. Não espere por ela e não tente consertá-la. Compile e teste localmente: `cd android && ./gradlew :app:testDebugUnitTest --offline`; engine: `cd engine && python -m unittest`.
+4. **TDD de verdade.** Teste primeiro, veja falhar (RED), implemente, veja passar (GREEN). Cada botão, interação e estado tem teste. Use Compose UI Test com Robolectric na JVM para clicar em tudo sem emulador.
+5. **Agent Skills.** Antes de cada tarefa, use as skills de ~/.claude/skills e do Superpowers que se aplicam: test-driven-development, systematic-debugging, frontend-ui-engineering, api-and-interface-design, security-and-hardening, verification-before-completion, code-simplification. Subagentes para tarefas independentes, em paralelo.
+6. **Design é fiel.** As telas em docs/design/telas/*.dc.html e tokens em docs/design/tokens.json são a referência. Um botão principal por tela, verbo + objeto, erro diz o que fazer, tela vazia convida a agir, alvo >= 44 dp, foco visível.
+7. **Sem segredo.** Nunca imprimir token, chave ou senha. Nunca pedir ao dono para colar segredo. Sem API paga.
+8. **Sem travar.** Se um problema bloquear, registre em docs/REGISTRO.md, contorne e siga com as partes independentes. Depois de 2 tentativas sem avanço, mude de estratégia.
+9. **Registro.** Ao fim de cada bloco, atualize docs/REGISTRO.md (objetivo, estado verificado, evidência, bloqueio, próximo item) e, se houver, a nota do projeto no cofre do Obsidian do dono.
+10. Branch de trabalho: `claude/telas-sem-termux`. Commits em português, pequenos, push no remoto. Apagar branch e force-push só com ok explícito do dono.
