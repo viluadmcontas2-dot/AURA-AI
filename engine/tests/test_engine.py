@@ -201,6 +201,12 @@ class EngineContracts(unittest.TestCase):
         self.assertEqual(routed["request"]["action"], "devices")
         self.assertFalse(routed["requires_model"])
 
+    def test_ROUTE_skill_is_selected_from_natural_language(self):
+        routed = self.engine.route("AURA, organiza meus arquivos do projeto")
+        self.assertEqual(routed["request"]["kind"], "skills")
+        self.assertEqual(routed["request"]["id"], "file-organization")
+        self.assertEqual(routed["request"]["action"], "run")
+
     def test_ROUTE_02_complex_request_model(self):
         routed = self.engine.route("Quero criar um aplicativo de finanças")
         self.assertEqual(routed["request"]["kind"], "claude_cli")
