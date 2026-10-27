@@ -22,8 +22,9 @@ internal object IdeaOrganizer {
     fun organize(idea: String, id: String = UUID.randomUUID().toString()): Project {
         val clean = idea.trim().replace(Regex("\\s+"), " ")
         val words = clean.split(" ").filter { it.isNotBlank() }
-        val core = words.dropWhile { it.lowercase().trim(',', '.') in filler }.take(3)
-            .ifEmpty { words.take(3) }
+        val rest = words.dropWhile { it.lowercase().trim(',', '.') in filler }
+        val core = rest.takeWhile { it.lowercase().trim(',', '.') !in filler }.take(3)
+            .ifEmpty { rest.take(2) }.ifEmpty { words.take(2) }
         val name = core.joinToString(" ") { w -> w.trim(',', '.').replaceFirstChar { it.uppercase() } }
             .ifBlank { "Meu projeto" }
         val sentence = clean.split(Regex("(?<=[.!?])\\s+")).firstOrNull().orEmpty().trimEnd('.')

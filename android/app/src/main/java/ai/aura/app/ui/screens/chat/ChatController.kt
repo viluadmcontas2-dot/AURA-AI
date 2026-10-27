@@ -31,7 +31,9 @@ class ChatController(
     private val newId: () -> String = { "req_" + UUID.randomUUID().toString().replace("-", "").take(16) },
     private val pollMillis: Long = 2_000L,
 ) {
-    var phase by mutableStateOf<ChatPhase>(ChatPhase.Idle); private set
+    var phase by mutableStateOf<ChatPhase>(
+        if (initial.jobId.isNotEmpty() || initial.prompt.isNotEmpty()) ChatPhase.Routing else ChatPhase.Idle,
+    ); private set
     var messages by mutableStateOf<List<ChatMessage>>(emptyList()); private set
     var error by mutableStateOf<ChatError?>(null); private set
     /** true quando o motor não responde durante o acompanhamento (continua tentando). */
@@ -48,9 +50,12 @@ class ChatController(
     private var trackJob: kotlinx.coroutines.Job? = null
 
     init {
-        when {
-            initial.jobId.isNotEmpty() -> restoreJob(initial.jobId, initial.prompt)
-            initial.prompt.isNotEmpty() -> ask(initial.prompt, initial.prompt, keepRequestId = true)
+        // Adiado: persist() escreve estado da Home e não pode rodar durante a composição.
+        scope.launch {
+            when {
+                initial.jobId.isNotEmpty() -> restoreJob(initial.jobId, initial.prompt)
+                initial.prompt.isNotEmpty() -> ask(initial.prompt, initial.prompt, keepRequestId = true)
+            }
         }
     }
 

@@ -104,7 +104,7 @@ internal fun ProjectsHost(
 
     fun go(r: String) { route = r; error = null; notice = null }
 
-    fun run(failure: String, block: suspend () -> Unit) {
+    fun runAction(failure: String, block: suspend () -> Unit) {
         scope.launch {
             busy = true; error = null
             try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { error = failure } finally { busy = false }
@@ -141,7 +141,7 @@ internal fun ProjectsHost(
             idea = idea.trim(), draft = draft, question = question, needsApproval = needsApproval, busy = busy, error = error,
             onAnswer = { answer = it },
             onCreate = {
-                run("Não consegui criar o projeto. Toque em Criar projeto para tentar de novo.") {
+                runAction("Não consegui criar o projeto. Toque em Criar projeto para tentar de novo.") {
                     // draft.id é a chave de idempotência: repetir o toque não duplica o job.
                     val job = gateway.submit("req_proj_" + draft.id, JobRequest("github", createPrompt(draft)))
                     projects = projects.filter { it.id != draft.id } + draft.copy(jobIds = listOf(job.id))
@@ -161,10 +161,10 @@ internal fun ProjectsHost(
                 busy = busy, error = error, onBack = ::back,
                 onPrimary = {
                     val job = phase.job ?: return@ProjectDetailScreen
-                    if (phase.kind == PhaseKind.NeedsYou) run("Não consegui aprovar. Toque em Aprovar tarefa para tentar de novo.") { gateway.approve(job.id); refreshJobs() }
-                    else run("Não consegui reenviar. Toque em Tentar tarefa de novo.") { ask(project, job.title, job.kind) }
+                    if (phase.kind == PhaseKind.NeedsYou) runAction("Não consegui aprovar. Toque em Aprovar tarefa para tentar de novo.") { gateway.approve(job.id); refreshJobs() }
+                    else runAction("Não consegui reenviar. Toque em Tentar tarefa de novo.") { ask(project, job.title, job.kind) }
                 },
-                onSend = { text -> run("Não consegui enviar o pedido. Escreva de novo e toque em enviar.") { ask(project, text) } },
+                onSend = { text -> runAction("Não consegui enviar o pedido. Escreva de novo e toque em enviar.") { ask(project, text) } },
                 onToggleArchive = { projects = projects.map { if (it.id == project.id) it.copy(archived = !it.archived) else it } },
                 onOpenArtifact = { artifactId = it; artifactScope = project.id; go(Route.Artifact) },
                 onOpenArtifacts = { artifactScope = project.id; go(Route.Artifacts) },
@@ -187,7 +187,7 @@ internal fun ProjectsHost(
                 artifact = artifact, projectName = owner?.name, notice = notice, error = error, busy = busy, onBack = ::back,
                 onInstall = {
                     if (owner == null) { error = "Escolha um projeto para instalar este APK." } else
-                        run("Não consegui pedir a instalação. Toque em Instalar APK para tentar de novo.") {
+                        runAction("Não consegui pedir a instalação. Toque em Instalar APK para tentar de novo.") {
                             ask(owner, "Instalar ${artifact.name} no aparelho", "adb")
                             notice = "Pedido enviado. Aprove no projeto ou na aba Atividade para instalar."
                         }
@@ -204,7 +204,7 @@ internal fun ProjectsHost(
                 onCopyHash = { clipboard.setText(AnnotatedString(it)); notice = "Hash copiado." },
                 onRestore = { v ->
                     if (owner == null) { error = "Escolha um projeto para restaurar esta versão." } else
-                        run("Não consegui pedir a restauração. Toque em Restaurar para tentar de novo.") {
+                        runAction("Não consegui pedir a restauração. Toque em Restaurar para tentar de novo.") {
                             ask(owner, "Restaurar a versão $v de ${artifact.name}", "files")
                             notice = "Pedido enviado. Aprove no projeto ou na aba Atividade para restaurar a versão $v."
                         }

@@ -29,12 +29,12 @@ internal fun PIconView(icon: PIcon, modifier: Modifier = Modifier, tint: Color =
         val s = this.size.width / 24f
         val st = Stroke(AuraTokens.ICON_STROKE * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
         fun p(x: Float, y: Float) = Offset(x * s, y * s)
-        fun poly(vararg pts: Float, close: Boolean = false) {
+        fun poly(vararg pts: Float, closed: Boolean = false) {
             val path = Path().apply {
                 moveTo(pts[0] * s, pts[1] * s)
                 var i = 2
                 while (i < pts.size) { lineTo(pts[i] * s, pts[i + 1] * s); i += 2 }
-                if (close) close()
+                if (closed) close()
             }
             drawPath(path, tint, style = st)
         }
@@ -52,7 +52,7 @@ internal fun PIconView(icon: PIcon, modifier: Modifier = Modifier, tint: Color =
             PIcon.Folder -> { rect(2f, 5f, 20f, 15f, 2f); poly(2f, 9f, 22f, 9f) }
             PIcon.Code -> { poly(16f, 18f, 22f, 12f, 16f, 6f); poly(8f, 6f, 2f, 12f, 8f, 18f) }
             PIcon.Box -> {
-                poly(12f, 2f, 21f, 7f, 21f, 17f, 12f, 22f, 3f, 17f, 3f, 7f, close = true)
+                poly(12f, 2f, 21f, 7f, 21f, 17f, 12f, 22f, 3f, 17f, 3f, 7f, closed = true)
                 poly(3f, 7f, 12f, 12f, 21f, 7f); poly(12f, 12f, 12f, 22f)
             }
             PIcon.Doc -> { rect(5f, 2f, 14f, 20f, 2f); poly(9f, 9f, 15f, 9f); poly(9f, 13f, 15f, 13f); poly(9f, 17f, 13f, 17f) }
@@ -67,7 +67,7 @@ internal fun PIconView(icon: PIcon, modifier: Modifier = Modifier, tint: Color =
                 rect(3f, 11f, 18f, 11f, 2f)
                 poly(7f, 11f, 7f, 7f, 8.5f, 4f, 12f, 2.8f, 15.5f, 4f, 17f, 7f, 17f, 11f)
             }
-            PIcon.Spark -> poly(12f, 2f, 14f, 9f, 21f, 12f, 14f, 15f, 12f, 22f, 10f, 15f, 3f, 12f, 10f, 9f, close = true)
+            PIcon.Spark -> poly(12f, 2f, 14f, 9f, 21f, 12f, 14f, 15f, 12f, 22f, 10f, 15f, 3f, 12f, 10f, 9f, closed = true)
             PIcon.Copy -> { rect(8f, 8f, 14f, 14f, 2f); poly(4f, 16f, 3f, 16f, 2f, 15f, 2f, 4f, 3f, 2f, 4f, 2f, 15f, 2f, 16f, 3f, 16f, 4f) }
             PIcon.Device -> { rect(5f, 2f, 14f, 20f, 2f); poly(12f, 18f, 12.01f, 18f) }
         }

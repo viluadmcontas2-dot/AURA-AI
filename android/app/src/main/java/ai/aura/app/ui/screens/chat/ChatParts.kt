@@ -228,8 +228,10 @@ private fun stepsFor(job: Job, events: List<EngineEvent>): List<Step> = buildLis
         add(
             when (job.status) {
                 JobStatus.AwaitingApproval -> Step("Sua aprovação", "Aguardando a sua aprovação", StepState.Waiting)
-                JobStatus.Cancelled -> if (approvedSeen) Step("Sua aprovação", "Aprovado por você", StepState.Done)
-                else Step("Sua aprovação", "Não aprovado", StepState.Pending)
+                JobStatus.Cancelled -> {
+                    if (approvedSeen) Step("Sua aprovação", "Aprovado por você", StepState.Done)
+                    else Step("Sua aprovação", "Não aprovado", StepState.Pending)
+                }
                 else -> Step("Sua aprovação", "Aprovado por você", StepState.Done)
             },
         )
@@ -439,15 +441,15 @@ internal fun CommandsPanel(
 
 private val sample = FakeEngineGateway.sampleJobs()
 private val route = RouteResult(JobRequest("claude_cli", "Corrigir tela de login"), "Pedido de alteração de código", 0.82, true, JobRisk.Write)
-private val bg = 0xFFF5F4F1
+private const val PreviewBg = 0xFFF5F4F1L
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun UnderstoodPreview() {
     AuraTheme { Column(Modifier.padding(20.dp)) { UnderstoodCard(ChatPhase.Understood(route, null), {}, {}) } }
 }
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun UnderstoodBlockedPreview() {
     AuraTheme {
@@ -461,31 +463,31 @@ private fun UnderstoodBlockedPreview() {
     }
 }
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun RunningPreview() {
     AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[0], emptyList(), false, false, {}, {}, {}, {}, {}) } }
 }
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun AwaitingPreview() {
     AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[1], emptyList(), true, false, {}, {}, {}, {}, {}) } }
 }
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun CompletedPreview() {
     AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[2], emptyList(), false, false, {}, {}, {}, {}, {}) } }
 }
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun FailedPreview() {
     AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[3], emptyList(), false, false, {}, {}, {}, {}, {}) } }
 }
 
-@Preview(showBackground = true, backgroundColor = bg)
+@Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
 private fun ErrorPreview() {
     AuraTheme {
