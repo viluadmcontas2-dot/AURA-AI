@@ -75,11 +75,15 @@ class Engine:
         if not self.execution_lock.acquire(blocking=False):
             return None
         try:
+            self.cancel_event.clear()
             job = self.store.claim()
             if job is None:
                 return None
-            self.cancel_event.clear()
+            if self.store.job(job["id"])["status"] != "running":
+                return self.store.job(job["id"])
             try:
+                if self.cancel_event.is_set():
+                    raise adapters.ActionError("cancelled", "Execution cancelled")
                 outcome = adapters.dispatch(job["request"], self)
             except adapters.ActionError as err:
                 self.store.finish(job["id"], "failed", error={
