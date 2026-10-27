@@ -82,7 +82,7 @@ def run_process(argv, cwd, engine, timeout=180, binary=False):
             if engine.processes.get(job_id) is proc:
                 engine.processes.pop(job_id, None)
     if job_id in engine.cancelled:
-        raise ActionError("cancelled", "Execution cancelled)
+        raise ActionError("cancelled", "Execution cancelled")
     if proc.returncode != 0:
         reason = redact(stderr.decode("utf-8", "replace")[-1800:])
         raise ActionError("process_failed", argv[0] + " exited %d: %s" % (proc.returncode, reason))
