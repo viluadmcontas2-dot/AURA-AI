@@ -290,12 +290,20 @@ def dispatch(request, engine):
         elif kind == "gemini_cli":
             argv = ["gemini", "-p", prompt, "--output-format", "json"]
         else:
-            raise ActionError("unsupported_provider", "Antigravity CLI requires an inspected, explicit adapter contract")
+            argv = ["agy", "-p", prompt, "--output-format", "json"]
         result = run_process(argv, root, engine, request.get("timeout", 600))
         try:
-            result["response"] = json.loads(result["stdout"])
-        except json.JSONDecodeError:
+            parsed = json.loads(result["stdout"])
+            if not isinstance(parsed, dict):
+                raise ValueError("not an object")
+        except (ValueError, TypeError):
             raise ActionError("invalid_provider_response", "CLI did not return expected JSON")
+        if kind == "agy_cli" and parsed.get("status") != "SUCCESS":
+            raise ActionError("provider_failed", "Antigravity reported non-success; verify authentication and permissions")
+        if result.get("stderr") and ("permission" in result["stderr"].lower() or
+                                    "denied" in result["stderr"].lower()):
+            raise ActionError("permission_required", "CLI permission was denied; approve narrowly scoped tools")
+        result["response"] = parsed
         return result
     elif kind in ("claude_api", "gemini_api"):
         return call_api(kind, request)
