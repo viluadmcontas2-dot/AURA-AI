@@ -36,6 +36,32 @@ class EngineContracts(unittest.TestCase):
         with urllib.request.urlopen(cancel, timeout=3) as r:
             self.assertEqual(json.load(r)["status"], "cancelled")
 
+    def test_PROVIDER_agy_headless_json_and_usage(self):
+        job = self.engine.submit({"kind": "agy_cli", "prompt": "Explain caches"})
+        self.assertEqual(job["status"], "awaiting_approval")
+        self.engine.approve(job["id"])
+        response = {"stdout": '{"status":"SUCCESS","response":"Done","usage":{"total_tokens":20}}',
+                    "stderr": "", "exit_code": 0}
+        with unittest.mock.patch("aura_engine.adapters.run_process", return_value=response) as proc:
+            result = self.engine.run_once()
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["result"]["response"]["usage"]["total_tokens"], 20)
+        self.assertEqual(proc.call_args.args[0][:2], ["agy", "-p"])
+
+    def test_PROVIDER_agy_non_success_must_fail(self):
+        job = self.engine.submit({"kind": "agy_cli", "prompt": "Build app"})
+        self.engine.approve(job["id"])
+        response = {"stdout": '{"status":"FAILED","error":"permission denied"}',
+                    "stderr": "Permission required", "exit_code": 0}
+        with unittest.mock.patch("aura_engine.adapters.run_process", return_value=response):
+            finished = self.engine.run_once()
+        self.assertEqual(finished["status"], "failed")
+
+    def test_DRIVE_read_only_inventory_needs_no_approval(self):
+        job = self.engine.submit({"kind": "drive", "action": "list", "remote": "gdrive"})
+        self.assertEqual(job["risk"], "read")
+        self.assertEqual(job["status"], "queued")
+
     def test_SEC_01_authentication_required(self):
         server = make_server(self.engine, "127.0.0.1", 0)
         self.addCleanup(server.server_close)
