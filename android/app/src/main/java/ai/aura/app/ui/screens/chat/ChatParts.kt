@@ -223,11 +223,17 @@ private class Step(val label: String, val detail: String, val state: StepState)
 
 private fun stepsFor(job: Job, events: List<EngineEvent>): List<Step> = buildList {
     val approvedSeen = events.any { it.type == "job.approved" }
-    add(Step("Pedido recebido", "Registrado no motor · ${kindLabel(job.kind)}", StepState.Done))
+    // Pedido na fila local: o motor ainda não viu nada, então nada de "registrado no motor" nem "aprovado".
+    if (job.status == JobStatus.WaitingEngine) {
+        add(Step("Pedido guardado", "Só neste celular · o motor ainda não recebeu", StepState.Done))
+    } else {
+        add(Step("Pedido recebido", "Registrado no motor · ${kindLabel(job.kind)}", StepState.Done))
+    }
     if (job.risk.needsApproval) {
         add(
             when (job.status) {
                 JobStatus.AwaitingApproval -> Step("Sua aprovação", "Aguardando a sua aprovação", StepState.Waiting)
+                JobStatus.WaitingEngine -> Step("Sua aprovação", "Vem depois que o motor receber o pedido", StepState.Pending)
                 JobStatus.Cancelled -> {
                     if (approvedSeen) Step("Sua aprovação", "Aprovado por você", StepState.Done)
                     else Step("Sua aprovação", "Não aprovado", StepState.Pending)
@@ -239,6 +245,7 @@ private fun stepsFor(job: Job, events: List<EngineEvent>): List<Step> = buildLis
     add(
         when (job.status) {
             JobStatus.Queued -> Step(job.title, "Na fila do AURA", StepState.Pending)
+            JobStatus.WaitingEngine -> Step(job.title, "Segue sozinho quando o motor ligar", StepState.Pending)
             JobStatus.AwaitingApproval -> Step(job.title, "Começa depois da aprovação", StepState.Pending)
             JobStatus.Running -> Step(job.title, "Em andamento", StepState.Active)
             JobStatus.Completed -> Step(job.title, "Concluído", StepState.Done)
@@ -319,6 +326,12 @@ internal fun resultBlocks(job: Job): ResultBlocksData = when (job.status) {
         proven = "O motor registrou o cancelamento.",
         missing = "O pedido não foi concluído.",
         nextStep = "Faça um novo pedido quando quiser.",
+    )
+    JobStatus.WaitingEngine -> ResultBlocksData(
+        done = "Nada foi feito ainda: ${job.title}.",
+        proven = "O pedido está guardado neste celular.",
+        missing = "O motor está desligado e ainda não recebeu o pedido.",
+        nextStep = "Ligue o motor e o pedido segue sozinho, ou cancele se não quiser mais.",
     )
     else -> ResultBlocksData(
         done = "Interrompido: ${job.title}.",

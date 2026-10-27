@@ -103,7 +103,7 @@ internal fun riskWarning(risk: JobRisk): String = when (risk) {
 
 internal fun statusKind(status: JobStatus): StatusKind = when (status) {
     JobStatus.Queued, JobStatus.Cancelled -> StatusKind.Neutral
-    JobStatus.AwaitingApproval, JobStatus.Interrupted -> StatusKind.NeedsYou
+    JobStatus.AwaitingApproval, JobStatus.Interrupted, JobStatus.WaitingEngine -> StatusKind.NeedsYou
     JobStatus.Running -> StatusKind.Info
     JobStatus.Completed -> StatusKind.Ready
     JobStatus.Failed -> StatusKind.Risk
@@ -111,6 +111,7 @@ internal fun statusKind(status: JobStatus): StatusKind = when (status) {
 
 internal fun statusText(status: JobStatus): String = when (status) {
     JobStatus.Queued -> "Na fila"
+    JobStatus.WaitingEngine -> "Aguardando o motor"
     JobStatus.AwaitingApproval -> "Precisa de você"
     JobStatus.Running -> "Rodando"
     JobStatus.Completed -> "Concluído"
