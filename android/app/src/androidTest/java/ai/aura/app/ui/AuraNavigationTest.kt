@@ -1,6 +1,6 @@
 package ai.aura.app.ui
 
-import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,15 +19,15 @@ class AuraNavigationTest {
     @Test
     fun homeRendersApprovedNavigationAndGreeting() {
         compose.setContent { AuraApp(FakeEngineGateway(seed = emptyList())) }
-        compose.onNodeWithContentDescription("Navegação principal").assertExists()
-        compose.onNodeWithText("Início").assertExists()
-        compose.onNodeWithText("O que vamos criar hoje?").assertExists()
+        compose.onNodeWithContentDescription("Navegação principal").assertIsDisplayed()
+        compose.onNodeWithText("Início").assertIsDisplayed()
+        compose.onNodeWithText("O que vamos criar hoje?").assertIsDisplayed()
     }
 
     @Test
     fun bottomNavigationCanChangeToProjects() {
         compose.setContent { AuraApp(FakeEngineGateway(seed = emptyList())) }
         compose.onNodeWithText("Projetos").performClick()
-        compose.onNodeWithContentDescription("Navegação principal").assertExists()
+        compose.onNodeWithContentDescription("Navegação principal").assertIsDisplayed()
     }
 }
