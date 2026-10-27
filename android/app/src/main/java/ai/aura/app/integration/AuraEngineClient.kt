@@ -2,6 +2,7 @@ package ai.aura.app.integration
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.ConnectException
@@ -47,11 +48,17 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
                 val stream = if (status in 200..299) conn.inputStream else conn.errorStream
                 val payload = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: "{}"
                 if (status !in 200..299) {
-                    val reason = runCatching { JSONObject(payload).optJSONObject("error")
-                        ?.optString("message") }.getOrNull().orEmpty()
-                    throw AuraEngineException(status, reason.ifBlank { "AURA Engine HTTP " + status })
+                    val error = runCatching { JSONObject(payload).optJSONObject("error") }.getOrNull()
+                    val reason = error?.optString("message").orEmpty()
+                    val code = error?.optString("code")?.ifBlank { null }
+                    throw AuraEngineException(status, reason.ifBlank { "AURA Engine HTTP " + status }, code)
                 }
-                JSONObject(payload)
+                // Alguns endpoints (ex.: /v1/auth/status) devolvem uma lista na raiz.
+                if (payload.trimStart().startsWith("[")) {
+                    JSONObject().put("items", JSONArray(payload))
+                } else {
+                    JSONObject(payload)
+                }
             } catch (_: ConnectException) {
                 throw IOException("Termux não responde. Abra o Termux e inicie o motor.")
             } catch (_: SocketTimeoutException) {
@@ -75,7 +82,16 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
     /** Login contract: state only; tokens/cookies never cross this boundary. */
     suspend fun authStatus() = request("/v1/auth/status")
     suspend fun startAuth(provider: String) =
-        request("/v1/auth/start", "POST", JSONObject().put("provider", segment(provider)))
+        request("/v1/auth/start", "POST", JSONObject().put("provider", segment(provider)),
+            readTimeoutMs = 8000)
+
+    /** Política, modelos e gastos: leituras curtas; PUT um pouco mais folgado (o motor grava em disco). */
+    suspend fun policy() = request("/v1/policy", readTimeoutMs = 5000)
+    suspend fun putPolicy(doc: JSONObject) = request("/v1/policy", "PUT", doc, readTimeoutMs = 8000)
+    suspend fun models() = request("/v1/models", readTimeoutMs = 5000)
+    suspend fun putModels(doc: JSONObject) = request("/v1/models", "PUT", doc, readTimeoutMs = 8000)
+    suspend fun spend() = request("/v1/spend", readTimeoutMs = 5000)
 }
 
-class AuraEngineException(val httpStatus: Int, message: String) : Exception(message)
+/** code = error.code do contrato, quando o motor enviou (nunca contém token). */
+class AuraEngineException(val httpStatus: Int, message: String, val code: String? = null) : Exception(message)

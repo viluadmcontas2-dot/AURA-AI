@@ -11,7 +11,12 @@ import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
+import ai.aura.app.ui.engine.ModelsDoc
+import ai.aura.app.ui.engine.ModelsResult
+import ai.aura.app.ui.engine.PolicyDoc
+import ai.aura.app.ui.engine.PolicyResult
 import ai.aura.app.ui.engine.RouteResult
+import ai.aura.app.ui.engine.SpendResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,51 +97,141 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
         return result
     }
 
+    // ---- Política, modelos e gastos ------------------------------------------------------
+
+    /** 404/501: este motor ainda não expõe o endpoint. Nada é simulado. */
+    private fun notExposed(error: Exception): Boolean =
+        error is AuraEngineException && (error.httpStatus == 404 || error.httpStatus == 501)
+
+    /** 400/403/409/422: o motor entendeu e recusou; o código vem do contrato (error.code). */
+    private fun refused(error: Exception): Boolean =
+        error is AuraEngineException && error.httpStatus in listOf(400, 403, 409, 422)
+
+    private fun reasonFor(error: Exception, what: String): String = when {
+        notExposed(error) -> "Este AURA Engine ainda não expõe " + what + "."
+        error is java.io.IOException -> error.message ?: "Termux não responde."
+        error is AuraEngineException -> "O motor não conseguiu responder (" + error.httpStatus + ")."
+        else -> "Resposta inesperada do motor."
+    }
+
+    override suspend fun policy(): PolicyResult = try {
+        policyOk(client.policy())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        policyFailure(e)
+    }
+
+    override suspend fun savePolicy(p: PolicyDoc): PolicyResult = try {
+        val response = client.putPolicy(EnginePayloads.policyToJson(p))
+        // Se o PUT só confirmou ("ok"), relê para mostrar o que o motor aplicou de fato.
+        val applied = if ((response.optJSONObject("policy") ?: response).has("mode")) response else client.policy()
+        policyOk(applied)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        policyFailure(e)
+    }
+
+    private fun policyOk(raw: JSONObject): PolicyResult =
+        PolicyResult.Ok(EnginePayloads.policyFromJson(raw), EnginePayloads.historyFromJson(raw))
+
+    private fun policyFailure(e: Exception): PolicyResult =
+        if (e is AuraEngineException && refused(e)) PolicyResult.Rejected(e.code ?: "rejected", e.message)
+        else PolicyResult.Unavailable(reasonFor(e, "a política"))
+
+    override suspend fun models(): ModelsResult = try {
+        ModelsResult.Ok(EnginePayloads.modelsFromJson(client.models()))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        modelsFailure(e)
+    }
+
+    override suspend fun saveModels(m: ModelsDoc): ModelsResult = try {
+        val response = client.putModels(EnginePayloads.modelsToJson(m))
+        val applied = if ((response.optJSONObject("models") ?: response).has("routes")) response else client.models()
+        ModelsResult.Ok(EnginePayloads.modelsFromJson(applied))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        modelsFailure(e)
+    }
+
+    private fun modelsFailure(e: Exception): ModelsResult =
+        if (e is AuraEngineException && refused(e)) ModelsResult.Rejected(e.code ?: "rejected", e.message)
+        else ModelsResult.Unavailable(reasonFor(e, "os modelos"))
+
+    override suspend fun spendSummary(): SpendResult = try {
+        SpendResult.Ok(SpendParser.parse(EnginePayloads.spendRows(client.spend())))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        SpendResult.Unavailable(reasonFor(e, "o resumo de gastos"))
+    }
+
+    // ---- Login fácil ---------------------------------------------------------------------
+
     override suspend fun authStatus(): List<AuthStatus> {
-        return runCatching {
-            val raw = client.authStatus()
-            val array = raw.optJSONArray("providers")
-                ?: raw.optJSONArray("statuses")
-                ?: raw.optJSONArray("accounts")
-                ?: return@runCatching emptyList()
-            List(array.length()) { index ->
-                val item = array.getJSONObject(index)
-                AuthStatus(
-                    provider = item.getString("provider"),
-                    state = AuthState.fromWire(item.optString("state")) ?: AuthState.Unavailable,
-                    installable = item.optBoolean("installable", false),
-                    detail = item.optString("detail").ifBlank { null },
-                )
-            }
-        }.getOrElse { error ->
-            AUTH_PROVIDER_IDS.map { provider ->
-                AuthStatus(
-                    provider = provider,
-                    state = AuthState.Unavailable,
-                    detail = if (error is AuraEngineException && error.httpStatus == 404) {
-                        "Este AURA Engine ainda não expõe login fácil."
-                    } else {
-                        "Não foi possível consultar o estado desta conta."
-                    },
-                )
-            }
-        }.let { statuses ->
-            if (statuses.isEmpty()) AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) } else statuses
+        val known = try {
+            parseAuth(client.authStatus())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val detail = if (notExposed(e)) "Este AURA Engine ainda não expõe login fácil."
+                else if (e is java.io.IOException) (e.message ?: "Termux não responde.")
+                else "Não foi possível consultar o estado desta conta."
+            emptyMap<String, AuthStatus>() to detail
         }
+        // Sempre uma linha por conta do contrato; o que o motor não informou fica indisponível.
+        return AUTH_PROVIDER_IDS.map { id ->
+            known.first[id] ?: AuthStatus(id, AuthState.Unavailable, detail = known.second)
+        }
+    }
+
+    /** Lista na raiz chega como {"items": [...]} (ver AuraEngineClient). Nunca lê token/cookie. */
+    private fun parseAuth(raw: JSONObject): Pair<Map<String, AuthStatus>, String?> {
+        val array = raw.optJSONArray("items") ?: raw.optJSONArray("providers")
+            ?: raw.optJSONArray("statuses") ?: raw.optJSONArray("accounts")
+            ?: return emptyMap<String, AuthStatus>() to "O motor não informou o estado das contas."
+        val map = LinkedHashMap<String, AuthStatus>()
+        for (i in 0 until array.length()) {
+            val item = array.optJSONObject(i) ?: continue
+            val id = item.optString("provider")
+            if (id.isBlank()) continue
+            map[id] = AuthStatus(
+                provider = id,
+                state = AuthState.fromWire(item.optString("state")) ?: AuthState.Unavailable,
+                installable = item.optBoolean("installable", false),
+                detail = item.optString("detail").ifBlank { null }?.take(200),
+            )
+        }
+        return map to "O motor não informou esta conta."
     }
 
     override suspend fun startAuth(provider: String): AuthStartResult {
         return try {
             client.startAuth(provider)
             AuthStartResult.Started
-        } catch (error: Exception) {
-            val unavailable = error is AuraEngineException && error.httpStatus == 404
-            AuthStartResult.Failed(
-                reason = if (unavailable) "Login fácil ainda não está disponível no motor."
-                    else "Não foi possível iniciar o login.",
-                fix = if (unavailable) "Atualize o AURA Engine no Termux e tente de novo."
-                    else "Confira o Termux e toque em Conectar novamente.",
-            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IllegalArgumentException) {
+            AuthStartResult.Failed("Conta desconhecida.", "Escolha outra conta.")
+        } catch (e: Exception) {
+            when {
+                notExposed(e) -> AuthStartResult.Failed(
+                    "Login fácil ainda não está disponível no motor.",
+                    "Atualize o AURA Engine no Termux e tente de novo.",
+                )
+                e is java.io.IOException -> AuthStartResult.Failed(
+                    e.message ?: "O Termux não respondeu.",
+                    "Abra o Termux, inicie o motor e toque em Conectar novamente.",
+                )
+                else -> AuthStartResult.Failed(
+                    "Não foi possível iniciar o login.",
+                    "Confira o Termux e toque em Conectar novamente.",
+                )
+            }
         }
     }
 
