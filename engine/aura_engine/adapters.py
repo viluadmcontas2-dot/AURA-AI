@@ -199,7 +199,9 @@ def dispatch(request, engine):
                 raise ActionError("file_too_large", "Use a specialised tool for large files")
             return {"path": str(path.relative_to(root)), "text": path.read_text("utf-8")}
         if action == "write":
-            content = require_text(request, "text")
+            content = request.get("text")
+            if not isinstance(content, str) or len(content) > 1000000:
+                raise ActionError("invalid_request", "File text must be at most one million characters")
             path.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile("w", dir=str(path.parent),
                                              delete=False, encoding="utf-8") as f:
