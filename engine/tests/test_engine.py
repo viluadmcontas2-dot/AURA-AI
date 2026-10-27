@@ -244,6 +244,14 @@ class EngineContracts(unittest.TestCase):
         self.assertEqual(routed["request"]["action"], "devices")
         self.assertFalse(routed["requires_model"])
 
+    def test_ROUTE_falls_back_to_available_cli_before_paid_API(self):
+        provider_data = {"providers": {
+            "claude": {"installed": False}, "gemini": {"installed": True},
+            "agy": {"installed": True}}, "api": {"claude": True, "gemini": True}}
+        with unittest.mock.patch.object(self.engine, "capabilities", return_value=provider_data):
+            routed = self.engine.route("Refatore meu aplicativo")
+        self.assertEqual(routed["request"]["kind"], "gemini_cli")
+
     def test_ROUTE_skill_is_selected_from_natural_language(self):
         routed = self.engine.route("AURA, organiza meus arquivos do projeto")
         self.assertEqual(routed["request"]["kind"], "skills")
