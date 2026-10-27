@@ -148,6 +148,30 @@ class EngineContracts(unittest.TestCase):
         self.assertEqual(token.stat().st_mode & 0o777, 0o600)
         self.assertEqual(token.read_text().strip(), self.engine.token)
 
+    def test_PARALLEL_workers_do_not_share_process_state(self):
+        import time
+        import threading
+        import concurrent.futures
+        with tempfile.TemporaryDirectory() as folder:
+            parallel = Engine(home=pathlib.Path(folder), auto_worker=True, max_workers=2)
+            self.addCleanup(parallel.close)
+            barrier = threading.Barrier(2)
+            started = []
+            def fake_dispatch(request, engine):
+                started.append(request["action"])
+                barrier.wait(timeout=4)
+                return {"ok": True}
+            with unittest.mock.patch("aura_engine.adapters.dispatch", side_effect=fake_dispatch):
+                ids = [parallel.submit({"kind": "system", "action": a})["id"]
+                       for a in ("health", "capabilities")]
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    if all(parallel.store.job(j)["status"] == "completed" for j in ids):
+                        break
+                    time.sleep(0.02)
+                self.assertEqual(sorted(started), ["capabilities", "health"])
+                self.assertTrue(all(parallel.store.job(j)["status"] == "completed" for j in ids))
+
     def test_JOB_01_idempotency(self):
         req = {"kind": "system", "action": "health"}
         a = self.engine.submit(req, request_id="identical")
