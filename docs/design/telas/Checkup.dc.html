@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Checkup — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+<header style="flex:none;height:76px;padding:32px 8px 0 8px;display:flex;align-items:center;gap:4px">
+<a href="Ajustes.dc.html" aria-label="Voltar" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#15141A"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0"><h1 style="margin:0;font-size:17px;line-height:22px;font-weight:700">Checkup do ambiente</h1></div>
+</header>
+<main style="flex:1;min-height:0;padding:4px 20px 0;display:flex;flex-direction:column;gap:12px">
+<section aria-label="Pontuação" style="display:flex;align-items:center;gap:16px;padding:4px 4px 4px">
+<div role="img" aria-label="6 de 8 verificações ok" style="flex:none;position:relative;width:84px;height:84px;border-radius:42px;background:conic-gradient(#17A058 0 270deg,#E6E3DC 270deg 360deg)"><div style="position:absolute;left:9px;top:9px;right:9px;bottom:9px;border-radius:50%;background:#F5F4F1;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:22px;letter-spacing:-.03em">6/8</div></div>
+<div><p style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:28px;line-height:32px;letter-spacing:-.03em">6 de 8 ok</p><p style="margin:2px 0 0;font-size:15px;line-height:21px;color:#4F4C57">Resolva 2 alertas para o AURA trabalhar sem pausas.</p></div>
+</section>
+<section aria-label="Alertas" style="display:flex;flex-direction:column;gap:10px">
+<article style="background:#FFF1D6;border-radius:24px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:12px;align-items:flex-start"><span aria-hidden="true" style="flex:none;margin-top:1px;width:24px;height:24px;border-radius:12px;background:#E08A00;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><path d="M12 17h.01"/></svg></span><p style="margin:0;font-size:16px;line-height:22px;font-weight:700;color:#4A2800">Bateria: o Android pode pausar o AURA em segundo plano</p></div>
+<div><button type="button" style="height:44px;padding:0 18px;border-radius:22px;background:#15141A;color:#FFFFFF;border:0;font-size:15px;font-weight:700">Liberar bateria</button></div>
+</article>
+<article style="background:#FFF1D6;border-radius:24px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;gap:12px;align-items:flex-start"><span aria-hidden="true" style="flex:none;margin-top:1px;width:24px;height:24px;border-radius:12px;background:#E08A00;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5"/><path d="M12 17h.01"/></svg></span><p style="margin:0;font-size:16px;line-height:22px;font-weight:700;color:#4A2800">Termux pode ser encerrado em tarefas longas (Android 12+)</p></div>
+<div><button type="button" style="height:44px;padding:0 18px;border-radius:22px;background:#FFFFFF;color:#15141A;border:1px solid #D5D1C7;font-size:15px;font-weight:700">Ver como evitar</button></div>
+</article>
+</section>
+<section aria-label="Itens ok">
+<h2 style="margin:0 0 8px 4px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">TUDO CERTO</h2>
+<ul style="margin:0;padding:0;list-style:none;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;overflow:hidden">
+<li style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-top:0"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-size:15px;line-height:21px">Termux instalado</span></li><li style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid #E6E3DC"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-size:15px;line-height:21px">AURA autorizado a usar o Termux</span></li><li style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid #E6E3DC"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-size:15px;line-height:21px">Termux aceita comandos de outros apps</span></li><li style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid #E6E3DC"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-size:15px;line-height:21px">Notificações liberadas</span></li><li style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid #E6E3DC"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-size:15px;line-height:21px">Armazenamento com 14 GB livres</span></li><li style="display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-top:1px solid #E6E3DC"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span><span style="font-size:15px;line-height:21px">ADB sem fio pareado</span></li>
+</ul>
+</section>
+</main>
+<div style="flex:none;height:16px"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

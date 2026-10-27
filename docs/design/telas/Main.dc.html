@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Início — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:80px;padding:32px 20px 0;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:8px">
+<div aria-hidden="true" style="width:24px;height:24px;border-radius:12px;background:radial-gradient(circle at 30% 26%,#FFFFFF 0,rgba(255,255,255,0) 42%),radial-gradient(circle at 78% 76%,#FFA98A 0,rgba(255,169,138,0) 60%),radial-gradient(circle at 20% 80%,#79E6CF 0,rgba(121,230,207,0) 58%),radial-gradient(circle at 80% 20%,#8C9DFF 0,rgba(140,157,255,0) 64%),#EADFFB;box-shadow:0 2px 8px rgba(140,157,255,.5)"></div>
+<span style="font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:22px;line-height:24px;letter-spacing:-.03em">aura</span>
+</div>
+<div style="display:flex;align-items:center;gap:4px">
+<a href="Conexoes.dc.html" style="min-height:44px;display:flex;align-items:center">
+<span style="display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;background:#E3F4EA;color:#0F6B3C;font-size:13px;line-height:16px;font-weight:700"><span style="display:block;width:8px;height:8px;border-radius:4px;background:#17A058"></span>Termux ativo</span>
+</a>
+<a href="Ajustes.dc.html" aria-label="Abrir ajustes" style="width:44px;height:44px;border-radius:22px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:17px">V</a>
+</div>
+</header>
+
+<main style="flex:1;min-height:0;position:relative;padding:12px 20px 0">
+
+<a href="Voz-1-Ouvindo.dc.html" aria-label="Falar com o AURA" style="position:absolute;right:-72px;top:-6px;width:200px;height:200px;border-radius:100px;display:block">
+<div aria-hidden="true" style="position:absolute;left:-40px;top:-40px;right:-40px;bottom:-40px;border-radius:50%;background:radial-gradient(circle at 50% 50%,rgba(140,157,255,.5) 0%,rgba(255,158,184,.28) 48%,rgba(255,180,140,0) 70%);filter:blur(14px)"></div>
+<div aria-hidden="true" style="position:absolute;left:0;top:0;right:0;bottom:0;border-radius:50%;animation:aura-breathe 6s ease-in-out infinite;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.96) 0%,rgba(255,255,255,0) 32%),radial-gradient(circle at 80% 78%,#FFA98A 0%,rgba(255,169,138,0) 58%),radial-gradient(circle at 16% 82%,#79E6CF 0%,rgba(121,230,207,0) 55%),radial-gradient(circle at 82% 20%,#8C9DFF 0%,rgba(140,157,255,0) 62%),#EADFFB;box-shadow:inset 0 -10px 24px rgba(112,84,196,.28),inset 0 6px 16px rgba(255,255,255,.75),0 18px 50px rgba(140,157,255,.35)"></div>
+<span style="position:absolute;left:-4px;bottom:34px;height:32px;padding:0 12px 0 10px;border-radius:16px;background:rgba(255,255,255,.94);box-shadow:0 4px 14px rgba(21,20,26,.14);display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:700;color:#15141A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>Toque para falar</span>
+</a>
+
+<div style="position:relative;max-width:236px">
+<p style="margin:0;font-size:17px;line-height:24px;color:#4F4C57">Oi, Vitor.</p>
+<h1 style="margin:4px 0 0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:38px;line-height:42px;letter-spacing:-.03em;text-wrap:balance">O que vamos criar hoje?</h1>
+<p style="margin:12px 0 0;font-size:16px;line-height:23px;color:#4F4C57">Fale ou escreva do seu jeito. Eu cuido do resto.</p>
+</div>
+
+<section aria-label="Sugestão do AURA" style="position:relative;margin-top:24px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05)">
+<div style="display:flex;align-items:center;gap:8px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">
+<span aria-hidden="true" style="width:24px;height:24px;border-radius:12px;background:linear-gradient(135deg,#8C9DFF,#FF9EB8);color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></span>
+SUGESTÃO DO AURA
+</div>
+<h2 style="margin:10px 0 0;font-size:18px;line-height:24px;font-weight:700;text-wrap:balance">A tela de login ficou cortada na multimídia.</h2>
+<p style="margin:4px 0 0;font-size:15px;line-height:21px;color:#4F4C57">Vi isso na captura de ontem. Posso corrigir, testar e instalar de novo.</p>
+<div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+<a href="Chat-1-Entendi.dc.html" style="flex:none;height:44px;padding:0 18px;border-radius:22px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;font-size:15px;font-weight:700">Corrigir tela de login</a>
+<a href="Main.dc.html" style="flex:none;height:44px;padding:0 14px;border-radius:22px;display:flex;align-items:center;font-size:15px;font-weight:600;color:#4F4C57">Depois</a>
+</div>
+</section>
+
+<div style="position:relative;margin-top:20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<a href="Projeto-Novo.dc.html" style="min-height:126px;padding:16px;border-radius:24px;background:#E4E8FF;display:flex;flex-direction:column;justify-content:space-between">
+<span aria-hidden="true" style="width:40px;height:40px;border-radius:20px;background:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg></span>
+<span><span style="display:block;font-size:17px;line-height:22px;font-weight:700">Criar aplicativo</span><span style="display:block;font-size:14px;line-height:20px;color:#4F4C57">Da ideia ao APK</span></span>
+</a>
+<a href="Dispositivos.dc.html" style="min-height:126px;padding:16px;border-radius:24px;background:#D9F3E8;display:flex;flex-direction:column;justify-content:space-between">
+<span aria-hidden="true" style="width:40px;height:40px;border-radius:20px;background:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span>
+<span><span style="display:block;font-size:17px;line-height:22px;font-weight:700">Controlar Android</span><span style="display:block;font-size:14px;line-height:20px;color:#4F4C57">TV, celular, multimídia</span></span>
+</a>
+</div>
+
+</main>
+
+<div style="flex:none;padding:8px 16px 12px">
+<div style="display:flex;align-items:center;gap:6px;height:60px;padding:8px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:30px;box-shadow:0 10px 30px rgba(21,20,26,.08)">
+<button type="button" aria-label="Anexar arquivo ou projeto" style="flex:none;width:44px;height:44px;border-radius:22px;border:0;background:#EEECE7;color:#15141A;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+<a href="Chat-2-Teclado-Comandos.dc.html" style="flex:1;min-width:0;height:44px;padding:0 6px;display:flex;align-items:center;font-size:17px;color:#6A6772">Peça algo ao AURA…</a>
+<a href="Voz-1-Ouvindo.dc.html" aria-label="Falar com o AURA" style="flex:none;width:44px;height:44px;border-radius:22px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></a>
+</div>
+</div>
+
+<nav aria-label="Navegação principal" style="flex:none;height:76px;padding:8px 8px 12px;display:flex;background:#FFFFFF;border-top:1px solid #E6E3DC">
+<a href="Main.dc.html" aria-current="page" style="flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:700;color:#15141A">
+<span style="width:56px;height:32px;border-radius:16px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>Início</a>
+<a href="Projetos.dc.html" style="flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:500;color:#6A6772">
+<span style="width:56px;height:32px;border-radius:16px;color:#4F4C57;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>Projetos</a>
+<a href="Dispositivos.dc.html" style="flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:500;color:#6A6772">
+<span style="width:56px;height:32px;border-radius:16px;color:#4F4C57;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span>Dispositivos</a>
+<a href="Atividade.dc.html" style="flex:1;min-height:56px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:500;color:#6A6772">
+<span style="width:56px;height:32px;border-radius:16px;color:#4F4C57;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></span>Atividade</a>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

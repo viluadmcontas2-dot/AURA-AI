@@ -1,0 +1,521 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T17:40:16Z"
+  },
+  "title": "AURA AI Interface",
+  "launch": {
+    "view": "canvas"
+  },
+  "boards": {
+    "Onb-1-Boas-vindas.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "01 · Boas-vindas",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Onb-2-Termux.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "02 · Conectar o Termux",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Onb-3-Contas.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "03 · Conectar contas",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Main.dc.html": {
+      "x": 0,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "04 · Início",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Voz-1-Ouvindo.dc.html": {
+      "x": 470,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "05 · Voz · ouvindo",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Voz-2-Interrompida.dc.html": {
+      "x": 940,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "06 · Voz · interrompida",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Chat-1-Entendi.dc.html": {
+      "x": 1410,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "07 · Entendi + plano",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Chat-2-Teclado-Comandos.dc.html": {
+      "x": 1880,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "08 · Teclado + comandos",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Projeto-Novo.dc.html": {
+      "x": 2350,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "09 · Ideia vira projeto",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Chat-3-Executando.dc.html": {
+      "x": 0,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "10 · Executando",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Chat-4-Aprovacao.dc.html": {
+      "x": 470,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "11 · Aprovação",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Bastidores.dc.html": {
+      "x": 940,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "12 · Bastidores",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Chat-5-Resultado.dc.html": {
+      "x": 1410,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "13 · Resultado",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Artefato-Detalhe.dc.html": {
+      "x": 1880,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "14 · Artefato",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Link-Aberto.dc.html": {
+      "x": 2350,
+      "y": 3000,
+      "w": 390,
+      "h": 844,
+      "title": "15 · Abrir link",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Projetos.dc.html": {
+      "x": 0,
+      "y": 4500,
+      "w": 390,
+      "h": 844,
+      "title": "16 · Projetos",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Projeto-Detalhe.dc.html": {
+      "x": 470,
+      "y": 4500,
+      "w": 390,
+      "h": 844,
+      "title": "17 · Projeto",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Artefatos.dc.html": {
+      "x": 940,
+      "y": 4500,
+      "w": 390,
+      "h": 844,
+      "title": "18 · Artefatos",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Dispositivos.dc.html": {
+      "x": 1410,
+      "y": 4500,
+      "w": 390,
+      "h": 844,
+      "title": "19 · Dispositivos",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Dispositivo-Detalhe.dc.html": {
+      "x": 1880,
+      "y": 4500,
+      "w": 390,
+      "h": 844,
+      "title": "20 · Dispositivo",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Atividade.dc.html": {
+      "x": 2350,
+      "y": 4500,
+      "w": 390,
+      "h": 844,
+      "title": "21 · Atividade",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Capacidades.dc.html": {
+      "x": 0,
+      "y": 6000,
+      "w": 390,
+      "h": 844,
+      "title": "22 · Capacidades",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Capacidade-Detalhe.dc.html": {
+      "x": 470,
+      "y": 6000,
+      "w": 390,
+      "h": 844,
+      "title": "23 · Capacidade",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Conexoes.dc.html": {
+      "x": 940,
+      "y": 6000,
+      "w": 390,
+      "h": 844,
+      "title": "24 · Conexões",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Memoria.dc.html": {
+      "x": 1410,
+      "y": 6000,
+      "w": 390,
+      "h": 844,
+      "title": "25 · Memória",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Ajustes.dc.html": {
+      "x": 0,
+      "y": 7500,
+      "w": 390,
+      "h": 844,
+      "title": "26 · Ajustes",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Checkup.dc.html": {
+      "x": 470,
+      "y": 7500,
+      "w": 390,
+      "h": 844,
+      "title": "27 · Checkup",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Notificacoes.dc.html": {
+      "x": 940,
+      "y": 7500,
+      "w": 390,
+      "h": 844,
+      "title": "28 · Notificações do Android",
+      "radius": 36
+    },
+    "Intercorrencias.dc.html": {
+      "x": 0,
+      "y": 9100,
+      "w": 1240,
+      "h": 1560,
+      "title": "29 · Quando algo dá errado",
+      "radius": 24
+    },
+    "Vazios.dc.html": {
+      "x": 1320,
+      "y": 9100,
+      "w": 1240,
+      "h": 620,
+      "title": "30 · Telas vazias",
+      "radius": 24
+    },
+    "Sistema-Cores-Tipo.dc.html": {
+      "x": 0,
+      "y": 11260,
+      "w": 1280,
+      "h": 1500,
+      "title": "31 · Cores e tipografia",
+      "radius": 24
+    },
+    "Sistema-Componentes.dc.html": {
+      "x": 1360,
+      "y": 11260,
+      "w": 1280,
+      "h": 1700,
+      "title": "32 · Componentes",
+      "radius": 24
+    },
+    "Fluxo-do-usuario.dc.html": {
+      "x": 1360,
+      "y": -2500,
+      "w": 2176,
+      "h": 1000,
+      "title": "00 · Fluxo do usuário",
+      "radius": 24
+    },
+    "Contrato.dc.html": {
+      "x": 3616,
+      "y": -2500,
+      "w": 1280,
+      "h": 1340,
+      "title": "00b · Plano e contrato",
+      "radius": 24
+    },
+    "Progresso.dc.html": {
+      "x": 0,
+      "y": -2500,
+      "w": 1280,
+      "h": 1180,
+      "title": "00a · Progresso de UI e UX",
+      "radius": 24
+    }
+  },
+  "order": [
+    "Progresso.dc.html",
+    "Fluxo-do-usuario.dc.html",
+    "Contrato.dc.html",
+    "Onb-1-Boas-vindas.dc.html",
+    "Onb-2-Termux.dc.html",
+    "Onb-3-Contas.dc.html",
+    "Main.dc.html",
+    "Voz-1-Ouvindo.dc.html",
+    "Voz-2-Interrompida.dc.html",
+    "Chat-1-Entendi.dc.html",
+    "Chat-2-Teclado-Comandos.dc.html",
+    "Projeto-Novo.dc.html",
+    "Chat-3-Executando.dc.html",
+    "Chat-4-Aprovacao.dc.html",
+    "Bastidores.dc.html",
+    "Chat-5-Resultado.dc.html",
+    "Artefato-Detalhe.dc.html",
+    "Link-Aberto.dc.html",
+    "Projetos.dc.html",
+    "Projeto-Detalhe.dc.html",
+    "Artefatos.dc.html",
+    "Dispositivos.dc.html",
+    "Dispositivo-Detalhe.dc.html",
+    "Atividade.dc.html",
+    "Capacidades.dc.html",
+    "Capacidade-Detalhe.dc.html",
+    "Conexoes.dc.html",
+    "Memoria.dc.html",
+    "Ajustes.dc.html",
+    "Checkup.dc.html",
+    "Notificacoes.dc.html",
+    "Intercorrencias.dc.html",
+    "Vazios.dc.html",
+    "Sistema-Cores-Tipo.dc.html",
+    "Sistema-Componentes.dc.html"
+  ],
+  "notes": {
+    "t0": {
+      "x": 0,
+      "y": -1000,
+      "text": "AURA AI · interface completa",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "p1": {
+      "x": 0,
+      "y": -800,
+      "w": 500,
+      "fill": "blue",
+      "text": "Uma tela, uma decisão.\nUm botão principal por tela, sempre no mesmo estilo: a pílula preta."
+    },
+    "p2": {
+      "x": 560,
+      "y": -800,
+      "w": 500,
+      "fill": "purple",
+      "text": "Até 2 toques para agir.\nVoz, texto ou sugestão do AURA levam direto ao trabalho."
+    },
+    "p3": {
+      "x": 1120,
+      "y": -800,
+      "w": 500,
+      "fill": "orange",
+      "text": "Cor é significado.\nGradiente: só quando o AURA está vivo. Âmbar: precisa de você. Vermelho: risco. Verde: prova."
+    },
+    "p4": {
+      "x": 1680,
+      "y": -800,
+      "w": 500,
+      "fill": "teal",
+      "text": "Detalhes sob demanda.\nCódigo, comandos e logs ficam nos Bastidores, nunca na tela principal."
+    },
+    "p5": {
+      "x": 2240,
+      "y": -800,
+      "w": 500,
+      "fill": "pink",
+      "text": "Sempre o próximo passo.\nTodo resultado termina em FEITO, COMPROVADO, FALTA e PRÓXIMO PASSO."
+    },
+    "t1": {
+      "x": 0,
+      "y": -300,
+      "text": "1 · Primeiro uso",
+      "kind": "title1",
+      "maxW": 1330
+    },
+    "t2": {
+      "x": 0,
+      "y": 1200,
+      "text": "2 · Pedir ao AURA",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "t3": {
+      "x": 0,
+      "y": 2700,
+      "text": "3 · Acompanhar e provar",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "t4": {
+      "x": 0,
+      "y": 4200,
+      "text": "4 · Seus espaços",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "t5": {
+      "x": 0,
+      "y": 5700,
+      "text": "5 · Capacidades e conexões",
+      "kind": "title1",
+      "maxW": 1800
+    },
+    "t6": {
+      "x": 0,
+      "y": 7200,
+      "text": "6 · Ajustes e Android",
+      "kind": "title1",
+      "maxW": 1330
+    },
+    "t7": {
+      "x": 0,
+      "y": 8800,
+      "text": "7 · Quando algo foge do roteiro",
+      "kind": "title1",
+      "maxW": 2560
+    },
+    "t8": {
+      "x": 0,
+      "y": 10960,
+      "text": "8 · Sistema visual",
+      "kind": "title1",
+      "maxW": 2640
+    },
+    "t00": {
+      "x": 0,
+      "y": -2800,
+      "text": "0 · Plano, fluxo e progresso",
+      "kind": "title1",
+      "maxW": 4900
+    },
+    "n1": {
+      "x": 470,
+      "y": 884,
+      "w": 390,
+      "fill": "orange",
+      "text": "Passo mais frágil do primeiro uso: o Termux precisa aceitar comandos de outros apps. O AURA testa a conexão sozinho e libera o Continuar."
+    },
+    "n2": {
+      "x": 0,
+      "y": 2384,
+      "w": 390,
+      "fill": "blue",
+      "text": "Antecipação: o AURA sugere o próximo passo a partir da última captura da multimídia. Não há lista de conversas: cada pedido vira tarefa dentro de um projeto."
+    },
+    "n3": {
+      "x": 470,
+      "y": 2384,
+      "w": 390,
+      "fill": "purple",
+      "text": "Voz imersiva: tema escuro só aqui e nos Bastidores. O orbe respira e os anéis aparecem só enquanto ouve."
+    },
+    "n4": {
+      "x": 1880,
+      "y": 2384,
+      "w": 390,
+      "fill": "green",
+      "text": "Teclado aberto: o espaço vazio embaixo é do teclado real do Android (cerca de 300 px). A barra inferior some, o texto digitado fica e a última mensagem continua visível."
+    },
+    "n5": {
+      "x": 0,
+      "y": 3884,
+      "w": 390,
+      "fill": "teal",
+      "text": "Aprovação adiantada: o AURA pede antes de precisar, para o trabalho não parar esperando você."
+    },
+    "n6": {
+      "x": 470,
+      "y": 3884,
+      "w": 390,
+      "fill": "red",
+      "text": "Risco decide a tela: baixo vira linha, médio vira cartão, alto vira sheet com alvo e consequência."
+    },
+    "n7": {
+      "x": 940,
+      "y": 3884,
+      "w": 390,
+      "fill": "gray",
+      "text": "Código, comandos e logs vivem aqui. Escuro significa por baixo do capô."
+    },
+    "n8": {
+      "x": 470,
+      "y": 8384,
+      "w": 390,
+      "fill": "orange",
+      "text": "Android 12 ou mais novo pode encerrar processos do Termux. Isso precisa ser verificado no aparelho real antes de prometer tarefas longas."
+    }
+  },
+  "designSystems": []
+}

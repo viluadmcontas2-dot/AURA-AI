@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Conectar Termux — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:84px;padding:32px 8px 0;display:flex;align-items:center;gap:4px">
+<a href="Onb-1-Boas-vindas.dc.html" aria-label="Voltar para as boas-vindas" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0;padding-right:12px">
+<div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57;margin-bottom:6px">PASSO 2 DE 3</div>
+<div role="progressbar" aria-label="Passo 2 de 3" aria-valuemin="1" aria-valuemax="3" aria-valuenow="2" style="height:4px;border-radius:2px;background:#E6E3DC;display:flex;gap:4px"><span style="flex:1;border-radius:2px;background:#15141A"></span><span style="flex:1;border-radius:2px;background:#15141A"></span><span style="flex:1;border-radius:2px;background:#D5D1C7"></span></div>
+</div>
+</header>
+
+<main style="flex:1;min-height:0;padding:8px 20px 0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+
+<div>
+<h1 style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:28px;line-height:32px;letter-spacing:-.03em">Conectar o Termux</h1>
+<p style="margin:4px 0 0;font-size:15px;line-height:21px;color:#4F4C57">É nele que o AURA trabalha, dentro do seu celular.</p>
+</div>
+
+<ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+
+<li style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:20px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+<span aria-hidden="true" style="flex:none;width:28px;height:28px;border-radius:14px;background:#17A058;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+<span style="flex:1;font-size:16px;line-height:22px;font-weight:600">Termux encontrado</span>
+<span style="font-size:13px;line-height:16px;font-weight:700;color:#0F6B3C">Feito</span>
+</li>
+
+<li style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:20px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+<span aria-hidden="true" style="flex:none;width:28px;height:28px;border-radius:14px;background:#17A058;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+<span style="flex:1;font-size:16px;line-height:22px;font-weight:600">Permitir que o AURA use o Termux</span>
+<span style="font-size:13px;line-height:16px;font-weight:700;color:#0F6B3C">Permitido</span>
+</li>
+
+<li style="background:#FFFFFF;border:1.5px solid #15141A;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05)">
+<div style="display:flex;align-items:center;gap:12px">
+<span aria-hidden="true" style="flex:none;width:28px;height:28px;border-radius:14px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:28px;font-weight:700">3</span>
+<span style="flex:1;font-size:17px;line-height:22px;font-weight:700">Aceitar comandos de outros apps</span>
+</div>
+<p style="margin:10px 0 0;font-size:14px;line-height:20px;color:#4F4C57">Cole esta linha no Termux e toque em Enter. Isso deixa o AURA enviar comandos para ele.</p>
+<div style="margin-top:10px;background:#17161E;border-radius:16px;padding:12px 14px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:20px;color:#F4F3F8;word-break:break-all"><span style="color:#9AA9FF">$ </span>echo "allow-external-apps=true" &gt;&gt; ~/.termux/termux.properties</div>
+<div style="display:flex;gap:8px;margin-top:12px">
+<button type="button" style="flex:1;height:48px;border-radius:24px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copiar comando</button>
+<button type="button" style="flex:1;height:48px;border-radius:24px;background:#15141A;color:#FFFFFF;border:0;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>Abrir Termux</button>
+</div>
+</li>
+
+</ol>
+
+<div role="status" style="display:flex;flex-direction:column;gap:8px;padding:4px 4px 0">
+<div style="display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;color:#4F4C57"><span aria-hidden="true" style="display:block;width:8px;height:8px;border-radius:4px;background:#8C9DFF"></span>Testando a conexão sozinho…</div>
+<div aria-hidden="true" style="height:6px;border-radius:3px;background:#E6E3DC;overflow:hidden"><div style="width:55%;height:100%;border-radius:3px;background:linear-gradient(90deg,#8C9DFF,#FF9EB8,#FFB48C)"></div></div>
+</div>
+
+</main>
+
+<footer style="flex:none;padding:12px 20px 24px;display:flex;flex-direction:column;align-items:stretch;gap:4px">
+<a href="Onb-3-Contas.dc.html" aria-disabled="true" style="height:56px;border-radius:28px;background:#E6E3DC;color:#4F4C57;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700">Continuar</a>
+<a href="#" style="height:44px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#3340C9;text-decoration:underline">Preciso de ajuda</a>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

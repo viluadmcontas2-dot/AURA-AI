@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Telas vazias — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:1240px;height:620px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+<header style="flex:none;padding:36px 36px 0"><h1 style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:38px;line-height:42px;letter-spacing:-.03em">Telas vazias convidam a agir</h1>
+<p style="margin:6px 0 0;font-size:16px;line-height:24px;color:#4F4C57">Ilustração simples, uma frase e um botão com verbo + objeto.</p></header>
+<main style="flex:none;padding:24px 36px 0;display:flex;gap:16px;align-items:stretch;justify-content:space-between"><section aria-label="Tela vazia de Projetos" style="width:280px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05);display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 4px 10px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57"><span>ABA PROJETOS</span></div>
+<div aria-hidden="true" style="height:148px;border-radius:20px;background:#E4E8FF;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden"><svg width="240" height="148" viewBox="0 0 240 148"><rect x="62" y="44" width="116" height="78" rx="16" fill="#FFFFFF" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" /><path d="M62 62h40l8-12h-40a16 16 0 0 0-8 12z" fill="#FFFFFF" stroke="#15141A" stroke-width="1.75" stroke-linejoin="round"/><rect x="82" y="84" width="76" height="8" rx="4" fill="#E4E8FF"/><rect x="82" y="100" width="48" height="8" rx="4" fill="#E4E8FF"/><circle cx="188" cy="40" r="14" fill="#8C9DFF" opacity=".9"/><circle cx="50" cy="112" r="7" fill="#FF9EB8" opacity=".9"/></svg></div>
+<h2 style="margin:16px 0 0;min-height:48px;font-size:18px;line-height:24px;font-weight:700;text-wrap:balance">Nenhum projeto ainda</h2>
+<p style="margin:4px 0 16px;font-size:14px;line-height:20px;color:#4F4C57;text-wrap:pretty">Um projeto guarda o código, os aparelhos e o histórico de um app.</p>
+<a href="Projeto-Novo.dc.html" style="margin-top:auto;height:48px;border-radius:24px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;line-height:20px;font-weight:700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Criar primeiro projeto</a>
+</section><section aria-label="Tela vazia de Dispositivos" style="width:280px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05);display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 4px 10px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57"><span>ABA DISPOSITIVOS</span></div>
+<div aria-hidden="true" style="height:148px;border-radius:20px;background:#D9F3E8;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden"><svg width="240" height="148" viewBox="0 0 240 148"><circle cx="120" cy="74" r="58" fill="none" stroke="#15141A" stroke-width="1.75" stroke-dasharray="3 7" stroke-linecap="round"/><circle cx="120" cy="74" r="40" fill="none" stroke="#15141A" stroke-width="1.75" stroke-dasharray="3 7" stroke-linecap="round" opacity=".5"/><rect x="98" y="38" width="44" height="72" rx="10" fill="#FFFFFF" stroke="#15141A" stroke-width="1.75"/><circle cx="120" cy="100" r="3" fill="#15141A"/><rect x="108" y="48" width="24" height="6" rx="3" fill="#D9F3E8"/><circle cx="188" cy="46" r="8" fill="#79E6CF"/></svg></div>
+<h2 style="margin:16px 0 0;min-height:48px;font-size:18px;line-height:24px;font-weight:700;text-wrap:balance">Nenhum aparelho conectado</h2>
+<p style="margin:4px 0 16px;font-size:14px;line-height:20px;color:#4F4C57;text-wrap:pretty">Conecte o celular, a TV ou a multimídia para o AURA controlar.</p>
+<a href="Conexoes.dc.html" style="margin-top:auto;height:48px;border-radius:24px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;line-height:20px;font-weight:700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>Conectar um aparelho</a>
+</section><section aria-label="Tela vazia de Atividade" style="width:280px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05);display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 4px 10px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57"><span>ABA ATIVIDADE</span></div>
+<div aria-hidden="true" style="height:148px;border-radius:20px;background:#EBE1FA;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden"><div style="position:relative;width:240px;height:148px"><svg width="240" height="148" viewBox="0 0 240 148" style="position:absolute;left:0;top:0"><path d="M24 110H96l10-22 14 40 12-52 10 34h50" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/><path d="M168 110h48" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-dasharray="3 7" fill="none"/></svg><div style="position:absolute;left:92px;top:14px"><div aria-hidden="true" style="flex:none;width:56px;height:56px;border-radius:50%;animation:aura-breathe 6s ease-in-out infinite;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.96) 0%,rgba(255,255,255,0) 40%),radial-gradient(circle at 80% 78%,#FFA98A 0%,rgba(255,169,138,0) 58%),radial-gradient(circle at 16% 82%,#79E6CF 0%,rgba(121,230,207,0) 55%),radial-gradient(circle at 82% 20%,#8C9DFF 0%,rgba(140,157,255,0) 62%),#EADFFB;box-shadow:inset 0 -5px 11px rgba(112,84,196,.28),inset 0 3px 7px rgba(255,255,255,.75),0 9px 18px rgba(140,157,255,.35);"></div></div></div></div>
+<h2 style="margin:16px 0 0;min-height:48px;font-size:18px;line-height:24px;font-weight:700;text-wrap:balance">Nada rodando agora</h2>
+<p style="margin:4px 0 16px;font-size:14px;line-height:20px;color:#4F4C57;text-wrap:pretty">Quando o AURA estiver trabalhando, cada passo aparece aqui com a prova.</p>
+<a href="Chat-2-Teclado-Comandos.dc.html" style="margin-top:auto;height:48px;border-radius:24px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;line-height:20px;font-weight:700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>Pedir algo ao AURA</a>
+</section><section aria-label="Tela vazia de Artefatos" style="width:280px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:16px;box-shadow:0 8px 24px rgba(21,20,26,.05);display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 4px 10px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57"><span>ABA ARTEFATOS</span></div>
+<div aria-hidden="true" style="height:148px;border-radius:20px;background:#FFE3D3;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden"><svg width="240" height="148" viewBox="0 0 240 148"><rect x="86" y="34" width="68" height="68" rx="16" fill="#FFFFFF" stroke="#15141A" stroke-width="1.75" transform="rotate(-8 120 68)" opacity=".7"/><rect x="86" y="42" width="68" height="68" rx="16" fill="#FFFFFF" stroke="#15141A" stroke-width="1.75"/><path d="M104 84l12-14 10 10 6-6 10 12" fill="none" stroke="#15141A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="108" cy="62" r="5" fill="#FFB48C"/><circle cx="196" cy="108" r="9" fill="#FF9EB8" opacity=".9"/><rect x="40" y="40" width="14" height="14" rx="4" fill="#15141A" opacity=".12"/></svg></div>
+<h2 style="margin:16px 0 0;min-height:48px;font-size:18px;line-height:24px;font-weight:700;text-wrap:balance">Seus APKs e relatórios aparecem aqui</h2>
+<p style="margin:4px 0 16px;font-size:14px;line-height:20px;color:#4F4C57;text-wrap:pretty">Tudo que o AURA gera fica guardado, com as versões anteriores.</p>
+<a href="Projeto-Novo.dc.html" style="margin-top:auto;height:48px;border-radius:24px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;line-height:20px;font-weight:700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Criar um aplicativo</a>
+</section></main>
+<footer style="flex:1;padding:0 36px 24px;display:flex;align-items:flex-end;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:16px;color:#4F4C57">AuraEmptyState(ilustração, título, texto, ação): largura 280 dp · raio 24 · ilustração 148 dp · botão 48 dp</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":620}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

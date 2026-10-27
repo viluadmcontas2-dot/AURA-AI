@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ajustes — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+<header style="flex:none;height:76px;padding:32px 8px 0 8px;display:flex;align-items:center;gap:4px">
+<a href="Main.dc.html" aria-label="Voltar" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#15141A"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0"><h1 style="margin:0;font-size:17px;line-height:22px;font-weight:700">Ajustes</h1></div>
+</header>
+<main style="flex:1;min-height:0;padding:4px 20px 0;display:flex;flex-direction:column;gap:12px">
+<section aria-label="Perfil" style="display:flex;align-items:center;gap:14px;padding:2px 4px 4px">
+<div aria-hidden="true" style="flex:none;width:52px;height:52px;border-radius:26px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:22px">V</div>
+<div><p style="margin:0;font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:24px;line-height:28px;letter-spacing:-.03em">Vitor</p><p style="margin:0;font-size:14px;line-height:20px;color:#4F4C57">Conta pessoal</p></div>
+</section>
+<section aria-label="Ambiente" style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;overflow:hidden">
+<a href="Capacidades.dc.html" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Capacidades</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+<a href="Conexoes.dc.html" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-top:1px solid #E6E3DC;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Conexões</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+<a href="Memoria.dc.html" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-top:1px solid #E6E3DC;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Memória</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+<a href="Checkup.dc.html" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-top:1px solid #E6E3DC;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Checkup do ambiente</span><span style="display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:14px;white-space:nowrap;background:#FFF1D6;color:#8A4B00;font-size:13px;line-height:16px;font-weight:700"><span aria-hidden="true" style="display:block;width:8px;height:8px;border-radius:4px;background:#E08A00"></span>2 alertas</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+</section>
+<section aria-label="Segurança e custo">
+<h2 style="margin:0 0 8px 4px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57;text-transform:uppercase">Segurança e custo</h2>
+<div style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;overflow:hidden">
+<a href="#" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Autorização</span><span style="font-size:15px;line-height:21px;color:#4F4C57">Equilibrado</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+<a href="#" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-top:1px solid #E6E3DC;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Trava de custo</span><span style="font-size:15px;line-height:21px;color:#4F4C57">Ligada</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+</div>
+</section>
+<section aria-label="Preferências" style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;overflow:hidden;padding:0">
+<div style="min-height:64px;padding:8px 16px;display:flex;align-items:center;gap:12px">
+<span style="flex:none;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/></svg></span>
+<span style="flex:1;min-width:0"><span style="display:block;font-size:16px;line-height:22px">Leitura fácil</span><span style="display:block;font-size:14px;line-height:20px;color:#4F4C57">Texto maior e mais espaço entre linhas</span></span>
+<button type="button" role="switch" aria-checked="false" aria-label="Leitura fácil" style="flex:none;width:52px;height:44px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><span style="display:block;position:relative;width:48px;height:28px;border-radius:14px;background:#EEECE7;border:2px solid #6A6772"><span style="position:absolute;left:2px;top:2px;width:20px;height:20px;border-radius:10px;background:#6A6772"></span></span></button>
+</div>
+<div style="border-top:1px solid #E6E3DC;padding:10px 16px 12px">
+<div style="display:flex;align-items:center;gap:12px;height:28px"><span style="flex:none;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span><span id="ap" style="font-size:16px;line-height:24px">Aparência</span></div>
+<div role="group" aria-labelledby="ap" style="margin-top:8px;display:flex;gap:4px;padding:2px;border-radius:22px;background:#EEECE7">
+<button type="button" aria-pressed="true" style="flex:1;height:44px;border:0;border-radius:18px;background:#15141A;color:#FFFFFF;font-size:15px;font-weight:700">Claro</button><button type="button" aria-pressed="false" style="flex:1;height:44px;border:0;border-radius:18px;background:transparent;color:#4F4C57;font-size:15px;font-weight:600">Escuro</button><button type="button" aria-pressed="false" style="flex:1;height:44px;border:0;border-radius:18px;background:transparent;color:#4F4C57;font-size:15px;font-weight:600">Sistema</button>
+</div>
+</div>
+</section>
+<section aria-label="Mais" style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;overflow:hidden">
+<a href="Notificacoes.dc.html" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Notificações</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+<a href="#" style="height:52px;padding:0 14px;display:flex;align-items:center;gap:10px;border-top:1px solid #E6E3DC;"><span style="flex:none;color:#15141A;display:flex"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span><span style="flex:1;min-width:0;white-space:nowrap;font-size:16px;line-height:24px">Sobre</span><span style="font-size:15px;line-height:21px;color:#4F4C57">Versão 0.3</span><span style="flex:none;color:#6A6772;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></a>
+</section>
+</main>
+<div style="flex:none;height:12px"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

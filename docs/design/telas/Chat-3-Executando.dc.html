@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Executando — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:84px;padding:32px 20px 0 8px;display:flex;align-items:center;gap:4px">
+<a href="Main.dc.html" aria-label="Voltar para o início" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0">
+<div style="font-size:17px;line-height:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Corrigir tela de login</div>
+<div style="display:flex;align-items:center;gap:6px;font-size:13px;line-height:16px;color:#4F4C57"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Minhas Finanças</div>
+</div>
+<span style="flex:none;display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;background:#E4ECFF;color:#2848B8;font-size:13px;line-height:16px;font-weight:700"><span aria-hidden="true" style="display:block;width:8px;height:8px;border-radius:4px;background:#2848B8"></span>Rodando · 3 de 4</span>
+</header>
+
+<div role="progressbar" aria-label="Progresso da tarefa" aria-valuemin="0" aria-valuemax="4" aria-valuenow="3" style="flex:none;margin:0 20px;height:4px;border-radius:2px;background:#E6E3DC"><div style="width:75%;height:4px;border-radius:2px;background:linear-gradient(90deg,#8C9DFF,#FF9EB8,#FFB48C)"></div></div>
+
+<main style="flex:1;min-height:0;padding:20px 20px 0;display:flex;flex-direction:column;overflow:hidden">
+
+<ol style="position:relative;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:16px">
+<div aria-hidden="true" style="position:absolute;left:11px;top:12px;bottom:200px;width:2px;background:#E3E0D9"></div>
+
+<li style="position:relative;display:flex;gap:12px;align-items:flex-start">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+<div style="flex:1;min-width:0">
+<div style="font-size:16px;line-height:24px;font-weight:700">Ler o código da tela</div>
+<div style="font-size:14px;line-height:20px;color:#4F4C57">Feito · 12 arquivos · 8 s</div>
+</div>
+</li>
+
+<li style="position:relative;display:flex;gap:12px;align-items:flex-start">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+<div style="flex:1;min-width:0">
+<div style="font-size:16px;line-height:24px;font-weight:700">Corrigir o layout</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;line-height:20px;color:#4F4C57"><span>Feito · 3 arquivos mudaram</span><a href="Bastidores.dc.html" style="flex:none;min-height:44px;margin:-12px 0;display:flex;align-items:center;color:#3340C9;font-weight:700;text-decoration:underline">Ver mudanças</a></div>
+</div>
+</li>
+
+<li style="position:relative;display:flex;gap:12px;align-items:flex-start">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:linear-gradient(135deg,#8C9DFF,#FF9EB8,#FFB48C);display:flex;align-items:center;justify-content:center"><span style="display:block;width:16px;height:16px;border-radius:8px;background:#F5F4F1"></span></span>
+<div style="flex:1;min-width:0">
+<div style="font-size:16px;line-height:24px;font-weight:700">Gerar o APK</div>
+<div style="font-size:14px;line-height:20px;color:#4F4C57">Compilando no GitHub Actions · 62%</div>
+<div role="progressbar" aria-label="Compilação do APK" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" style="margin-top:8px;height:6px;border-radius:3px;background:#E6E3DC"><div style="width:62%;height:6px;border-radius:3px;background:linear-gradient(90deg,#8C9DFF,#FF9EB8,#FFB48C)"></div></div>
+<div style="margin-top:8px;padding:8px 12px;border-radius:12px;background:#EEECE7;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:18px;color:#4F4C57"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">&gt; ./gradlew assembleDebug</div><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">:app:compileDebugKotlin…</div></div>
+</div>
+</li>
+
+<li style="position:relative;display:flex;gap:12px;align-items:flex-start">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;border:3px solid #E08A00;background:#F5F4F1"></span>
+<div style="flex:1;min-width:0">
+<div style="font-size:16px;line-height:24px;font-weight:700">Instalar na multimídia</div>
+<div style="font-size:14px;line-height:20px;color:#8A4B00;font-weight:600">Aguardando a sua aprovação</div>
+<section aria-label="Aprovação antecipada" style="margin-top:8px;background:#FFF1D6;border:1px solid #F0D49A;border-radius:20px;padding:14px">
+<div style="font-size:16px;line-height:22px;font-weight:700;color:#15141A;text-wrap:balance">Instalar o APK 0.3.2 na Multimídia do carro?</div>
+<div style="display:flex;gap:8px;margin-top:12px">
+<a href="Chat-5-Resultado.dc.html" style="flex:1;height:44px;border-radius:22px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">Aprovar</a>
+<a href="Bastidores.dc.html" style="flex:1;height:44px;border-radius:22px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600">Ver detalhes</a>
+</div>
+<p style="margin:10px 0 0;font-size:14px;line-height:20px;color:#8A4B00">Aprove agora e eu sigo sozinho.</p>
+</section>
+</div>
+</li>
+</ol>
+
+<div style="margin-top:auto;padding-bottom:8px;display:flex;gap:8px;align-items:center">
+<button type="button" style="flex:1;height:48px;border-radius:24px;background:#FFFFFF;border:1px solid #D5D1C7;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>Pausar</button>
+<button type="button" style="flex:none;height:48px;padding:0 20px;border-radius:24px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:#A31B2B"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Parar</button>
+</div>
+
+</main>
+
+<div style="flex:none;padding:8px 16px 12px">
+<div style="display:flex;align-items:center;gap:6px;height:60px;padding:8px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:30px;box-shadow:0 10px 30px rgba(21,20,26,.08)">
+<a href="Chat-2-Teclado-Comandos.dc.html" style="flex:1;min-width:0;height:44px;padding:0 10px;display:flex;align-items:center;font-size:16px;color:#6A6772;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Mudou de ideia? Diga ao AURA…</a>
+<a href="Voz-1-Ouvindo.dc.html" aria-label="Falar com o AURA" style="flex:none;width:44px;height:44px;border-radius:22px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></a>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
