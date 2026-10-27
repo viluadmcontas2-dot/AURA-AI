@@ -20,7 +20,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -46,12 +51,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ai.aura.app.ui.components.auraFocusRing
+import ai.aura.app.ui.engine.AuthState
+import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.screens.ActivityScreen
 import ai.aura.app.ui.screens.DevicesScreen
 import ai.aura.app.ui.screens.HomeScreen
 import ai.aura.app.ui.screens.ProjectsScreen
+import ai.aura.app.ui.screens.onboarding.AccountId
+import ai.aura.app.ui.screens.onboarding.AccountState
+import ai.aura.app.ui.screens.onboarding.OnboardingFlow
+import ai.aura.app.ui.screens.onboarding.TermuxSetupState
+import ai.aura.app.ui.screens.onboarding.defaultAccounts
+import ai.aura.app.ui.screens.settings.SettingsScreen
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraSpacing
@@ -64,33 +77,122 @@ enum class AuraTab(val label: String) {
 
 /**
  * Shell do app: 4 abas por estado (sem navigation-compose), aba guardada com rememberSaveable.
- * A barra inferior some com o teclado (regra 4); o espaço do teclado é vazio de propósito.
+ * Primeira abertura mostra o OnboardingFlow; Ajustes abre por cima da Home (engrenagem) e volta com Voltar.
+ * A barra inferior some com o teclado e com o chat aberto; o espaço do teclado é vazio de propósito.
+ * [onOpenUrl] é ligado pela MainActivity ao navegador (login de contas).
  * Requer enableEdgeToEdge() + windowSoftInputMode=adjustResize na Activity (fora desta pasta).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AuraApp(gateway: EngineGateway = remember { FakeEngineGateway() }) {
+fun AuraApp(
+    gateway: EngineGateway = remember { FakeEngineGateway() },
+    onOpenUrl: (String) -> Unit = {},
+) {
     AuraTheme {
+        var onboardingDone by rememberSaveable { mutableStateOf(false) }
+        var showSettings by rememberSaveable { mutableStateOf(false) }
         var selected by rememberSaveable { mutableIntStateOf(0) }
+        var chatOpen by remember { mutableStateOf(false) }
+        var pendingJobId by rememberSaveable { mutableStateOf<String?>(null) }
         val tab = AuraTab.entries[selected.coerceIn(0, AuraTab.entries.lastIndex)]
         val imeVisible = WindowInsets.isImeVisible
+        BackHandler(enabled = showSettings && onboardingDone) { showSettings = false }
         Column(
             Modifier
                 .fillMaxSize()
                 .background(AuraColors.Bg)
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (tab) {
-                    AuraTab.Home -> HomeScreen(gateway, Modifier.fillMaxSize())
-                    AuraTab.Projects -> ProjectsScreen(gateway, Modifier.fillMaxSize())
-                    AuraTab.Devices -> DevicesScreen(gateway, Modifier.fillMaxSize())
-                    AuraTab.Activity -> ActivityScreen(gateway, Modifier.fillMaxSize())
+            if (!onboardingDone) {
+                OnboardingHost(gateway, onOpenUrl, onFinished = { onboardingDone = true }, Modifier.weight(1f).fillMaxWidth())
+            } else if (showSettings) {
+                SettingsScreen(gateway, onClose = { showSettings = false }, modifier = Modifier.weight(1f).fillMaxWidth(), onOpenUrl = onOpenUrl)
+            } else {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when (tab) {
+                        AuraTab.Home -> HomeScreen(
+                            gateway, Modifier.fillMaxSize(),
+                            onChatOpenChange = { chatOpen = it },
+                            onOpenSettings = { showSettings = true },
+                            openJobId = pendingJobId,
+                            onOpenJobHandled = { pendingJobId = null },
+                        )
+                        AuraTab.Projects -> ProjectsScreen(gateway, Modifier.fillMaxSize())
+                        AuraTab.Devices -> DevicesScreen(gateway, Modifier.fillMaxSize())
+                        AuraTab.Activity -> ActivityScreen(
+                            gateway, Modifier.fillMaxSize(),
+                            onStartRequest = { selected = AuraTab.Home.ordinal },
+                            // Reabre a tarefa no chat: HomeScreen restaura por jobId (ChatEntry.jobId).
+                            onOpenJob = { id -> pendingJobId = id; selected = AuraTab.Home.ordinal },
+                        )
+                    }
+                }
+                if (!imeVisible && !(chatOpen && tab == AuraTab.Home)) {
+                    AuraBottomBar(tab, onSelect = { selected = it.ordinal })
                 }
             }
-            if (!imeVisible) AuraBottomBar(tab, onSelect = { selected = it.ordinal })
         }
     }
+}
+
+/**
+ * Cola do onboarding com o motor: Termux pelo estado real (capabilities) e contas por authStatus.
+ * Login só pelo navegador: o link vem do evento auth.prompt e sai por [onOpenUrl]; nunca pede token.
+ * TODO(MainActivity): onRequestTermuxPermission / onOpenTermux dependem da Activity (RUN_COMMAND, intent do Termux).
+ */
+@Composable
+private fun OnboardingHost(
+    gateway: EngineGateway,
+    onOpenUrl: (String) -> Unit,
+    onFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    var termux by remember { mutableStateOf(TermuxSetupState()) }
+    var accounts by remember { mutableStateOf(defaultAccounts()) }
+    var tick by remember { mutableIntStateOf(0) }
+
+    fun providerOf(id: AccountId) = when (id) {
+        AccountId.Claude -> "claude"
+        AccountId.Codex -> "codex"
+        AccountId.Google -> "gemini"
+        AccountId.GitHub -> "github"
+    }
+
+    LaunchedEffect(gateway, tick) {
+        val caps = runCatching { gateway.capabilities() }.getOrNull()
+        val up = caps?.any { it.id == "termux" && it.available } == true
+        termux = TermuxSetupState(termuxFound = up, permissionGranted = up, externalAppsAllowed = up)
+        val statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList())
+        accounts = AccountId.entries.map { id ->
+            val st = statuses.firstOrNull { it.provider == providerOf(id) }
+            AccountState(id, connected = st?.state == AuthState.Connected, detail = st?.detail)
+        }
+    }
+    LaunchedEffect(gateway) {
+        gateway.events.collect { e ->
+            when (e.type) {
+                "auth.prompt" -> e.payload["url"]?.let(onOpenUrl)
+                "auth.done", "auth.failed" -> tick++
+            }
+        }
+    }
+
+    OnboardingFlow(
+        termux = termux,
+        accounts = accounts,
+        onRequestTermuxPermission = { tick++ },
+        onOpenTermux = { tick++ },
+        onSignIn = { id ->
+            accounts = accounts.map { if (it.id == id) it.copy(connecting = true) else it }
+            scope.launch {
+                val r = runCatching { gateway.startAuth(providerOf(id)) }.getOrNull()
+                if (r !is AuthStartResult.Started) tick++
+            }
+        },
+        onFinish = onFinished,
+        modifier = modifier,
+    )
 }
 
 @Composable

@@ -74,6 +74,7 @@ fun ActivityTab(
     modifier: Modifier = Modifier,
     onRetry: ((Job) -> Unit)? = null,
     onStartRequest: () -> Unit = {},
+    onOpenJob: ((jobId: String) -> Unit)? = null,
 ) {
     var jobs by remember { mutableStateOf<List<Job>?>(null) }
     var loadFailed by remember { mutableStateOf(false) }
@@ -125,6 +126,7 @@ fun ActivityTab(
         onReload = { tick++ },
         onRetry = onRetry,
         onStartRequest = onStartRequest,
+        onOpenJob = onOpenJob,
         modifier = modifier,
     )
 }
@@ -144,6 +146,7 @@ fun ActivityContent(
     onRetry: ((Job) -> Unit)?,
     onStartRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenJob: ((jobId: String) -> Unit)? = null,
 ) {
     var filterIndex by rememberSaveable { mutableIntStateOf(0) }
     var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -218,6 +221,7 @@ fun ActivityContent(
                                 onToggle = { id -> expandedId = if (expandedId == id) null else id; techId = null },
                                 onToggleTech = { id -> techId = if (techId == id) null else id },
                                 onRetry = onRetry,
+                                onOpenJob = onOpenJob,
                             )
                         }
                     }
@@ -317,6 +321,7 @@ private fun HistoryGroup(
     onToggle: (String) -> Unit,
     onToggleTech: (String) -> Unit,
     onRetry: ((Job) -> Unit)?,
+    onOpenJob: ((jobId: String) -> Unit)? = null,
 ) {
     Column(
         Modifier
@@ -328,7 +333,8 @@ private fun HistoryGroup(
         group.forEachIndexed { i, job ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(AuraColors.Line))
             HistoryRow(job, events, now, expanded = expandedId == job.id, techOpen = techId == job.id,
-                onToggle = { onToggle(job.id) }, onToggleTech = { onToggleTech(job.id) }, onRetry = onRetry)
+                onToggle = { onToggle(job.id) }, onToggleTech = { onToggleTech(job.id) }, onRetry = onRetry,
+                onOpenJob = onOpenJob)
         }
     }
 }
@@ -343,6 +349,7 @@ private fun HistoryRow(
     onToggle: () -> Unit,
     onToggleTech: () -> Unit,
     onRetry: ((Job) -> Unit)?,
+    onOpenJob: ((jobId: String) -> Unit)? = null,
 ) {
     val source = remember { MutableInteractionSource() }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -374,6 +381,7 @@ private fun HistoryRow(
                     if (onRetry != null && (job.status == JobStatus.Failed || job.status == JobStatus.Interrupted)) {
                         AuraButtonSecondary("Tentar de novo", { onRetry(job) })
                     }
+                    if (onOpenJob != null) AuraButtonSecondary("Abrir no chat", { onOpenJob(job.id) })
                     AuraButtonText(if (techOpen) "Ocultar detalhes técnicos" else "Ver detalhes técnicos", onToggleTech)
                 }
                 if (techOpen) {

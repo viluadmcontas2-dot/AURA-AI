@@ -106,6 +106,7 @@ fun HomeContent(
     gateway: EngineGateway,
     onOpenChat: (ChatEntry) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {},
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
@@ -124,6 +125,7 @@ fun HomeContent(
         onOpenChat = onOpenChat,
         onRetry = { attempt++ },
         modifier = modifier,
+        onOpenSettings = onOpenSettings,
     )
 }
 
@@ -136,9 +138,10 @@ internal fun HomeView(
     onOpenChat: (ChatEntry) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().background(AuraColors.Bg)) {
-        HomeHeader(data)
+        HomeHeader(data, onOpenSettings)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
@@ -183,7 +186,7 @@ internal fun HomeView(
 }
 
 @Composable
-private fun HomeHeader(data: HomeData) {
+private fun HomeHeader(data: HomeData, onOpenSettings: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -200,7 +203,41 @@ private fun HomeHeader(data: HomeData) {
                 if (data.capabilities.any { it.id == "termux" && !it.available }) StatusKind.NeedsYou to "Termux inativo"
                 else StatusKind.Ready to "Termux ativo"
         }
-        StatusChip(kind, label)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            StatusChip(kind, label)
+            SettingsButton(onOpenSettings)
+        }
+    }
+}
+
+/** Engrenagem 48 dp (alvo de toque), desenhada em Canvas como os ícones da barra inferior. */
+@Composable
+private fun SettingsButton(onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(48.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Abrir ajustes" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(24.dp)) {
+            val u = size.width / 24f
+            val c = androidx.compose.ui.geometry.Offset(12 * u, 12 * u)
+            val stroke = 1.75f * u
+            drawCircle(AuraColors.Ink2, radius = 3.5f * u, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+            for (i in 0 until 8) {
+                val a = Math.toRadians(i * 45.0)
+                val dx = Math.cos(a).toFloat()
+                val dy = Math.sin(a).toFloat()
+                drawLine(
+                    AuraColors.Ink2,
+                    androidx.compose.ui.geometry.Offset(c.x + dx * 7f * u, c.y + dy * 7f * u),
+                    androidx.compose.ui.geometry.Offset(c.x + dx * 9.5f * u, c.y + dy * 9.5f * u),
+                    stroke, androidx.compose.ui.graphics.StrokeCap.Round,
+                )
+            }
+            drawCircle(AuraColors.Ink2, radius = 7.5f * u, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        }
     }
 }
 
