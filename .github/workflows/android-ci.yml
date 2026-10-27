@@ -18,12 +18,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Accept available Android SDK licenses
-        shell: bash
-        run: |
-          set +o pipefail
-          yes | sdkmanager --licenses > /dev/null
-          exit ${PIPESTATUS[1]}
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools"
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
