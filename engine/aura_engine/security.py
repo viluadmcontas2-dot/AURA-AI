@@ -1,6 +1,8 @@
 """Policy and workspace boundary. Never let model text grant permissions."""
 import pathlib
 import re
+import os
+import secrets
 
 
 class RiskPolicy:
@@ -59,3 +61,24 @@ def safe_argv(argv):
     if "/" in argv[0] or "\\" in argv[0] or argv[0].startswith("-"):
         raise ValueError("executable must be an installed command name")
     return list(argv)
+
+
+def load_or_create_token(home):
+    """Create or load the Termux-scoped 256-bit bearer credential without opening the job DB."""
+    home = pathlib.Path(home)
+    home.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(home, 0o700)
+    token_file = home / "token"
+    if not token_file.exists():
+        try:
+            fd = os.open(str(token_file), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            pass  # Another authorised local engine process created it concurrently.
+        else:
+            with os.fdopen(fd, "w") as stream:
+                stream.write(secrets.token_urlsafe(32))
+    os.chmod(token_file, 0o600)
+    token = token_file.read_text("utf-8").strip()
+    if len(token) < 32:
+        raise RuntimeError("Invalid local pairing token; refusing to start")
+    return token
