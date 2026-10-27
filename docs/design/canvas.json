@@ -304,7 +304,7 @@
       "x": 3616,
       "y": -2500,
       "w": 1280,
-      "h": 1340,
+      "h": 1560,
       "title": "00b · Plano e contrato",
       "radius": 24
     },
@@ -312,9 +312,63 @@
       "x": 0,
       "y": -2500,
       "w": 1280,
-      "h": 1180,
+      "h": 1300,
       "title": "00a · Progresso de UI e UX",
       "radius": 24
+    },
+    "Reformar-1-Apps.dc.html": {
+      "x": 0,
+      "y": 13500,
+      "w": 390,
+      "h": 844,
+      "title": "90 · Escolher o app",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Reformar-2-Escopo.dc.html": {
+      "x": 470,
+      "y": 13500,
+      "w": 390,
+      "h": 844,
+      "title": "91 · Travar o escopo",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Reformar-3-Reversao.dc.html": {
+      "x": 940,
+      "y": 13500,
+      "w": 390,
+      "h": 844,
+      "title": "92 · Reversão e reconstrução",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Reformar-4-Fidelidade.dc.html": {
+      "x": 1410,
+      "y": 13500,
+      "w": 390,
+      "h": 844,
+      "title": "93 · Original e reformado",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Reformar-5-Ferramentas.dc.html": {
+      "x": 1880,
+      "y": 13500,
+      "w": 390,
+      "h": 844,
+      "title": "94 · Ferramentas automáticas",
+      "radius": 36,
+      "is_interactive": true
+    },
+    "Reformar-6-Projeto.dc.html": {
+      "x": 2350,
+      "y": 13500,
+      "w": 390,
+      "h": 844,
+      "title": "95 · Projeto da reforma",
+      "radius": 36,
+      "is_interactive": true
     }
   },
   "order": [
@@ -352,7 +406,13 @@
     "Intercorrencias.dc.html",
     "Vazios.dc.html",
     "Sistema-Cores-Tipo.dc.html",
-    "Sistema-Componentes.dc.html"
+    "Sistema-Componentes.dc.html",
+    "Reformar-1-Apps.dc.html",
+    "Reformar-2-Escopo.dc.html",
+    "Reformar-3-Reversao.dc.html",
+    "Reformar-4-Fidelidade.dc.html",
+    "Reformar-5-Ferramentas.dc.html",
+    "Reformar-6-Projeto.dc.html"
   ],
   "notes": {
     "t0": {
@@ -515,6 +575,27 @@
       "w": 390,
       "fill": "orange",
       "text": "Android 12 ou mais novo pode encerrar processos do Termux. Isso precisa ser verificado no aparelho real antes de prometer tarefas longas."
+    },
+    "t9": {
+      "x": 0,
+      "y": 13200,
+      "text": "9 · Reformar apps da multimídia (REA)",
+      "kind": "title1",
+      "maxW": 2740
+    },
+    "n9": {
+      "x": 1410,
+      "y": 14384,
+      "w": 390,
+      "fill": "orange",
+      "text": "Fidelidade só tem número depois de teste real no aparelho. Antes disso a tela diz \"ainda não medida\"."
+    },
+    "n10": {
+      "x": 0,
+      "y": 14384,
+      "w": 390,
+      "fill": "red",
+      "text": "Câmera de ré e apps do sistema ficam protegidos. O app novo instala ao lado do original e voltar custa 1 toque."
     }
   },
   "designSystems": []

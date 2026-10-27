@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Escopo da reforma — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+
+<header style="flex:none;height:84px;padding:32px 8px 0;display:flex;align-items:center;gap:4px">
+<a href="Reformar-1-Apps.dc.html" aria-label="Voltar para a escolha do app" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0">
+<div style="font-family:'Bricolage Grotesque','Atkinson Hyperlegible Next',system-ui,sans-serif;font-weight:600;font-size:22px;line-height:26px;letter-spacing:-.03em">Escopo da reforma</div>
+<div style="font-size:13px;line-height:16px;color:#4F4C57">Player de música</div>
+</div>
+</header>
+
+<main style="flex:1;min-height:0;padding:8px 20px 0;display:flex;flex-direction:column;gap:10px;overflow:hidden">
+
+<div style="display:flex;align-items:center;gap:4px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:4px 16px 4px 4px">
+<button type="button" role="checkbox" aria-checked="true" aria-label="Sou dono do app ou tenho permissão para modificá-lo" style="flex:none;width:44px;height:44px;border:0;background:transparent;display:flex;align-items:center;justify-content:center"><span style="width:24px;height:24px;border-radius:8px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></button>
+<span style="font-size:15px;line-height:21px;font-weight:600">Sou dono do app ou tenho permissão para modificá-lo.</span>
+</div>
+
+<div role="radiogroup" aria-label="Escopo da reforma" style="display:flex;flex-direction:column;gap:8px">
+<div role="radio" aria-checked="false" tabindex="0" style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:14px;min-height:76px;cursor:pointer">
+<div style="display:flex;align-items:center;gap:10px">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;border:2px solid #D5D1C7;display:flex;align-items:center;justify-content:center"></span>
+<span style="flex:1;min-width:0;font-size:17px;line-height:22px;font-weight:700">Só visual</span>
+</div>
+<div style="margin:6px 0 0 34px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="height:24px;padding:0 10px;border-radius:12px;background:#ECEAE5;color:#4B4852;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">10 min</span><span style="height:24px;padding:0 10px;border-radius:12px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">Risco baixo</span><span style="font-size:13px;line-height:16px;color:#4F4C57">Rápido</span></div>
+</div>
+<div role="radio" aria-checked="true" tabindex="0" style="background:#FFFFFF;border:2px solid #15141A;border-radius:24px;padding:13px;min-height:76px;cursor:pointer">
+<div style="display:flex;align-items:center;gap:10px">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;border:2px solid #15141A;display:flex;align-items:center;justify-content:center"><span style="display:block;width:12px;height:12px;border-radius:6px;background:#15141A"></span></span>
+<span style="flex:1;min-width:0;font-size:17px;line-height:22px;font-weight:700">Visual + fluxos</span><span style="height:24px;padding:0 10px;border-radius:12px;background:#E4ECFF;color:#2848B8;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">Recomendado</span>
+</div>
+<div style="margin:6px 0 0 34px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="height:24px;padding:0 10px;border-radius:12px;background:#ECEAE5;color:#4B4852;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">25 min</span><span style="height:24px;padding:0 10px;border-radius:12px;background:#FFF1D6;color:#8A4B00;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">Risco médio</span></div>
+</div>
+<div role="radio" aria-checked="false" tabindex="0" style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:14px;min-height:76px;cursor:pointer">
+<div style="display:flex;align-items:center;gap:10px">
+<span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;border:2px solid #D5D1C7;display:flex;align-items:center;justify-content:center"></span>
+<span style="flex:1;min-width:0;font-size:17px;line-height:22px;font-weight:700">Reconstrução completa</span>
+</div>
+<div style="margin:6px 0 0 34px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="height:24px;padding:0 10px;border-radius:12px;background:#ECEAE5;color:#4B4852;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">1 h 30</span><span style="height:24px;padding:0 10px;border-radius:12px;background:#FDE4E4;color:#A31B2B;display:flex;align-items:center;font-size:12px;line-height:16px;font-weight:700">Risco maior</span><span style="font-size:13px;line-height:16px;color:#4F4C57">Demora mais</span></div>
+</div>
+</div>
+
+<section aria-label="Garantias" style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
+<div style="font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#4F4C57">GARANTIAS</div>
+<div style="display:flex;align-items:center;gap:10px;font-size:15px;line-height:20px"><span aria-hidden="true" style="flex:none;width:20px;height:20px;border-radius:10px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>O app original não é apagado</div><div style="display:flex;align-items:center;gap:10px;font-size:15px;line-height:20px"><span aria-hidden="true" style="flex:none;width:20px;height:20px;border-radius:10px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>O novo instala ao lado, como cópia</div><div style="display:flex;align-items:center;gap:10px;font-size:15px;line-height:20px"><span aria-hidden="true" style="flex:none;width:20px;height:20px;border-radius:10px;background:#E3F4EA;color:#0F6B3C;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>Voltar ao original com 1 toque</div></section>
+
+<div style="display:flex;align-items:center;gap:12px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:4px 12px 4px 16px;min-height:56px">
+<span style="flex:1;min-width:0;font-size:15px;line-height:21px;font-weight:600">Modo carro: botões grandes e texto maior</span>
+<button type="button" role="switch" aria-checked="true" aria-label="Modo carro" style="flex:none;width:52px;height:44px;border:0;background:transparent;display:flex;align-items:center;justify-content:center"><span style="position:relative;display:block;width:48px;height:28px;border-radius:14px;background:#15141A"><span style="position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#FFFFFF"></span></span></button>
+</div>
+
+<div style="display:flex;align-items:center;gap:12px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:24px;padding:12px 16px">
+<span style="flex:none;font-size:15px;line-height:21px;font-weight:600">Meta de fidelidade</span>
+<span role="img" aria-label="Meta de 90 por cento" style="flex:1;position:relative;height:8px;border-radius:4px;background:#EEECE7"><span style="position:absolute;left:0;top:0;width:90%;height:8px;border-radius:4px;background:linear-gradient(90deg,#8C9DFF,#FF9EB8,#FFB48C)"></span><span style="position:absolute;left:90%;top:-8px;margin-left:-12px;width:24px;height:24px;border-radius:12px;background:#FFFFFF;border:2px solid #15141A"></span></span>
+<span style="flex:none;width:40px;text-align:right;font-size:17px;line-height:22px;font-weight:700">90%</span>
+</div>
+</main>
+
+<div style="flex:none;padding:8px 20px 20px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;line-height:16px;color:#4F4C57"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Cerca de 25 min · usa só a sua assinatura</div>
+<a href="Reformar-3-Reversao.dc.html" style="height:52px;border-radius:26px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">Travar escopo e começar</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
