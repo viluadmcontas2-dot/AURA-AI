@@ -61,3 +61,6 @@ If a process died: restart `python -m aura_engine`; unfinished `running` jobs be
 
 ## Delivery states
 Implementation = files in canonical repo; CI = tests on exact SHA; device validated = on-device capture/log/exit codes. None implies the others.
+
+## Native Android first-run token exchange
+When user has granted Termux RUN_COMMAND to this specific app and enabled Termux external commands, invoke `python -m aura_engine.pair --emit-token` through the authorised result-returning service. Do not display the JSON or pass it into an AI model. Plain `python -m aura_engine.pair` reports only safe readiness. The Android client must keep the token in encrypted app-private storage; lost/rotated credentials require user-initiated re-pairing.
