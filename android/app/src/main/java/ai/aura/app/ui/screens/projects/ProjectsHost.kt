@@ -85,7 +85,10 @@ internal fun ProjectsHost(
     LaunchedEffect(gateway, reload) {
         try {
             refreshJobs(); loadError = null
-            gateway.events.collect { refreshJobs() }
+            gateway.events.collect {
+                // Falha pontual ao atualizar não pode encerrar a escuta de eventos.
+                try { refreshJobs(); loadError = null } catch (e: CancellationException) { throw e } catch (e: Exception) { /* próximo evento tenta de novo */ }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -105,8 +108,9 @@ internal fun ProjectsHost(
     fun go(r: String) { route = r; error = null; notice = null }
 
     fun runAction(failure: String, block: suspend () -> Unit) {
+        if (busy) return // síncrono: o 2º toque antes do launch rodar não duplica o pedido
+        busy = true; error = null
         scope.launch {
-            busy = true; error = null
             try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { error = failure } finally { busy = false }
         }
     }
