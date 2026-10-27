@@ -1,6 +1,6 @@
 # Proposta: política editável, roteamento de modelos e skill de reformar apps
 
-Status: PROPOSTA do lado UI (Claude). Dono do motor: GPT. Nada aqui altera o contrato até o GPT aceitar. Pedido do dono (27/10): mudar permissão/autonomia sem recompilar; autonomia máxima segura; modelo certo por custo-benefício (nunca Fable; teto Sonnet médio; maioria Haiku médio/alto); subagentes; skill de design para refazer apps nativos mais modernos e leves.
+Status: PROPOSTA do lado UI (Claude). Dono do motor: GPT. Nada aqui altera o contrato até o GPT aceitar. Pedido do dono (27/10): mudar permissão/autonomia sem recompilar; autonomia máxima, sem limite imposto (ele decide o que é seguro); modelo certo por custo-benefício (nunca Fable; teto Sonnet médio; maioria Haiku médio/alto); subagentes; skill de design para refazer apps nativos mais modernos e leves.
 
 ## 1. Regra de ouro: configuração é dado, não código
 O app Android **não decide** permissão nem modelo. Ele lê e grava dois documentos no motor (arquivos em `~/.aura/engine/`, mode 0600, gravação atômica, versionados, com histórico). Mudar = editar na tela Ajustes (ou o arquivo) → vale na hora, sem novo APK.
@@ -11,20 +11,21 @@ O app Android **não decide** permissão nem modelo. Ele lê e grava dois docume
 
 Limite honesto: permissões **do Android** (microfone, notificações, RUN_COMMAND do Termux, instalar APK) são do sistema operacional; o app só pode pedir, o usuário concede. Isso não muda sem o usuário.
 
-## 2. `policy.json` (autonomia máxima, com piso de segurança)
+## 2. `policy.json` (o dono decide o que é seguro; o app não impõe limite)
 ```
 { "version": 1,
-  "mode": "autonomo",            // pergunta | equilibrado | autonomo
-  "by_risk": { "read":"auto", "write":"auto", "spend":"ask", "critical":"ask" },
-  "by_kind": { "shell":"inherit", "adb":"inherit", "files":"inherit", "github":"inherit" },
-  "scopes":  [ {"workspace":"default","write":"auto"} ],
-  "spend_cap": { "per_job_usd":0, "per_day_usd":0 },
-  "auto_countdown_seconds": 5,   // recomendar e aplicar sozinho, com botão "Mudar" (voz-e-fila.md regra 5)
+  "mode": "total",               // pergunta | equilibrado | autonomo | total
+  "by_risk": { "read":"auto", "write":"auto", "spend":"auto", "critical":"auto" },
+  "by_kind": { "shell":"auto", "adb":"auto", "files":"auto", "github":"auto", "root":"auto" },
+  "root": { "enabled": true, "via": ["su","tsu"] },  // só funciona se o aparelho tiver root
+  "scopes":  [ {"path":"*","write":"auto"} ],        // inclui /, /data, /root, qualquer caminho que o Termux alcance
+  "spend_cap": null,             // null = sem limite (decisão do dono)
+  "auto_countdown_seconds": 0,
   "notify": "so_se_precisar" }
 ```
-- **Padrão novo = `autonomo`**: leitura e escrita dentro do workspace sem perguntar; o dono é interrompido só quando algo realmente precisa dele.
-- **Piso (não editável pelo JSON, só por ação explícita na tela "Zona de risco")**: `spend` e `critical` (apagar, force-push, gastar, publicar, escrever em dispositivo/ECU) **continuam `ask`** até o dono ligar "Autorizar com limite" na tela, com limite em valor e alvo visível. Isso preserva o invariante 6 do AGENTS.md; o dono pode ampliar, nunca por acidente.
-- Aprovação continua presa ao payload imutável do job; `auto` grava no evento "aprovado por política vN", nunca invisível.
+- **Decisão do dono (27/10): nenhum limite imposto pelo app.** Tudo que o Termux consegue fazer, o app consegue pedir: shell, `su`/`tsu`, ADB, arquivos em qualquer caminho, GitHub, instalar/remover apps, gasto. `mode` vai de `pergunta` a `total`; cada categoria pode ser `auto` ou `ask` e muda na hora.
+- **Isso substitui** a ideia de "piso de segurança" da primeira versão e o invariante 6 do AGENTS.md ("destrutivo e gasto exigem aprovação explícita"): para o dono, aprovação vira **opção dele**, não regra fixa. O GPT deve ajustar o AGENTS.md só quando o dono confirmar por escrito; até lá o padrão do motor pode continuar `autonomo`, mas o JSON precisa aceitar `total`.
+- **O que continua sendo verdade, sem ser limite do app**: (1) o Android e o Termux têm as próprias fronteiras (sandbox do app, RUN_COMMAND só com permissão do usuário, root só em aparelho com root); o app nunca contorna isso. (2) Cada ação automática fica registrada com payload completo no evento ("executado por política vN"), para o dono poder ver e desfazer o que der. (3) Um botão "Parar tudo" cancela jobs em andamento. Registro e parada não são travas, são visibilidade.
 - Segredos nunca em `policy.json`.
 
 ## 3. `models.json` (custo-benefício por padrão)
@@ -39,7 +40,7 @@ Limite honesto: permissões **do Android** (microfone, notificações, RUN_COMMA
     {"task":"pesquisa_ampla", "use":["subagente:haiku:medium"]}
   ],
   "prefer_subscription": true,              // CLI logada antes de API paga
-  "api_fallback": "never" }                 // nunca API paga sem autorização específica
+  "api_fallback": "never" }                 // padrão do dono: sem API paga; ele muda aqui quando quiser
 ```
 - Ordem de escolha: CLI da assinatura (Codex/agy/Claude Code) → modelo mais barato que cumpre a tarefa → escalar **uma** vez para o teto (Sonnet médio) → parar e avisar. Nunca sobe além do `ceiling`/`deny`.
 - A rota escolhida e o motivo aparecem no evento do job (`model_used`, `why`), para a tela Atividade mostrar "usei Haiku: tarefa simples".
