@@ -3,7 +3,10 @@ package ai.aura.app.integration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.IOException
+import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.UUID
 
@@ -15,14 +18,19 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
         return value
     }
 
-    suspend fun request(path: String, method: String = "GET", body: JSONObject? = null): JSONObject =
+    suspend fun request(
+        path: String,
+        method: String = "GET",
+        body: JSONObject? = null,
+        readTimeoutMs: Int = 15000,
+    ): JSONObject =
         withContext(Dispatchers.IO) {
             require(path.startsWith("/v1/") && !path.contains("..")) { "Invalid API route" }
-            val token = credentials.read() ?: error("Conecte o Termux em Conexões")
+            val token = credentials.read() ?: throw IOException("Conecte o Termux em Conexões")
             val conn = (URL(endpoint + path).openConnection() as HttpURLConnection)
             try {
                 conn.connectTimeout = 3000
-                conn.readTimeout = 15000
+                conn.readTimeout = readTimeoutMs
                 conn.requestMethod = method
                 conn.setRequestProperty("Authorization", "Bearer " + token)
                 conn.setRequestProperty("Accept", "application/json")
@@ -44,6 +52,10 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
                     throw AuraEngineException(status, reason.ifBlank { "AURA Engine HTTP " + status })
                 }
                 JSONObject(payload)
+            } catch (_: ConnectException) {
+                throw IOException("Termux não responde. Abra o Termux e inicie o motor.")
+            } catch (_: SocketTimeoutException) {
+                throw IOException("O motor demorou a responder. Tente de novo.")
             } finally {
                 conn.disconnect()
             }
@@ -52,7 +64,7 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
     suspend fun health() = request("/v1/health")
     suspend fun capabilities() = request("/v1/capabilities")
     suspend fun jobs() = request("/v1/jobs")
-    suspend fun events(since: Long) = request("/v1/events?since=" + since)
+    suspend fun events(since: Long) = request("/v1/events?since=" + since, readTimeoutMs = 4000)
     suspend fun route(text: String, workspace: String = "default"): JSONObject =
         request("/v1/route", "POST", JSONObject().put("text", text).put("workspace", workspace))
     suspend fun submit(command: JSONObject, requestId: String = UUID.randomUUID().toString()): JSONObject =

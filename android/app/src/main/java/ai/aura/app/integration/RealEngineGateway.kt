@@ -12,9 +12,15 @@ import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.engine.RouteResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.shareIn
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
@@ -134,28 +140,55 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
         }
     }
 
+    /** Escopo do gateway: sem assinantes o polling para (WhileSubscribed), então nada fica vivo. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Um único polling compartilhado por todas as telas (evita N laços e tempestade de jobs()). */
     override val events: Flow<EngineEvent> = flow {
+        var cursor: Long? = null
+        var failures = 0
+        while (true) {
+            try {
+                val start = cursor ?: currentCursor().also { cursor = it }
+                val batch = client.events(start).getJSONArray("events")
+                failures = 0
+                for (i in 0 until batch.length()) {
+                    val event = batch.getJSONObject(i)
+                    val id = event.getLong("id")
+                    if (id <= (cursor ?: 0L)) continue
+                    val payload = event.optJSONObject("payload") ?: JSONObject()
+                    val map = mutableMapOf<String, String>()
+                    val fields = payload.keys()
+                    while (fields.hasNext()) {
+                        val field = fields.next()
+                        map[field] = payload.optString(field)
+                    }
+                    emit(EngineEvent(id = id, type = event.getString("type"),
+                        jobId = payload.optString("id").ifBlank { null },
+                        payload = map,
+                        timestampMillis = (event.optDouble("created_at", 0.0) * 1000).toLong()))
+                    cursor = id
+                }
+                delay(EventBackoff.POLL_MS)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Termux fora do ar ou sem token: tenta de novo com espera crescente, sem derrubar a tela.
+                failures++
+                delay(EventBackoff.delayMillis(failures))
+            }
+        }
+    }.shareIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000), replay = 0)
+
+    /** Último id existente hoje: eventos antigos não são reemitidos como se fossem novos. */
+    private suspend fun currentCursor(): Long {
         var cursor = 0L
         while (true) {
-            val events = client.events(cursor).getJSONArray("events")
-            for (i in 0 until events.length()) {
-                val event = events.getJSONObject(i)
-                val id = event.getLong("id")
-                if (id <= cursor) continue
-                val payload = event.optJSONObject("payload") ?: JSONObject()
-                val map = mutableMapOf<String, String>()
-                val fields = payload.keys()
-                while (fields.hasNext()) {
-                    val field = fields.next()
-                    map[field] = payload.optString(field)
-                }
-                emit(EngineEvent(id = id, type = event.getString("type"),
-                    jobId = payload.optString("id").ifBlank { null },
-                    payload = map,
-                    timestampMillis = (event.optDouble("created_at", 0.0) * 1000).toLong()))
-                cursor = id
-            }
-            delay(1200)
+            val page = client.events(cursor).getJSONArray("events")
+            if (page.length() == 0) return cursor
+            val last = page.getJSONObject(page.length() - 1).getLong("id")
+            if (last <= cursor) return cursor
+            cursor = last
         }
     }
 
