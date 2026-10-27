@@ -59,13 +59,15 @@ def run_process(argv, cwd, engine, timeout=180, binary=False):
     if not installed(argv[0]):
         raise ActionError("tool_missing", "Install and authenticate " + argv[0] + " on this Android")
     timeout = max(1, min(int(timeout), 1800))
-    try:
-        proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                start_new_session=True)
-    except OSError:
-        raise ActionError("process_start", "Could not start local executable")
     with engine.process_lock:
+        if engine.cancel_event.is_set():
+            raise ActionError("cancelled", "Execution cancelled before process start")
+        try:
+            proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    start_new_session=True)
+        except OSError:
+            raise ActionError("process_start", "Could not start local executable")
         engine.current_process = proc
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
