@@ -59,16 +59,18 @@ def run_process(argv, cwd, engine, timeout=180, binary=False):
     if not installed(argv[0]):
         raise ActionError("tool_missing", "Install and authenticate " + argv[0] + " on this Android")
     timeout = max(1, min(int(timeout), 1800))
+    job_id = getattr(engine.context, "job_id", None)
     with engine.process_lock:
-        if engine.cancel_event.is_set():
-            raise ActionError("cancelled", "Execution cancelled before process start")
+        if job_id in engine.cancelled or (
+                job_id is not None and engine.store.job(job_id)["status"] != "running"):
+            raise ActionError("cancelled", "Job cancelled before process start")
         try:
             proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     start_new_session=True)
         except OSError:
             raise ActionError("process_start", "Could not start local executable")
-        engine.current_process = proc
+        engine.processes[job_id] = proc
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -77,10 +79,10 @@ def run_process(argv, cwd, engine, timeout=180, binary=False):
         raise ActionError("timeout", "Tool exceeded %d seconds" % timeout)
     finally:
         with engine.process_lock:
-            if engine.current_process is proc:
-                engine.current_process = None
-    if engine.cancel_event.is_set():
-        raise ActionError("cancelled", "Execution cancelled")
+            if engine.processes.get(job_id) is proc:
+                engine.processes.pop(job_id, None)
+    if job_id in engine.cancelled:
+        raise ActionError("cancelled", "Execution cancelled)
     if proc.returncode != 0:
         reason = redact(stderr.decode("utf-8", "replace")[-1800:])
         raise ActionError("process_failed", argv[0] + " exited %d: %s" % (proc.returncode, reason))
