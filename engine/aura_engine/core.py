@@ -11,7 +11,7 @@ from .store import Store
 
 
 class Engine:
-    def __init__(self, home=None, auto_worker=True):
+    def __init__(self, home=None, auto_worker=True, max_workers=2):
         self.home = pathlib.Path(home or (pathlib.Path.home() / ".aura" / "engine"))
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.home, 0o700)
@@ -27,22 +27,27 @@ class Engine:
         self.store = Store(self.home / "engine.sqlite3")
         self.policy = RiskPolicy()
         self.stop_event = threading.Event()
-        self.cancel_event = threading.Event()
         self.process_lock = threading.RLock()
-        self.execution_lock = threading.Lock()
-        self.current_process = None
-        self.worker = None
+        self.context = threading.local()
+        self.processes = {}
+        self.cancelled = set()
+        self.workers = []
         if auto_worker:
-            self.worker = threading.Thread(target=self._loop, daemon=True, name="aura-worker")
-            self.worker.start()
+            for number in range(max(1, min(int(max_workers), 4))):
+                worker = threading.Thread(target=self._loop, daemon=True,
+                                          name="aura-worker-%d" % number)
+                self.workers.append(worker)
+                worker.start()
 
     def close(self):
         self.stop_event.set()
         with self.process_lock:
-            if self.current_process and self.current_process.poll() is None:
-                self.current_process.terminate()
-        if self.worker and threading.current_thread() != self.worker:
-            self.worker.join(timeout=3)
+            for proc in list(self.processes.values()):
+                if proc.poll() is None:
+                    proc.terminate()
+        for worker in self.workers:
+            if threading.current_thread() != worker:
+                worker.join(timeout=3)
         self.store.close()
 
     def capabilities(self):
@@ -65,25 +70,25 @@ class Engine:
             raise KeyError("job not found")
         result = self.store.cancel(job_id)
         if current["status"] == "running":
-            self.cancel_event.set()
             with self.process_lock:
-                if self.current_process and self.current_process.poll() is None:
-                    self.current_process.terminate()
+                self.cancelled.add(job_id)
+                proc = self.processes.get(job_id)
+                if proc is not None and proc.poll() is None:
+                    proc.terminate()
         return result
 
     def run_once(self):
-        if not self.execution_lock.acquire(blocking=False):
+        job = self.store.claim()
+        if job is None:
             return None
+        self.context.job_id = job["id"]
         try:
-            self.cancel_event.clear()
-            job = self.store.claim()
-            if job is None:
-                return None
             if self.store.job(job["id"])["status"] != "running":
                 return self.store.job(job["id"])
             try:
-                if self.cancel_event.is_set():
-                    raise adapters.ActionError("cancelled", "Execution cancelled")
+                with self.process_lock:
+                    if job["id"] in self.cancelled:
+                        raise adapters.ActionError("cancelled", "Execution cancelled")
                 outcome = adapters.dispatch(job["request"], self)
             except adapters.ActionError as err:
                 self.store.finish(job["id"], "failed", error={
@@ -98,8 +103,9 @@ class Engine:
                 self.store.finish(job["id"], "completed", result=outcome)
             return self.store.job(job["id"])
         finally:
-            self.cancel_event.clear()
-            self.execution_lock.release()
+            with self.process_lock:
+                self.cancelled.discard(job["id"])
+            self.context.job_id = None
 
     def _loop(self):
         while not self.stop_event.is_set():
