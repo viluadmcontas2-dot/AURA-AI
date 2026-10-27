@@ -160,6 +160,39 @@ class Store:
                 (workspace, "%" + query + "%", "%" + query + "%")).fetchall()
             return [dict(r) for r in rows]
 
+    def usage(self):
+        """Summarise reported tokens only; never fabricate monetary costs."""
+        totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
+                  "reported_jobs": 0, "unreported_jobs": 0}
+        kinds = {"claude_cli", "gemini_cli", "agy_cli", "claude_api", "gemini_api"}
+        with self.lock:
+            rows = self.db.execute("SELECT request,result FROM jobs WHERE status='completed'").fetchall()
+        for row in rows:
+            request = json.loads(row["request"])
+            if request.get("kind") not in kinds:
+                continue
+            result = json.loads(row["result"]) if row["result"] else {}
+            envelope = result.get("response", {})
+            if not isinstance(envelope, dict):
+                envelope = {}
+            metrics = result.get("usage") or envelope.get("usage") or envelope.get("stats")
+            if not isinstance(metrics, dict):
+                totals["unreported_jobs"] += 1
+                continue
+            mapping = {
+                "input_tokens": ("input_tokens", "promptTokenCount", "prompt_token_count"),
+                "output_tokens": ("output_tokens", "candidatesTokenCount", "candidates_token_count"),
+                "cache_read_tokens": ("cache_read_tokens", "cachedContentTokenCount"),
+            }
+            for metric, options in mapping.items():
+                for name in options:
+                    value = metrics.get(name)
+                    if type(value) is int and value >= 0:
+                        totals[metric] += value
+                        break
+            totals["reported_jobs"] += 1
+        return totals
+
     def add_schedule(self, data):
         seconds = data.get("every_seconds")
         if type(seconds) is not int or not 30 <= seconds <= 86400 * 365:
