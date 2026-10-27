@@ -30,3 +30,9 @@ Status is **implemented/CI unverified** until GitHub Actions checks can be read 
 Not currently covered by remote unit tests: actual phone's Android permissions, foreground lifecycle, secure token handoff, voice microphone, IME keyboard, UI rendering, vendor CLI availability and authentication, ADB wireless pairing, API billing, native Android APK.
 
 Do not mark release-ready while any material device-specific requirement is unverified.
+
+| PAIR-01 credential bootstrap without DB | security.py,pair.py,core.py | test_PAIR_token_is_stable_without_opening_engine_database |
+| JOB-06 bounded parallel workers | core.py,adapters.py,store.py | test_PARALLEL_workers_do_not_share_process_state |
+| ROUTE-03 native skills by intent | core.py,adapters.py | test_ROUTE_skill_is_selected_from_natural_language |
+
+Pairing and parallel workers remain **remote CI and Android device unverified** until the actual test run is inspected.
