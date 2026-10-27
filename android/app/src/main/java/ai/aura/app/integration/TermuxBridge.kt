@@ -85,7 +85,7 @@ class PairResultReceiver : BroadcastReceiver() {
             PairState.message.value = "Termux não concluiu o pareamento. Verifique a permissão e o diretório AURA-AI."
             return
         }
-        val stdout = bundle.getString("stdout", "")
+        val stdout = bundle?.getString("stdout", "") ?: ""
         try {
             val obj = JSONObject(stdout.trim())
             require(obj.getString("service") == "aura-engine")
