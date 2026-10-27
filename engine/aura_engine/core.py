@@ -6,24 +6,14 @@ import threading
 import time
 
 from . import adapters
-from .security import RiskPolicy, workspace_name
+from .security import RiskPolicy, workspace_name, load_or_create_token
 from .store import Store
 
 
 class Engine:
     def __init__(self, home=None, auto_worker=True, max_workers=2):
         self.home = pathlib.Path(home or (pathlib.Path.home() / ".aura" / "engine"))
-        self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(self.home, 0o700)
-        token_file = self.home / "token"
-        if not token_file.exists():
-            with os.fdopen(os.open(str(token_file), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600),
-                           "w") as f:
-                f.write(secrets.token_urlsafe(32))
-        os.chmod(token_file, 0o600)
-        self.token = token_file.read_text("utf-8").strip()
-        if len(self.token) < 32:
-            raise RuntimeError("invalid token, refusing to start")
+        self.token = load_or_create_token(self.home)
         self.store = Store(self.home / "engine.sqlite3")
         self.policy = RiskPolicy()
         self.stop_event = threading.Event()
