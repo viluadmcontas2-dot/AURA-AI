@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Voz compacta — AURA</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+a:focus-visible,button:focus-visible{outline:2px solid #3340C9;outline-offset:2px}
+@keyframes aura-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;display:flex;flex-direction:column;background:#F5F4F1;color:#15141A;font-family:'Atkinson Hyperlegible Next','Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:24px">
+<header style="flex:none;height:84px;padding:32px 20px 0 8px;display:flex;align-items:center;gap:4px">
+<a href="Main.dc.html" aria-label="Voltar para o início" style="flex:none;width:44px;height:44px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+<div style="flex:1;min-width:0">
+<div style="font-size:17px;line-height:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Corrigir tela de login</div>
+<div style="font-size:13px;line-height:16px;color:#4F4C57">Minhas Finanças</div>
+</div>
+<span style="flex:none;display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;background:#E4ECFF;color:#2848B8;font-size:13px;line-height:16px;font-weight:700"><span aria-hidden="true" style="display:block;width:8px;height:8px;border-radius:4px;background:#2848B8"></span>Rodando · 3 de 4</span>
+</header>
+<div role="progressbar" aria-label="Progresso da tarefa" aria-valuemin="0" aria-valuemax="4" aria-valuenow="3" style="flex:none;margin:0 20px;height:4px;border-radius:2px;background:#E6E3DC"><div style="width:75%;height:4px;border-radius:2px;background:linear-gradient(90deg,#8C9DFF,#FF9EB8,#FFB48C)"></div></div>
+<main style="flex:1;min-height:0;padding:20px 20px 0;display:flex;flex-direction:column;gap:20px;overflow:hidden">
+<ol style="position:relative;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px">
+<li style="display:flex;gap:12px;align-items:center"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div style="flex:1;min-width:0"><div style="font-size:16px;line-height:24px;font-weight:700">Ler o código da tela</div><div style="font-size:14px;line-height:20px;color:#4F4C57">Feito · 12 arquivos</div></div></li>
+<li style="display:flex;gap:12px;align-items:center"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div style="flex:1;min-width:0"><div style="font-size:16px;line-height:24px;font-weight:700">Corrigir o layout</div><div style="font-size:14px;line-height:20px;color:#4F4C57">Feito · 3 arquivos mudaram</div></div></li>
+<li style="display:flex;gap:12px;align-items:flex-start"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;background:linear-gradient(135deg,#8C9DFF,#FF9EB8,#FFB48C);display:flex;align-items:center;justify-content:center"><span style="display:block;width:16px;height:16px;border-radius:8px;background:#F5F4F1"></span></span>
+<div style="flex:1;min-width:0"><div style="font-size:16px;line-height:24px;font-weight:700">Gerar o APK</div><div style="font-size:14px;line-height:20px;color:#4F4C57">Compilando · 62%</div>
+<div role="progressbar" aria-label="Compilação do APK" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" style="margin-top:6px;height:6px;border-radius:3px;background:#E6E3DC"><div style="width:62%;height:6px;border-radius:3px;background:linear-gradient(90deg,#8C9DFF,#FF9EB8,#FFB48C)"></div></div></div></li>
+<li style="display:flex;gap:12px;align-items:center"><span aria-hidden="true" style="flex:none;width:24px;height:24px;border-radius:12px;border:3px solid #D5D1C7;background:#F5F4F1"></span><div style="flex:1;min-width:0"><div style="font-size:16px;line-height:24px;font-weight:700">Instalar na multimídia</div><div style="font-size:14px;line-height:20px;color:#4F4C57">Aguardando o APK</div></div></li>
+</ol>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="align-self:flex-end;max-width:300px;background:#15141A;color:#FFFFFF;border-radius:22px 22px 6px 22px;padding:12px 16px">
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.03em;color:#C9C7D1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>POR VOZ</div>
+<div style="margin-top:4px;font-size:16px;line-height:22px">Depois instala também na TV da sala</div>
+</div>
+<div style="align-self:flex-start;max-width:320px;display:flex;gap:10px;align-items:flex-start">
+<div aria-hidden="true" style="flex:none;width:28px;height:28px;border-radius:14px;background:radial-gradient(circle at 30% 26%,#FFFFFF 0,rgba(255,255,255,0) 42%),radial-gradient(circle at 78% 76%,#FFA98A 0,rgba(255,169,138,0) 60%),radial-gradient(circle at 20% 80%,#79E6CF 0,rgba(121,230,207,0) 58%),radial-gradient(circle at 80% 20%,#8C9DFF 0,rgba(140,157,255,0) 64%),#EADFFB"></div>
+<div style="background:#FFFFFF;border:1px solid #E6E3DC;border-radius:6px 22px 22px 22px;padding:12px 16px">
+<div style="font-size:16px;line-height:22px">Anotei. Termino o login e depois faço a TV.</div>
+<span style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;background:#E4ECFF;color:#2848B8;font-size:13px;line-height:16px;font-weight:700"><span aria-hidden="true" style="display:block;width:8px;height:8px;border-radius:4px;background:#2848B8"></span>Na fila</span>
+</div></div>
+</div>
+</main>
+
+<div style="flex:none;padding:8px 16px 0">
+<div style="display:flex;align-items:center;gap:6px;height:60px;padding:8px;background:#FFFFFF;border:1px solid #E6E3DC;border-radius:30px;box-shadow:0 10px 30px rgba(21,20,26,.08)">
+<div style="flex:1;min-width:0;height:44px;padding:0 4px 0 4px;display:flex;align-items:center;gap:10px">
+<span aria-hidden="true" style="position:relative;flex:none;width:36px;height:36px;display:flex;align-items:center;justify-content:center"><span style="position:absolute;left:0;top:0;right:0;bottom:0;border-radius:18px;border:2px solid #8C9DFF;animation:aura-breathe 2s ease-in-out infinite"></span><span style="width:28px;height:28px;border-radius:14px;background:radial-gradient(circle at 30% 26%,#FFFFFF 0,rgba(255,255,255,0) 42%),radial-gradient(circle at 78% 76%,#FFA98A 0,rgba(255,169,138,0) 60%),radial-gradient(circle at 20% 80%,#79E6CF 0,rgba(121,230,207,0) 58%),radial-gradient(circle at 80% 20%,#8C9DFF 0,rgba(140,157,255,0) 64%),#EADFFB"></span></span>
+<div style="min-width:0"><div style="font-size:15px;line-height:18px;font-weight:700">Ouvindo</div><div style="font-size:13px;line-height:16px;color:#4F4C57;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">“…e avisa quando terminar”</div></div>
+</div>
+<a href="Voz-1-Ouvindo.dc.html" aria-label="Abrir voz em tela cheia" style="flex:none;width:44px;height:44px;border-radius:22px;background:#EEECE7;color:#15141A;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></svg></a>
+<button type="button" aria-label="Parar de ouvir" style="flex:none;width:44px;height:44px;border-radius:22px;border:0;background:#15141A;color:#FFFFFF;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+</div>
+<p style="margin:8px 0 0;padding-bottom:16px;text-align:center;font-size:13px;line-height:18px;color:#4F4C57">Ouvir não interrompe o trabalho.</p>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
