@@ -36,6 +36,29 @@ class EngineContracts(unittest.TestCase):
         with urllib.request.urlopen(cancel, timeout=3) as r:
             self.assertEqual(json.load(r)["status"], "cancelled")
 
+    def test_PROVIDER_resume_uses_exact_session(self):
+        valid = "055a398f-db14-4c5f-abbb-1bf03f8120a7"
+        for kind, flag in (("claude_cli", "--resume"), ("gemini_cli", "--resume"),
+                           ("agy_cli", "--conversation")):
+            with self.subTest(kind=kind):
+                job = self.engine.submit({"kind": kind, "prompt": "Continue", "session_id": valid})
+                self.engine.approve(job["id"])
+                result_json = ('{"status":"SUCCESS","response":"ok"}' if kind == "agy_cli"
+                               else '{"response":"ok"}')
+                result = {"stdout": result_json, "stderr": "", "exit_code": 0}
+                with unittest.mock.patch("aura_engine.adapters.run_process", return_value=result) as proc:
+                    finished = self.engine.run_once()
+                self.assertEqual(finished["status"], "completed")
+                self.assertIn(flag, proc.call_args.args[0])
+                self.assertIn(valid, proc.call_args.args[0])
+
+    def test_PROVIDER_invalid_session_id_fails_closed(self):
+        job = self.engine.submit({"kind": "agy_cli", "prompt": "Go",
+                                  "session_id": "--dangerously-skip-permissions"})
+        self.engine.approve(job["id"])
+        result = self.engine.run_once()
+        self.assertEqual(result["status"], "failed")
+
     def test_PROVIDER_agy_headless_json_and_usage(self):
         job = self.engine.submit({"kind": "agy_cli", "prompt": "Explain caches"})
         self.assertEqual(job["status"], "awaiting_approval")
