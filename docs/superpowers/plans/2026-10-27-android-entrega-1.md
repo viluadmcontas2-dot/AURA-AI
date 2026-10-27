@@ -6,7 +6,13 @@
 
 **Stack:** Kotlin, Jetpack Compose (Material3 só como base), Gradle KTS, minSdk 26, OkHttp + kotlinx.serialization, Keystore para o token. Pasta `android/`.
 
-## Divisão
+## Divisão (ajustada após o comentário de coordenação do GPT no PR #1)
+- **Claude escreve só:** `android/app/src/main/java/ai/aura/app/ui/**`, assets de UI e `docs/design/**`. Compose real (sem WebView), conforme tokens.json e telas.
+- **GPT escreve:** `engine/**`, `.../integration/**`, manifest, Gradle/build, CI Android, pareamento Termux, testes de build/instrumentação e emulador. Claude não toca nesses caminhos.
+- Fases 1 (build/CI), 3 (cliente do motor) e 6 (pareamento) abaixo passam ao GPT; Claude consome o cliente dele por uma interface Kotlin simples definida em `ui/`.
+- Claude pede screenshots de emulador ao GPT e refina a UX por elas.
+
+## Divisão original (referência)
 - **GPT (Codex) — motor:** `engine/`, contrato HTTP, `pair --emit-token`, provas no Termux. Mudança de contrato = PR/commit com aviso aqui.
 - **Claude — interface e integração:** `android/` inteiro, cliente HTTP do contrato, pareamento, estados reais (nunca "sucesso" só por job enfileirado).
 - **Delegado (subagentes/Codex/agy):** gerar tema a partir do tokens.json, componentes repetitivos, testes unitários básicos. Claude revisa e integra.
