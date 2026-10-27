@@ -1,0 +1,3 @@
+# Scripts de shell precisam de LF mesmo no Windows (senão o bash quebra com ).
+*.sh text eol=lf
+gradlew text eol=lf
