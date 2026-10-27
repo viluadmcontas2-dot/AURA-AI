@@ -36,6 +36,20 @@ class EngineContracts(unittest.TestCase):
         with urllib.request.urlopen(cancel, timeout=3) as r:
             self.assertEqual(json.load(r)["status"], "cancelled")
 
+    def test_COST_usage_is_reported_without_inventing_prices(self):
+        job = self.engine.submit({"kind": "agy_cli", "prompt": "Simple question"})
+        self.engine.approve(job["id"])
+        raw = {"stdout": '{"status":"SUCCESS","response":"ok","usage":'
+                         '{"input_tokens":18,"output_tokens":5,"cache_read_tokens":9}}',
+               "stderr": "", "exit_code": 0}
+        with unittest.mock.patch("aura_engine.adapters.run_process", return_value=raw):
+            self.engine.run_once()
+        report = self.engine.store.usage()
+        self.assertEqual(report["input_tokens"], 18)
+        self.assertEqual(report["output_tokens"], 5)
+        self.assertEqual(report["cache_read_tokens"], 9)
+        self.assertNotIn("estimated_dollars", report)
+
     def test_SKILL_discovery_of_builtin_manifest(self):
         from aura_engine.adapters import scan_skills
         ids = {s["id"] for s in scan_skills(self.home)}
