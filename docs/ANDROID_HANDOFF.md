@@ -28,7 +28,7 @@ Engine ownership is separate from UX ownership. Android app SHALL NOT launch its
 ## Transport (v1)
 All calls to `http://127.0.0.1:8765` require bearer token. No cross-device HTTP server is exposed; ADB itself connects outward to the authorized target. JSON contract: docs/ENGINE_CONTRACT.md.
 
-UI team must implement secure pairing; the backend does not currently provide a protected Android-token exchange method. No APK or screenshot verification is claimed by the engine team.
+UI team must implement secure pairing; the backend provides `python -m aura_engine.pair --emit-token` for use ONLY from a permission-approved Termux RUN_COMMAND result callback; store the returned token in the Android Keystore. No APK or screenshot verification is claimed by the engine team.
 
 ## Real-device matrix
 Android 11/13/15 when available; portrait, landscape, small screen, large phone, split-screen, keyboard insets; background force stop and restart; airplane mode; wrong credential; ADB paired/unauthorized/offline; GitHub login expired; Claude exhausted limits; Gemini/agy missing; low storage. Separate perceptual and functional reviews.
