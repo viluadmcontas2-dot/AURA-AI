@@ -117,6 +117,14 @@ class EngineContracts(unittest.TestCase):
             self.assertEqual((folder / "token").stat().st_mode & 0o777, 0o600)
             self.assertFalse((folder / "engine.sqlite3").exists())
 
+    def test_DOCTOR_does_not_require_model_or_mutate_system(self):
+        job = self.engine.submit({"kind": "system", "action": "doctor"})
+        self.assertEqual(job["status"], "queued")
+        finished = self.engine.run_once()
+        self.assertEqual(finished["status"], "completed")
+        self.assertIn("providers", finished["result"])
+        self.assertIn("recommendations", finished["result"])
+
     def test_SEC_01_authentication_required(self):
         server = make_server(self.engine, "127.0.0.1", 0)
         self.addCleanup(server.server_close)
