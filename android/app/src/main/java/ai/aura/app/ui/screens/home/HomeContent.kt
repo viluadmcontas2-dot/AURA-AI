@@ -182,7 +182,14 @@ internal fun HomeView(
                     )
                 }
             }
-            VoiceOrb(onClick = { onOpenChat(ChatEntry(open = true)) }, modifier = Modifier.align(Alignment.TopEnd).offset(x = 72.dp, y = (-6).dp))
+            val voice = ai.aura.app.voice.LocalVoiceInput.current
+            VoiceOrb(
+                available = voice != null,
+                onClick = {
+                    if (voice != null) voice { text -> onOpenChat(ChatEntry(open = true, prompt = text)) }
+                    else onOpenChat(ChatEntry(open = true))
+                }, modifier = Modifier.align(Alignment.TopEnd).offset(x = 72.dp, y = (-6).dp),
+            )
         }
         AuraComposerField(value = draft, onValueChange = onDraftChange, onSend = onSend)
     }
@@ -244,15 +251,15 @@ private fun SettingsButton(onClick: () -> Unit) {
     }
 }
 
-/** Orbe de voz: só entrada visual nesta fase (sem microfone). Toque abre o chat para escrever. */
+/** Orbe de voz: toque abre o reconhecimento de voz do Android; sem ele, abre o chat para escrever. */
 @Composable
-private fun VoiceOrb(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun VoiceOrb(available: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val source = remember { MutableInteractionSource() }
     Box(
         modifier
             .size(200.dp)
             .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "Voz ainda não disponível. Toque para escrever ao AURA" },
+            .semantics { contentDescription = if (available) "Falar com o AURA" else "Voz indisponível neste aparelho. Toque para escrever ao AURA" },
     ) {
         AuraOrb(Modifier.fillMaxSize(), glow = true, breathing = true)
         Row(
@@ -264,7 +271,7 @@ private fun VoiceOrb(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 .background(Color.White.copy(alpha = 0.94f))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-        ) { Text("Voz em breve", style = AuraType.Caption.copy(letterSpacing = 0.sp, color = AuraColors.Ink)) }
+        ) { Text(if (available) "Toque e fale" else "Sem voz neste aparelho", style = AuraType.Caption.copy(letterSpacing = 0.sp, color = AuraColors.Ink)) }
     }
 }
 

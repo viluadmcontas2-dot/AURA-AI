@@ -16,6 +16,8 @@ import ai.aura.app.integration.RealEngineGateway
 import ai.aura.app.integration.TermuxBridge
 import ai.aura.app.permissions.AppPermissions
 import ai.aura.app.ui.AuraApp
+import ai.aura.app.voice.LocalVoiceInput
+import ai.aura.app.voice.SpokenText
 
 /** Native AURA shell. No simulated provider results are ever shown in production. */
 class MainActivity : ComponentActivity() {
@@ -41,11 +43,30 @@ class MainActivity : ComponentActivity() {
             checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) runCatching { askAll.launch(missing.toTypedArray()) } else askAllFilesOnce(prefs)
+        // Voz: tela de reconhecimento do próprio Android (não depende do Termux nem do motor).
+        var onSpoken: ((String) -> Unit)? = null
+        val voiceLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        ) { r ->
+            val text = SpokenText.from(r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS))
+            if (text != null) onSpoken?.invoke(text)
+            else android.widget.Toast.makeText(this, "Não ouvi nada. Toque e fale de novo.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        val voiceIntent = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Fale com o AURA")
+        val voiceAvailable = voiceIntent.resolveActivity(packageManager) != null
+        val voiceHook: (((String) -> Unit) -> Unit)? = if (!voiceAvailable) null else { cb ->
+            onSpoken = cb
+            runCatching { voiceLauncher.launch(voiceIntent) }
+        }
         setContent {
             val gateway = remember {
                 RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext)))
             }
             var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
+            androidx.compose.runtime.CompositionLocalProvider(LocalVoiceInput provides voiceHook) {
             AuraApp(
                 lastCrash = lastCrash,
                 onDismissCrash = {
@@ -80,6 +101,7 @@ class MainActivity : ComponentActivity() {
                 initialDraft = prefs.getString("draft", "") ?: "",
                 onSaveDraft = { prefs.edit().putString("draft", it).apply() },
             )
+            }
         }
     }
 
