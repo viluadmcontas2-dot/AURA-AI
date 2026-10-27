@@ -199,6 +199,20 @@ def dispatch(request, engine):
             return {"service": "aura-engine", "workspace": str(root)}
         if action == "capabilities":
             return capabilities(engine.home)
+        if action == "doctor":
+            info = capabilities(engine.home)
+            fixes = []
+            for name, spec in info["providers"].items():
+                if not spec["installed"] and name in ("claude", "adb", "gh"):
+                    fixes.append({"component": name, "status": "missing",
+                                  "next_action": "Install and authenticate the official tool in Termux"})
+            if not info["android_runtime"]:
+                fixes.append({"component": "termux", "status": "unverified",
+                              "next_action": "Verify actual Android app runtime and permissions"})
+            return {"providers": info["providers"],
+                    "api_available": info["api"],
+                    "recommendations": fixes,
+                    "note": "No installations, authentication or paid API calls were performed"}
     elif kind == "files":
         path = resolve_inside(root, request.get("path", "."))
         if action == "list":
