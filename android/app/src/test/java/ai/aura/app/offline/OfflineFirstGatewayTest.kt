@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -316,7 +317,9 @@ class OfflineFirstGatewayTest {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { gw.events.collect { } }
 
         remote.bus.emit(EngineEvent(-1, "connection.restored", null, timestampMillis = 0))
-        advanceUntilIdle()
+        // O coletor está no backgroundScope e o envio da fila passa pelo delay(10) do FakeRemote:
+        // advanceUntilIdle() não anda o relógio por trabalho de fundo, só advanceTimeBy().
+        advanceTimeBy(100)
 
         assertEquals(LinkState.Online, link.state.value)
         assertEquals(listOf("req-1"), remote.submitted.map { it.first })
