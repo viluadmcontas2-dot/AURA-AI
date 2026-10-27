@@ -1,0 +1,6 @@
+# Cache e build locais do Gradle/Android (não versionar)
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
