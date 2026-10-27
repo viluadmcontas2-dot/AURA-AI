@@ -14,10 +14,13 @@ toda marcada, cada marca com evidência (saída de teste, print, logcat). Nenhum
 2. Sem tela "em construção". Rota ainda não feita fica em `pending` no teste do grafo (T5); o portão final (T17) exige `pending` vazio.
 3. Tela que depende de dado que o motor não tem mostra o que existe e diz o que falta. Nunca inventa dado (nada de Fake em produção).
 4. Permissões só sob demanda, com explicação antes do pedido do sistema. `MANAGE_EXTERNAL_STORAGE` sai do manifesto. Custo se errado: compartilhar arquivo com o Termux fica mais limitado.
-5. Teste de motor Python: 12 falhas + 1 erro já existem no Windows (ambiente). T3 compara o conjunto de falhas antes/depois; o motor completo roda no Linux pela sessão da nuvem.
-6. Push na branch só depois de GREEN. PR para `main` só com suíte e build verdes.
+5. Teste de motor Python: 12 falhas + 1 erro já existem no Windows (ambiente). T3 e T20 comparam o conjunto de falhas antes/depois; o motor completo roda no Linux pela CI (`Engine contract CI`) no PR.
+6. Push na branch só depois de GREEN. PR para `main` só com suíte e build verdes. Desde 27/10 (~23:08Z) a CI do GitHub voltou (cobrança liberada pelo dono): é o portão da suíte completa e do build a cada push do controlador, em paralelo; o Gradle local fica para o teste focado. O APK que a CI guarda como artefato é interno, nunca entrega.
 7. Os dois emuladores autorizados pelo dono: `emulator-5554` (Galaxy_S23_Auto, Android 17, 1080×2340) = celular com o AURA; `emulator-5556` (Taytech_M550Pro, Android 11, 1280×720) = multimídia controlada pelo AURA.
    O celular S23 físico e a central física não entram. Ao terminar: desinstalar AURA/Termux de teste e restaurar qualquer ajuste global mexido.
+8. Portão de cobertura (PR #3, agente branco): `docs/design/COBERTURA.md` tem 66 linhas (45 de UI + 21 de função). Cada tarefa fecha as suas (`feito` + evidência: teste, arquivo ou print) no mesmo commit. `python -I scripts/check_design_coverage.py --release` com saída 0 é portão de entrega, junto com a matriz A–F. Pedido novo do branco ou do preto entra como linha `pendente` (VERMELHO) e só sai com prova. Só o dono muda o escopo de uma linha, registrado no PR. Custo se errado: a entrega espera por uma linha que talvez não valha.
+9. Quem executa: o controlador (agente vermelho) despacha um implementador sonnet por tarefa (Gradle e integração). O agy (via `delegar.ps1`, uma vaga, `accept-edits`, sem shell, sem mexer em permissões) só faz leitura e trabalho mecânico sem Gradle; se RAM ou vaga não permitirem, segue com o sonnet. Custo se errado: onda mais lenta.
+10. Ordem (agente branco, PR #3): primeiro "o app nunca fica morto sem Termux" (T13 abre a onda 3, com fumaça no emulador S23 logo após o merge), depois Termux e motor no aparelho (T6, T20), depois o resto. Custo se errado: telas bonitas antes de a regra nº 1 estar provada.
 
 ## Regras para toda tarefa (implementador e revisor)
 - Trabalhe no worktree indicado. Commits pequenos, em português, terminando com a linha `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Não faça `push`.
@@ -29,6 +32,7 @@ toda marcada, cada marca com evidência (saída de teste, print, logcat). Nenhum
 - Textos em português do Brasil, simples. Termo técnico só com uma frase explicando.
 - Fique dentro do seu pacote. Os pontos compartilhados (`ui/nav/Routes.kt`, `AuraApp.kt`, `MainActivity.kt`, `UiEngine.kt`) só ganham linhas de registro; não reestruture.
 - Não despache subagentes. Relatório completo no arquivo indicado; resposta final com no máximo 15 linhas.
+- Feche as suas linhas em `docs/design/COBERTURA.md` (`feito` + evidência: teste, arquivo ou print) e as da `docs/MATRIZ_DE_TESTES.md` no mesmo commit. Sem evidência a linha fica `em andamento`; nunca marque `feito` por achar.
 
 ## Grafo (mapa de ligações)
 Fonte de verdade em código: `ui/nav/Routes.kt` (T5); o teste `NavGraphTest` compara com os arquivos de `docs/design/telas` e com `Fluxo-do-usuario.dc.html`.
@@ -59,12 +63,37 @@ flowchart LR
   Aju --> Perm[Permissões]
 ```
 
-Dependências entre tarefas: T1 → T4, T5, T13 · T2 → T7, T19 · T3 → T4, T11 · T4 → T8, T11, T12, T13 · T5 → T6…T16 · T6 → T8 · T7 depende de T2 e T5 · T17 depois de T6…T16 · T18 depois de T17 · T19 depois de T18.
-Ondas: **1** = T1, T2, T3 (em paralelo) · **2** = T4 e T5 (em seguida, em série curta) · **3** = T6…T16 (até 5 por vez) · **4** = T17 → T18 → T19.
+Dependências entre tarefas: T1 → T4, T5, T13 · T2 → T7, T19 · T3 → T4, T11, T20 · T4 → T8, T11, T12, T13 · T5 → T6…T16 · T6 → T8 · T7 depende de T2 e T5 · T17 depois de T6…T16 · T18 depois de T17 e T20 · T19 depois de T18.
+Ondas: **1** = T1, T2, T3 (em paralelo) · **2** = T4 e T5 (em seguida), com T20 (só Python) ao lado · **3** = T13 primeiro (+ fumaça no emulador S23 sem Termux), depois T6…T12 e T14…T16 (até 5 por vez) · **4** = T17 → T18 → T19.
+
+## Quem fecha o quê (COBERTURA, 66 linhas)
+Cada tarefa só é dada como completa depois de marcar as linhas abaixo (`feito` + evidência). `UI-nn` = tela do design, `FN-nn` = função. Fonte: coluna `Tarefa` de `docs/design/COBERTURA.md`.
+
+| Tarefa | Linhas |
+|---|---|
+| T1 | FN-12 |
+| T2 | FN-21 |
+| T3 | FN-17 |
+| T5 | UI-02, UI-07, UI-38, UI-39 |
+| T6 | UI-05, FN-10 |
+| T7 | UI-04 |
+| T8 | UI-34, FN-11 |
+| T9 | UI-40, UI-41, UI-44, FN-15 |
+| T10 | UI-42, UI-43, UI-45, FN-15, FN-16 |
+| T11 | UI-29, UI-30, UI-32, FN-17 |
+| T12 | UI-31, UI-33, UI-35, FN-08, FN-09, FN-13, FN-18 |
+| T13 | UI-07, UI-13, UI-23, UI-24, UI-25, UI-26, UI-27, UI-28, UI-33, FN-11, FN-12 |
+| T14 | UI-19, UI-22, UI-36, UI-37, FN-07, FN-14, FN-19 |
+| T15 | UI-10, UI-11, UI-17, UI-18, UI-20, UI-21, FN-05, FN-06, FN-12, FN-14, FN-20 |
+| T16 | UI-08, UI-09, UI-12, UI-14, UI-15, UI-16, FN-01, FN-02, FN-04 |
+| T17 | UI-01, UI-02, UI-03, UI-39, FN-21 |
+| T18 | UI-06 |
+| T20 | FN-03, FN-04, FN-16 |
 
 ## Checkpoints
 - **CP1** (fim da onda 1): suíte JVM verde com a camada offline; manifesto novo montado; motor com `DELETE /v1/memory`. Matriz A (parte JVM) e C (manifesto).
 - **CP2** (fim da onda 2): app abre em qualquer estado, banner "Motor desligado · Iniciar o motor" visível, grafo com todas as rotas registradas (`pending` = telas ainda não feitas).
+- **CP2b** (T13 mergeada): fumaça no emulador S23 sem Termux — as 5 abas abrem, os projetos aparecem, `logcat` sem `FATAL`; print em `docs/REGISTRO.md`. É a primeira prova da regra nº 1.
 - **CP3** (fim da onda 3): `pending` vazio; cada tela renderiza offline na JVM; matriz D.
 - **CP4**: `OfflineMatrixTest` + `ClickEverythingTest` verdes; lint sem erro; matriz E.
 - **CP5**: emulador S23 (v5 → v6 por cima; sem Termux; com Termux) e Taytech (alvo do ADB) com prints e logcat; matrizes B, C, F.
@@ -73,7 +102,7 @@ Ondas: **1** = T1, T2, T3 (em paralelo) · **2** = T4 e T5 (em seguida, em séri
 ## O que falta provar (cada item tem comando ou lugar da evidência)
 | # | Prova | Como | Estado |
 |---|---|---|---|
-| P1 | Suíte JVM toda verde | `bash scripts/gw.sh :app:testDebugUnitTest --offline` | ⏳ |
+| P1 | Suíte JVM toda verde | `bash scripts/gw.sh :app:testDebugUnitTest --offline` e CI `android-ci` verde no PR | ⏳ |
 | P2 | Toda rota abre offline sem exceção | `OfflineMatrixTest` (T17) | ⏳ |
 | P3 | Nenhum botão morto | `ClickEverythingTest` (T17) | ⏳ |
 | P4 | Grafo completo: 40 telas, arestas, `pending` vazio | `NavGraphTest` (T5/T17) | ⏳ |
@@ -85,7 +114,9 @@ Ondas: **1** = T1, T2, T3 (em paralelo) · **2** = T4 e T5 (em seguida, em séri
 | P10 | Controlar a multimídia por ADB (capturar tela, instalar app) | S23 → Taytech (`10.0.2.2:5557`) | ⏳ |
 | P11 | Fidelidade: print do app × print do design, 40 telas | `docs/design/CONFERENCIA.md` (T17/T18) | ⏳ |
 | P12 | Leve: tamanho do APK, partida a frio, memória | `am start -W`, `dumpsys meminfo`, tamanho | ⏳ |
-| P13 | Motor completo no Linux | sessão da nuvem (PR #2) no commit final | ⏳ |
+| P13 | Motor completo no Linux | CI `Engine contract CI` verde no commit final do PR | ⏳ |
+| P14 | Cobertura do design: 66/66 `feito` com evidência | `python -I scripts/check_design_coverage.py --release` (saída 0) e CI `design-coverage` | ⏳ |
+| P15 | Cadeia REA no Termux: ferramentas instaladas, `tools/list` real, um app de teste reformado e medido | testes do T20 + emulador S23 com Termux (T18) | ⏳ |
 
 ## Tarefas
 
@@ -153,7 +184,7 @@ Depende de: T1 (e T4 para o gateway final). Arquivos: `ui/nav/*` (novos), `ui/Au
 
 ## Task 6: Fluxo do Termux sem travar
 Descrição: hoje `TermuxBridge.pair()` e `startEngine()` não têm chamador (o app nunca pareia) e o onboarding passo 2 não explica o que fazer. Ler `docs/design/plano-autonomia-termux.md` e `docs/design/matriz-fluxos-falhas.md`.
-- Estados claros: Termux instalado? permissão `RUN_COMMAND` concedida? `allow-external-apps` ligado? Cada linha com estado e UM botão de correção (instalar, permitir, "Copiar comando" para colar no Termux, "Já colei").
+- Estados claros: Termux instalado? permissão `RUN_COMMAND` concedida? `allow-external-apps` ligado? Cada linha com estado e UM botão de correção (instalar, permitir, "Copiar comando" para colar no Termux, "Já colei"). O que o app consegue corrigir sozinho ele corrige (abrir o instalador, pedir a permissão, iniciar o motor); o que só o Termux pode fazer vira UM comando pronto para colar (`allow-external-apps=true`), e "Já colei" confere sozinho.
 - Pareamento ponta a ponta: `pair()` com resultado (PendingIntent) → token cifrado → `health` responde; `startEngine()` com resultado e tempo limite; nunca ficar em "Iniciando…" para sempre; cancelar sempre possível.
 - Ações do banner (T5) implementadas aqui; seção "Termux" em Conexões.
 - Testes com ponte falsa: cada transição de estado, tempo esgotado, usuário cancela, Termux some no meio.
@@ -166,7 +197,7 @@ Aceite: nenhum pedido do sistema antes da primeira ação do usuário (teste + e
 Depende de: T2, T5. Arquivos: `AppPermissions.kt`, `MainActivity.kt`, `ui/screens/permissions/*`. Tamanho: M. Worktree: `wt-t7`.
 
 ## Task 8: Checkup (autodiagnóstico)
-Descrição: tela `Checkup.dc.html` — Termux instalado, `RUN_COMMAND`, `allow-external-apps`, motor responde (`/v1/health`), contas (`authStatus`), permissões do Android (bateria, notificações, armazenamento), ADB. Cada linha com estado (ok/alerta/erro) e UM botão de correção; "6/8 ok" no topo; roda local e não bloqueia se o motor está desligado.
+Descrição: tela `Checkup.dc.html` — Termux instalado, `RUN_COMMAND`, `allow-external-apps`, motor responde (`/v1/health`), contas (`authStatus`), permissões do Android (bateria, notificações, armazenamento), ADB. Cada linha com estado (ok/alerta/erro) e UM botão de correção — automática quando o app consegue (permissões do Android, abrir o Termux, iniciar o motor) ou "Copiar comando" quando só o Termux pode —; "6/8 ok" no topo; roda local e não bloqueia se o motor está desligado. Fecha FN-11 junto com T13 (retomada após o Android encerrar o processo).
 Aceite: um teste por linha e por estado; toda correção leva à tela certa; tela abre sem motor; suíte verde.
 Depende de: T5, T6. Arquivos: `ui/screens/checkup/*`, `checks/*`. Tamanho: M. Worktree: `wt-t8`.
 
@@ -186,13 +217,13 @@ Aceite: testes de cada ação, estado vazio e erro; offline mostra o último dad
 Depende de: T3, T4, T5. Arquivos: `ui/screens/memory/*`, `ui/screens/capabilities/*`. Tamanho: M. Worktree: `wt-t11`.
 
 ## Task 12: Notificações, Conexões e menu de Ajustes
-Descrição: `Notificacoes` (canais e serviço de primeiro plano: Enquanto trabalha, Precisa de você, Pronto, Ouvindo; ações Aprovar/Ver/Pausar/Parar; ações que apagam abrem o app), `Conexoes` (uso da semana, entrada por Ajustes e pelo chip do Início), `Ajustes` (menu do design: Perfil, Capacidades, Memória, Checkup, Aparência, Notificações, Microfone, Permissões). Corrigir "Parar tudo" (hoje morto). Nenhuma seção de Ajustes pode exigir motor para abrir.
+Descrição: `Notificacoes` (canais e serviço de primeiro plano: Enquanto trabalha, Precisa de você, Pronto, Ouvindo; ações Aprovar/Ver/Pausar/Parar; ações que apagam abrem o app), `Conexoes` (uso da semana, entrada por Ajustes e pelo chip do Início), `Ajustes` (menu do design: Perfil, Capacidades, Memória, Checkup, Aparência, Notificações, Microfone, Permissões). Corrigir "Parar tudo" (hoje morto). Nenhuma seção de Ajustes pode exigir motor para abrir. Fecha também FN-08 (trava de custo: nada de API paga sem aprovação), FN-09 (cérebros Claude Code, Codex, Gemini/Google e agy, com "indisponível" honesto) e FN-18 (modo carro e Leitura fácil em Aparência).
 Aceite: notificações aparecem no emulador (T18); testes de cada canal; "Parar tudo" com confirmação e resultado visível; suíte verde.
 Depende de: T4, T5. Arquivos: `ui/screens/settings/*`, `ui/screens/connections/*`, `notifications/*`. Tamanho: M. Worktree: `wt-t12`.
 
 ## Task 13: Regra nº 1 nas abas (Projetos, Atividade, Dispositivos, Ajustes, histórico)
 Descrição: tudo que é local aparece sempre. Projetos gravados em disco (criar, editar, arquivar, apagar, offline), histórico do chat em disco, rascunhos; Atividade com a fila local e "Tentar de novo" ligado (`onRetry`) e badge; Dispositivos com "Este celular" e lista local; Dispositivo-Detalhe, Artefatos (ler `artifacts/`), abas Arquivos/Decisões do projeto; restauração de Bundle sem `ClassCastException`/`IllegalArgumentException`; leituras de preferências fora da thread principal; `AuraApp`/Início com o estado "Motor desligado" e ação.
-Aceite: testes por aba nos 3 estados (online, offline, vazio); matar e reabrir o processo mantém projetos e rascunhos (teste de persistência); suíte verde.
+Aceite: testes por aba nos 3 estados (online, offline, vazio); matar e reabrir o processo mantém projetos e rascunhos (teste de persistência) e retoma o trabalho no ponto salvo (FN-12: o app relê disco e motor ao reabrir); suíte verde.
 Depende de: T1, T4, T5. Arquivos: `ui/screens/projects/*`, `activity/*`, `devices/*`, `home/*`, `chat/ChatController.kt`. Tamanho: L (se passar de 8 arquivos, dividir e avisar). Worktree: `wt-t13`.
 
 ## Task 14: Bastidores, Intercorrências, Link-Aberto e Vazios
@@ -201,7 +232,7 @@ Aceite: um teste por caso/estado; qualquer `https` passa pela sheet; suíte verd
 Depende de: T5. Arquivos: `ui/screens/backstage/*`, `activity/IncidentBanner.kt`, `ui/screens/link/*`, `ui/components/EmptyState.kt`. Tamanho: M. Worktree: `wt-t14`.
 
 ## Task 15: Chat 1–5 e Artefatos completos
-Descrição: plano em 4 passos com "Prova:" e "Trocar" (Chat-1), comandos que navegam (Chat-2), %/Pausar/Ver mudanças (Chat-3), aprovação em 3 níveis com lista de alvos (Chat-4), resultado FEITO/COMPROVADO/FALTA/PRÓXIMO + cartão do arquivo + Abrir pull request + Instalar na multimídia (Chat-5), Artefato-Detalhe (SHA-256, versões, "Instalar na multimídia"). Só com dados que o motor entrega; o resto mostra "o motor ainda não informa".
+Descrição: plano em 4 passos com "Prova:" e "Trocar" (Chat-1), comandos que navegam (Chat-2), %/Pausar/Ver mudanças (Chat-3), aprovação em 3 níveis com lista de alvos (Chat-4), resultado FEITO/COMPROVADO/FALTA/PRÓXIMO + cartão do arquivo + Abrir pull request + Instalar na multimídia (Chat-5), Artefato-Detalhe (SHA-256, versões, "Instalar na multimídia"). Só com dados que o motor entrega; o resto mostra "o motor ainda não informa". Checkpoint por passo na execução (FN-12): ao reabrir, o Chat-3 volta do ponto salvo. Teclado (FN-20): composer ancorado, barra de baixo some, texto preservado (insets).
 Aceite: testes por tela e por nível de risco; suíte verde.
 Depende de: T4, T5, T14. Arquivos: `ui/screens/chat/*`, `ui/screens/projects/Artifact*`. Tamanho: L (dividir se passar de 8 arquivos). Worktree: `wt-t15`.
 
@@ -212,15 +243,27 @@ Depende de: T5, T7. Arquivos: `ui/screens/voice/*`, `ui/screens/home/AuraOrb.kt`
 
 ## Task 17: Matriz JVM e caça a bugs final
 Descrição: `OfflineMatrixTest` (toda rota nos estados NoTermux, NoPermission, NoToken, EngineStopped, Starting, Online × vazio/com dado, sem exceção), `ClickEverythingTest` (percorre cada botão de cada rota; nenhum sem efeito), `NavGraphTest` com `pending` vazio, conferência de fidelidade tela a tela contra `.superpowers/design-png` (registrar em `docs/design/CONFERENCIA.md`), Android Lint, rodada contra `matriz-fluxos-falhas.md` e `auditoria-fluxo.md` (cada item: corrigido com teste, ou justificado).
-Aceite: P1–P6 e P11 (parte JVM) verdes; `docs/MATRIZ_DE_TESTES.md` A, D, E marcadas com evidência.
+Aceite: P1–P6 e P11 (parte JVM) verdes; `docs/MATRIZ_DE_TESTES.md` A, D, E marcadas com evidência; na COBERTURA, toda linha que a JVM prova está `feito` e as que dependem do emulador ficam `em andamento` com o motivo.
 Depende de: T6…T16. Tamanho: M. Worktree: `wt-t17`.
 
 ## Task 18: Teste real nos dois emuladores
-Descrição: `emulator-5554` (S23): instalar o v5 (`.superpowers/apk/aura-v5-baseline.apk`), gravar marcador/login, instalar o v6 por cima (`adb install -r`), conferir que o marcador permanece; passeio por todas as abas e botões SEM Termux; instalar o Termux (`com.termux_1021.apk` da pasta DESKTOP LIVE ou do Drive), preparar o motor, parear e repetir COM Termux; `emulator-5556` (Taytech): alvo do ADB — de dentro do S23, `adb connect 10.0.2.2:5557`, capturar tela e instalar um app. Evidência: prints, `logcat` sem `FATAL EXCEPTION`, `am start -W`, tamanho do APK, `dumpsys meminfo`. Ao final: desinstalar AURA e Termux dos dois, restaurar ajustes globais.
-Aceite: P7–P10 e P12 com evidência em `docs/REGISTRO.md`; matrizes B, C, F marcadas.
-Depende de: T17. Tamanho: L. Quem: controlador + 1 implementador.
+Descrição: `emulator-5554` (S23): instalar o v5 (`.superpowers/apk/aura-v5-baseline.apk`), gravar marcador/login, instalar o v6 por cima (`adb install -r`), conferir que o marcador permanece; passeio por todas as abas e botões SEM Termux; instalar o Termux (`com.termux_1021.apk` da pasta DESKTOP LIVE ou do Drive), preparar o motor, parear e repetir COM Termux; `emulator-5556` (Taytech): alvo do ADB — de dentro do S23, `adb connect 10.0.2.2:5557`, capturar tela e instalar um app. Evidência: prints, `logcat` sem `FATAL EXCEPTION`, `am start -W`, tamanho do APK, `dumpsys meminfo`. Com o Termux: rodar a cadeia REA do T20 (instalar Node, JDK, JADX, Apktool, adb e rea-agents/MCP, `tools/list` real, reformar um app de teste e medir Reversão, Reconstrução e Fidelidade). Ao final: desinstalar AURA e Termux dos dois, restaurar ajustes globais.
+Aceite: P7–P10, P12 e P15 com evidência em `docs/REGISTRO.md`; matrizes B, C, F marcadas; todas as linhas restantes da COBERTURA `feito`.
+Depende de: T17 e T20. Tamanho: L. Quem: controlador + 1 implementador.
 
 ## Task 19: Entrega (build final e PR)
-Descrição: build de release assinado com a MESMA chave do v5, `aapt2`/Lint finais, copiar para `C:\Users\hugov\Desktop\DESKTOP LIVE\auraai-v6.apk` (nunca por chat), `git fetch` + rebase, `push`, PR para `main` com a lista das provas, pedir à nuvem a rodada final do motor no Linux (P13), nota no Obsidian (`Projetos/AURA AI.md`) e `python -I _sistema/salvar.py`.
-Aceite: matriz A–F toda marcada; PR aberto; 👤 ao dono: ajustar o Billing do GitHub (CI parada).
+Descrição: build de release assinado com a MESMA chave do v5, `aapt2`/Lint finais, copiar para `C:\Users\hugov\Desktop\DESKTOP LIVE\auraai-v6.apk` (nunca por chat), `git fetch` + rebase, `push`, PR para `main` com a lista das provas, conferir a rodada do motor no Linux na CI (P13), acrescentar ao `android-ci.yml` as etapas `:app:lintDebug`, `:app:assembleRelease` (tamanho do APK) e `aapt2 dump permissions` com a saída guardada como artefato, nota no Obsidian (`Projetos/AURA AI.md`) e `python -I _sistema/salvar.py`.
+Aceite: matriz A–F toda marcada; `python -I scripts/check_design_coverage.py --release` com saída 0 (66/66); CI do PR verde (`android-ci`, `Engine contract CI`, `design-coverage`); PR aberto.
 Depende de: T18. Tamanho: S.
+
+## Task 20: Motor — recepção, triagem e cadeia REA no Termux
+Descrição (Python, `engine/`): fecha FN-03, FN-04 (lado do motor) e FN-16 (código) da COBERTURA. Antes de despachar, investigação só de leitura (`docs/design/voz-e-fila.md`, `plano-autonomia-termux.md`, `reformar-apps.md`, `engine/aura_engine/*`, skills em `engine/skills/*`) que vira o brief; o que faltar de dado é registrado, nunca inventado.
+- (a) Recepção: skill embutida `engine/skills/clareza/SKILL.md` (frontmatter `name`/`description`, regras e exemplos de `voz-e-fila.md`) e um passo no motor que interpreta a fala antes da triagem (transcrição → pedido reescrito; nunca executa nada; se falhar, segue com o texto original).
+- (b) Triagem: classificar cada entrada em pergunta, ajuste, novo pedido ou parar; fila com "salvo para retomar"; eventos `input.received` e `queue.updated` em `/v1/events` (o T16 consome); ajuste e parar atuam no job em curso.
+- (c) Cadeia REA no Termux: job que instala Node, JDK, JADX, Apktool, adb e rea-agents/MCP, com checkpoint por etapa e retomada (matar no meio e rodar de novo continua), `tools/list` real do MCP, ferramenta com `mutatesDevice` = risco médio/alto, e as medidas Reversão, Reconstrução e Fidelidade (Fidelidade só depois de teste real). Os comandos passam por um executor injetável: os testes usam um falso; a execução de verdade é do T18 (P15).
+- Se (c) não couber hoje: FN-16 fica `pendente` com o bloqueio escrito na coluna Evidência e a entrega não sai (portão da COBERTURA).
+Aceite:
+- [ ] Testes Python por evento e por caso de triagem; (c) com executor falso, retomando após falha em cada etapa; RED antes.
+- [ ] `docs/ENGINE_CONTRACT.md` descreve os eventos e os jobs novos; o conjunto de falhas do `python -m unittest` completo no Windows é o mesmo de antes e a CI Linux fica verde.
+- [ ] FN-03, FN-04 (motor) e FN-16 (código) marcados na COBERTURA com a evidência; o restante de FN-16 fecha no T18.
+Depende de: T3. Arquivos: `engine/aura_engine/*`, `engine/skills/clareza/*`, `engine/tests/*`, `docs/ENGINE_CONTRACT.md`. Tamanho: L (dividir (a)+(b) e (c) se passar de 8 arquivos). Worktree: `wt-t20`.
