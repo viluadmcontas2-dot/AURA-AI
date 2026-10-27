@@ -1,5 +1,7 @@
 package ai.aura.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,7 +22,15 @@ class MainActivity : ComponentActivity() {
             val gateway = remember {
                 RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext)))
             }
-            AuraApp(gateway = gateway)
+            AuraApp(
+                gateway = gateway,
+                onOpenUrl = { url ->
+                    val uri = runCatching { Uri.parse(url) }.getOrNull()
+                    if (uri?.scheme == "https" && !uri.host.isNullOrBlank()) {
+                        startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    }
+                },
+            )
         }
     }
 }
