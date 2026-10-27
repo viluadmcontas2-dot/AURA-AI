@@ -106,6 +106,17 @@ class EngineContracts(unittest.TestCase):
         self.assertEqual(job["risk"], "read")
         self.assertEqual(job["status"], "queued")
 
+    def test_PAIR_token_is_stable_without_opening_engine_database(self):
+        from aura_engine.security import load_or_create_token
+        with tempfile.TemporaryDirectory() as root:
+            folder = pathlib.Path(root) / "aura"
+            first = load_or_create_token(folder)
+            second = load_or_create_token(folder)
+            self.assertEqual(first, second)
+            self.assertGreaterEqual(len(first), 32)
+            self.assertEqual((folder / "token").stat().st_mode & 0o777, 0o600)
+            self.assertFalse((folder / "engine.sqlite3").exists())
+
     def test_SEC_01_authentication_required(self):
         server = make_server(self.engine, "127.0.0.1", 0)
         self.addCleanup(server.server_close)
