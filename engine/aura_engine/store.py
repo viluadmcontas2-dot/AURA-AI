@@ -1,0 +1,191 @@
+"""SQLite event log and durable jobs. All state transitions are transactional."""
+import json
+import sqlite3
+import threading
+import time
+import uuid
+
+
+def packed(x):
+    return json.dumps(x, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+class Store:
+    def __init__(self, filename):
+        self.lock = threading.RLock()
+        self.db = sqlite3.connect(str(filename), check_same_thread=False, timeout=15)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA foreign_keys=ON")
+        self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS jobs(
+                id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
+                request TEXT NOT NULL, risk TEXT NOT NULL,
+                status TEXT NOT NULL, result TEXT, error TEXT, created REAL NOT NULL, updated REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS events(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL,
+                payload TEXT NOT NULL, created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS memory(
+                workspace TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+                updated REAL NOT NULL, PRIMARY KEY(workspace,key));
+            CREATE TABLE IF NOT EXISTS schedules(
+                id TEXT PRIMARY KEY, seconds INTEGER NOT NULL, request TEXT NOT NULL,
+                next_run REAL NOT NULL, enabled INTEGER NOT NULL);
+        """)
+        with self.lock, self.db:
+            changed = self.db.execute(
+                "UPDATE jobs SET status='interrupted',updated=? WHERE status='running'",
+                (time.time(),)).rowcount
+            if changed:
+                self._emit("engine.recovered", {"interrupted": changed})
+
+    def close(self):
+        with self.lock:
+            try:
+                self.db.close()
+            except sqlite3.ProgrammingError:
+                pass
+
+    def _emit(self, kind, payload):
+        self.db.execute("INSERT INTO events(type,payload,created) VALUES(?,?,?)",
+                        (kind, packed(payload), time.time()))
+
+    def emit(self, kind, payload):
+        with self.lock, self.db:
+            self._emit(kind, payload)
+
+    def events(self, since=0, limit=100):
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT * FROM events WHERE id>? ORDER BY id ASC LIMIT ?",
+                (int(since), max(1, min(int(limit), 1000)))).fetchall()
+            return [{"id": r["id"], "type": r["type"],
+                     "payload": json.loads(r["payload"]), "created_at": r["created"]} for r in rows]
+
+    def _job(self, row):
+        if row is None:
+            return None
+        return {
+            "id": row["id"], "request_id": row["request_id"],
+            "request": json.loads(row["request"]), "risk": row["risk"],
+            "status": row["status"],
+            "result": json.loads(row["result"]) if row["result"] else None,
+            "error": json.loads(row["error"]) if row["error"] else None,
+            "created_at": row["created"], "updated_at": row["updated"]}
+
+    def job(self, job_id):
+        with self.lock:
+            return self._job(self.db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone())
+
+    def jobs(self, limit=50):
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM jobs ORDER BY created DESC LIMIT ?",
+                                   (max(1, min(int(limit), 200)),)).fetchall()
+            return [self._job(row) for row in rows]
+
+    def submit(self, request, risk, request_id=None):
+        rid = request_id or str(uuid.uuid4())
+        body = packed(request)
+        with self.lock, self.db:
+            prior = self.db.execute("SELECT * FROM jobs WHERE request_id=?", (rid,)).fetchone()
+            if prior:
+                if prior["request"] != body:
+                    raise ValueError("idempotency key reused with different request")
+                return self._job(prior)
+            job_id = str(uuid.uuid4())
+            status = "queued" if risk == "read" else "awaiting_approval"
+            now = time.time()
+            self.db.execute("""INSERT INTO jobs
+                (id,request_id,request,risk,status,created,updated)
+                VALUES(?,?,?,?,?,?,?)""", (job_id, rid, body, risk, status, now, now))
+            self._emit("job.created", {"id": job_id, "status": status, "risk": risk})
+            return self.job(job_id)
+
+    def approve(self, job_id):
+        with self.lock, self.db:
+            changed = self.db.execute("""UPDATE jobs SET status='queued',updated=?
+                WHERE id=? AND status='awaiting_approval'""", (time.time(), job_id)).rowcount
+            if not changed:
+                raise ValueError("job not pending approval")
+            self._emit("job.approved", {"id": job_id})
+            return self.job(job_id)
+
+    def claim(self):
+        with self.lock, self.db:
+            row = self.db.execute(
+                "SELECT id FROM jobs WHERE status='queued' ORDER BY created LIMIT 1").fetchone()
+            if not row:
+                return None
+            updated = self.db.execute(
+                "UPDATE jobs SET status='running',updated=? WHERE id=? AND status='queued'",
+                (time.time(), row["id"])).rowcount
+            if not updated:
+                return None
+            self._emit("job.running", {"id": row["id"]})
+            return self.job(row["id"])
+
+    def finish(self, job_id, status, result=None, error=None):
+        if status not in ("completed", "failed", "cancelled"):
+            raise ValueError("bad terminal state")
+        with self.lock, self.db:
+            changed = self.db.execute("""UPDATE jobs SET status=?,result=?,error=?,updated=?
+                WHERE id=? AND status='running'""",
+                (status, packed(result) if result is not None else None,
+                 packed(error) if error is not None else None,
+                 time.time(), job_id)).rowcount
+            if changed:
+                self._emit("job." + status, {"id": job_id})
+            return self.job(job_id)
+
+    def cancel(self, job_id):
+        with self.lock, self.db:
+            changed = self.db.execute("""UPDATE jobs SET status='cancelled',updated=?
+                WHERE id=? AND status IN ('running','queued','awaiting_approval')""",
+                (time.time(), job_id)).rowcount
+            if changed:
+                self._emit("job.cancelled", {"id": job_id})
+            return self.job(job_id)
+
+    def remember(self, workspace, key, value):
+        with self.lock, self.db:
+            self.db.execute("""INSERT INTO memory(workspace,key,value,updated) VALUES(?,?,?,?)
+                ON CONFLICT(workspace,key) DO UPDATE SET value=excluded.value,
+                updated=excluded.updated""", (workspace, key, value, time.time()))
+
+    def recall(self, workspace, query=""):
+        with self.lock:
+            rows = self.db.execute("""SELECT key,value,updated FROM memory
+                WHERE workspace=? AND (key LIKE ? OR value LIKE ?)
+                ORDER BY updated DESC LIMIT 50""",
+                (workspace, "%" + query + "%", "%" + query + "%")).fetchall()
+            return [dict(r) for r in rows]
+
+    def add_schedule(self, data):
+        seconds = data.get("every_seconds")
+        if type(seconds) is not int or not 30 <= seconds <= 86400 * 365:
+            raise ValueError("every_seconds must be >=30 and <=1 year")
+        request = data.get("request")
+        if not isinstance(request, dict):
+            raise ValueError("schedule requires request")
+        sid = str(uuid.uuid4())
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO schedules VALUES(?,?,?,?,?)",
+                            (sid, seconds, packed(request), time.time() + seconds, 1))
+        return {"id": sid, "every_seconds": seconds, "request": request, "enabled": True}
+
+    def schedules(self):
+        with self.lock:
+            rows = self.db.execute("SELECT * FROM schedules ORDER BY next_run").fetchall()
+            return [{"id": r["id"], "every_seconds": r["seconds"],
+                     "request": json.loads(r["request"]),
+                     "next_run": r["next_run"], "enabled": bool(r["enabled"])} for r in rows]
+
+    def due_schedules(self):
+        with self.lock, self.db:
+            now = time.time()
+            rows = self.db.execute(
+                "SELECT * FROM schedules WHERE enabled=1 AND next_run<=?", (now,)).fetchall()
+            for row in rows:
+                self.db.execute("UPDATE schedules SET next_run=? WHERE id=?",
+                                (now + row["seconds"], row["id"]))
+            return [(r["id"], json.loads(r["request"])) for r in rows]
