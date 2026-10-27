@@ -20,6 +20,22 @@ class EngineContracts(unittest.TestCase):
         self.engine = Engine(home=self.home, auto_worker=False)
         self.addCleanup(self.engine.close)
 
+    def test_HTTP_approval_and_cancel_without_body(self):
+        server = make_server(self.engine, "127.0.0.1", 0)
+        self.addCleanup(server.server_close)
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+        self.addCleanup(server.shutdown)
+        j = self.engine.submit({"kind": "shell", "argv": ["echo", "hello"]})
+        base = "http://127.0.0.1:%d/v1/jobs/" % server.server_port + j["id"]
+        head = {"Authorization": "Bearer " + self.engine.token}
+        approve = urllib.request.Request(base + "/approve", data=b"", headers=head, method="POST")
+        with urllib.request.urlopen(approve, timeout=3) as r:
+            self.assertEqual(json.load(r)["status"], "queued")
+        cancel = urllib.request.Request(base + "/cancel", data=b"", headers=head, method="POST")
+        with urllib.request.urlopen(cancel, timeout=3) as r:
+            self.assertEqual(json.load(r)["status"], "cancelled")
+
     def test_SEC_01_authentication_required(self):
         server = make_server(self.engine, "127.0.0.1", 0)
         self.addCleanup(server.server_close)
