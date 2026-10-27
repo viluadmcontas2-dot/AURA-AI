@@ -46,6 +46,7 @@ fun ChatScreen(
     onEntryChange: (ChatEntry) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onLeaveDraft: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val controller = remember(gateway) { ChatController(gateway, scope, entry, onEntryChange) }
@@ -61,7 +62,9 @@ fun ChatScreen(
         if (job?.status == JobStatus.AwaitingApproval) sheetRequested = true else sheetRequested = false
     }
 
-    BackHandler(enabled = true) { if (showSheet) sheetRequested = false else onClose() }
+    // Ao sair com texto não enviado, o rascunho volta para o campo da Início.
+    val close = { if (text.isNotBlank()) onLeaveDraft(text); onClose() }
+    BackHandler(enabled = true) { if (showSheet) sheetRequested = false else close() }
 
     val title = job?.title ?: controller.messages.lastOrNull { it.fromUser }?.text ?: "Nova conversa"
     val subtitle = job?.let { kindLabel(it.kind) } ?: "AURA"
@@ -74,7 +77,7 @@ fun ChatScreen(
 
     Box(modifier.fillMaxSize().background(AuraColors.Bg)) {
         Column(Modifier.fillMaxSize()) {
-            ChatHeader(title = title, subtitle = subtitle, status = job, onBack = onClose)
+            ChatHeader(title = title, subtitle = subtitle, status = job, onBack = close)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 ChatBody(
                     controller = controller,

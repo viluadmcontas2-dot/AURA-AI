@@ -257,6 +257,7 @@ fun OnboardingTermuxScreen(
         ) {
             AuraButtonPrimary("Continuar", onContinue, Modifier.fillMaxWidth(), enabled = state.ready, large = true)
             AuraButtonText("Preciso de ajuda", onHelp)
+            if (!state.ready) AuraButtonText("Pular por agora", onContinue) // sem beco sem saída
         }
     }
 }
@@ -326,7 +327,7 @@ fun OnboardingAccountsScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             AuraButtonPrimary("Entrar no AURA", onFinish, Modifier.fillMaxWidth(), enabled = hasBrain, large = true)
-            AuraButtonText("Conectar o resto depois", onFinish, enabled = hasBrain)
+            AuraButtonText(if (hasBrain) "Conectar o resto depois" else "Pular por agora", onFinish)
         }
     }
 }

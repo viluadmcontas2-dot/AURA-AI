@@ -87,24 +87,42 @@ enum class AuraTab(val label: String) {
 fun AuraApp(
     gateway: EngineGateway = remember { FakeEngineGateway() },
     onOpenUrl: (String) -> Unit = {},
+    onRequestTermuxPermission: () -> Unit = {},
+    onOpenTermux: () -> Unit = {},
+    onboardingDone: Boolean = false,
+    onOnboardingFinished: () -> Unit = {},
+    initialDraft: String = "",
+    onSaveDraft: (String) -> Unit = {},
 ) {
     AuraTheme {
-        var onboardingDone by rememberSaveable { mutableStateOf(false) }
+        // O valor de fora manda; rememberSaveable é só espelho para rotação.
+        var onboardingDoneState by rememberSaveable(onboardingDone) { mutableStateOf(onboardingDone) }
+        var draft by rememberSaveable(initialDraft) { mutableStateOf(initialDraft) }
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var selected by rememberSaveable { mutableIntStateOf(0) }
         var chatOpen by remember { mutableStateOf(false) }
         var pendingJobId by rememberSaveable { mutableStateOf<String?>(null) }
         val tab = AuraTab.entries[selected.coerceIn(0, AuraTab.entries.lastIndex)]
         val imeVisible = WindowInsets.isImeVisible
-        BackHandler(enabled = showSettings && onboardingDone) { showSettings = false }
+        BackHandler(enabled = showSettings && onboardingDoneState) { showSettings = false }
+        // Voltar numa aba que não é o Início leva ao Início em vez de fechar o app.
+        BackHandler(enabled = onboardingDoneState && !showSettings && selected != AuraTab.Home.ordinal) {
+            selected = AuraTab.Home.ordinal
+        }
         Column(
             Modifier
                 .fillMaxSize()
                 .background(AuraColors.Bg)
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
-            if (!onboardingDone) {
-                OnboardingHost(gateway, onOpenUrl, onFinished = { onboardingDone = true }, Modifier.weight(1f).fillMaxWidth())
+            if (!onboardingDoneState) {
+                OnboardingHost(
+                    gateway, onOpenUrl,
+                    onRequestTermuxPermission = onRequestTermuxPermission,
+                    onOpenTermux = onOpenTermux,
+                    onFinished = { onboardingDoneState = true; onOnboardingFinished() },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
             } else if (showSettings) {
                 SettingsScreen(gateway, onClose = { showSettings = false }, modifier = Modifier.weight(1f).fillMaxWidth(), onOpenUrl = onOpenUrl)
             } else {
@@ -116,6 +134,8 @@ fun AuraApp(
                             onOpenSettings = { showSettings = true },
                             openJobId = pendingJobId,
                             onOpenJobHandled = { pendingJobId = null },
+                            draft = draft,
+                            onDraftChange = { draft = it; onSaveDraft(it) },
                         )
                         AuraTab.Projects -> ProjectsScreen(gateway, Modifier.fillMaxSize())
                         AuraTab.Devices -> DevicesScreen(gateway, Modifier.fillMaxSize())
@@ -138,12 +158,14 @@ fun AuraApp(
 /**
  * Cola do onboarding com o motor: Termux pelo estado real (capabilities) e contas por authStatus.
  * Login só pelo navegador: o link vem do evento auth.prompt e sai por [onOpenUrl]; nunca pede token.
- * TODO(MainActivity): onRequestTermuxPermission / onOpenTermux dependem da Activity (RUN_COMMAND, intent do Termux).
+ * Os ganchos onRequestTermuxPermission / onOpenTermux vêm da MainActivity (RUN_COMMAND, intent do Termux).
  */
 @Composable
 private fun OnboardingHost(
     gateway: EngineGateway,
     onOpenUrl: (String) -> Unit,
+    onRequestTermuxPermission: () -> Unit,
+    onOpenTermux: () -> Unit,
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -170,19 +192,26 @@ private fun OnboardingHost(
         }
     }
     LaunchedEffect(gateway) {
-        gateway.events.collect { e ->
-            when (e.type) {
-                "auth.prompt" -> e.payload["url"]?.let(onOpenUrl)
-                "auth.done", "auth.failed" -> tick++
+        try {
+            gateway.events.collect { e ->
+                when (e.type) {
+                    "auth.prompt" -> e.payload["url"]?.let(onOpenUrl)
+                    "auth.done", "auth.failed" -> tick++
+                }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Motor fora do ar: sem eventos; o usuário reconfere pelos botões.
         }
     }
 
     OnboardingFlow(
         termux = termux,
         accounts = accounts,
-        onRequestTermuxPermission = { tick++ },
-        onOpenTermux = { tick++ },
+        // Depois do callback da Activity, reconfere capabilities (tick).
+        onRequestTermuxPermission = { onRequestTermuxPermission(); tick++ },
+        onOpenTermux = { onOpenTermux(); tick++ },
         onSignIn = { id ->
             accounts = accounts.map { if (it.id == id) it.copy(connecting = true) else it }
             scope.launch {

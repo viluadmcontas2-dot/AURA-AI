@@ -29,6 +29,8 @@ fun HomeScreen(
     onOpenSettings: () -> Unit = {},
     openJobId: String? = null,
     onOpenJobHandled: () -> Unit = {},
+    draft: String = "",
+    onDraftChange: (String) -> Unit = {},
 ) {
     var entry by rememberSaveable(stateSaver = ChatEntry.Saver) { mutableStateOf(ChatEntry.Closed) }
     // Avisa o shell para esconder a barra inferior enquanto o chat estiver aberto.
@@ -47,10 +49,12 @@ fun HomeScreen(
             entry = entry,
             onEntryChange = { entry = it },
             onClose = { entry = ChatEntry.Closed },
+            onLeaveDraft = onDraftChange,
             modifier = modifier,
         )
     } else {
-        HomeContent(gateway = gateway, onOpenChat = { entry = it }, modifier = modifier, onOpenSettings = onOpenSettings)
+        HomeContent(gateway = gateway, onOpenChat = { entry = it }, modifier = modifier, onOpenSettings = onOpenSettings,
+            initialDraft = draft, onDraftChange = onDraftChange)
     }
 }
 

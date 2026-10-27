@@ -94,13 +94,22 @@ fun ActivityTab(
         }
     }
     LaunchedEffect(gateway) {
-        gateway.events.collect { e ->
-            events = (events + e).takeLast(300)
-            tick++
+        try {
+            gateway.events.collect { e ->
+                events = (events + e).takeLast(300)
+                tick++
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            loadFailed = true
         }
     }
 
+    var actionBusy by remember { mutableStateOf(false) }
     fun launchAction(block: suspend () -> Unit) {
+        if (actionBusy) return // toque duplo em Aprovar/Recusar
+        actionBusy = true
         scope.launch {
             try {
                 block()
@@ -109,6 +118,8 @@ fun ActivityTab(
                 throw e
             } catch (e: Exception) {
                 actionError = "Não consegui concluir. Toque de novo; se repetir, confira o Termux."
+            } finally {
+                actionBusy = false
             }
             tick++
         }

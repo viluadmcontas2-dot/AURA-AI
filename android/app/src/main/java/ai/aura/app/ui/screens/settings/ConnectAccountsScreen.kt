@@ -101,7 +101,7 @@ fun ConnectAccountsScreen(
     LaunchedEffect(gateway) { refresh() }
 
     LaunchedEffect(gateway) {
-        gateway.events.collect { e ->
+        try { gateway.events.collect { e ->
             val p = e.payload["provider"] ?: return@collect
             when (e.type) {
                 "auth.prompt" -> if (p == starting || p == step?.provider) {
@@ -119,6 +119,10 @@ fun ConnectAccountsScreen(
                     finish(false, "$reason $fix")
                 }
             }
+        } } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Sem eventos: o plano B abaixo confere o estado.
         }
     }
 

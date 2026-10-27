@@ -173,8 +173,8 @@ class ChatController(
     }
 
     private fun submit(request: JobRequest) {
+        phase = ChatPhase.Submitting // síncrono: bloqueia "Começar" duplicado
         scope.launch {
-            phase = ChatPhase.Submitting
             error = null
             try {
                 setJob(gateway.submit(requestId, request), restart = true)
@@ -230,8 +230,8 @@ class ChatController(
     }
 
     private fun act(block: suspend () -> Unit) {
+        busy = true // síncrono: um segundo toque antes do launch rodar já encontra busy
         scope.launch {
-            busy = true
             try {
                 block()
             } catch (e: CancellationException) {

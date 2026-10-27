@@ -21,7 +21,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -74,8 +76,14 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val state = remember(gateway) { SettingsState(gateway, scope) }
     LaunchedEffect(state) { state.reload() }
-    LaunchedEffect(gateway) { gateway.events.collect { state.onEvent(it) } }
-    var showAccounts by remember { mutableStateOf(false) }
+    LaunchedEffect(gateway) {
+        try { gateway.events.collect { state.onEvent(it) } }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { /* sem eventos; o botão Tentar de novo recarrega */ }
+    }
+    var showAccounts by rememberSaveable { mutableStateOf(false) }
+    // Voltar em Contas volta aos Ajustes (não fecha os Ajustes inteiros).
+    BackHandler(enabled = showAccounts) { showAccounts = false }
     if (showAccounts) {
         ConnectAccountsScreen(gateway, onClose = { showAccounts = false }, onOpenUrl = onOpenUrl, modifier = modifier)
         return

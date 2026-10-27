@@ -107,19 +107,22 @@ fun HomeContent(
     onOpenChat: (ChatEntry) -> Unit,
     modifier: Modifier = Modifier,
     onOpenSettings: () -> Unit = {},
+    initialDraft: String = "",
+    onDraftChange: (String) -> Unit = {},
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
-    var draft by rememberSaveable { mutableStateOf("") }
+    var draft by rememberSaveable { mutableStateOf(initialDraft) }
     HomeView(
         data = data,
         draft = draft,
-        onDraftChange = { draft = it },
+        onDraftChange = { draft = it; onDraftChange(it) },
         onSend = {
             val text = draft.trim()
             if (text.isNotEmpty()) {
                 onOpenChat(ChatEntry(open = true, prompt = text))
                 draft = ""
+                onDraftChange("")
             }
         },
         onOpenChat = onOpenChat,
