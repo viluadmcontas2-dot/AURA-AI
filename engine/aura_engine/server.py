@@ -77,6 +77,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         return self.send(200, engine.auth.status())
                     if path == "/v1/policy":
                         return self.send(200, engine.config.policy())
+                    if path == "/v1/policy/history":
+                        return self.send(200, engine.config.policy_history(
+                            params.get("limit", [50])[0]))
                     if path == "/v1/models":
                         return self.send(200, engine.config.models())
                     if path == "/v1/spend":
@@ -93,6 +96,8 @@ def make_server(engine, host="127.0.0.1", port=8765):
                 else:
                     if method == "POST" and path == "/v1/auth/start":
                         return self.send(200, engine.auth.start(self.body().get("provider")))
+                    if method == "POST" and path == "/v1/policy/undo":
+                        return self.send(200, engine.config.undo_policy(self.body().get("to_version")))
                     if method == "PUT":
                         if path == "/v1/policy":
                             return self.send(200, engine.config.update("policy", self.body()))

@@ -33,6 +33,9 @@ class Store:
                 next_run REAL NOT NULL, enabled INTEGER NOT NULL);
         """)
         with self.lock, self.db:
+            columns = {r["name"] for r in self.db.execute("PRAGMA table_info(jobs)")}
+            if "note" not in columns:
+                self.db.execute("ALTER TABLE jobs ADD COLUMN note TEXT")
             changed = self.db.execute(
                 "UPDATE jobs SET status='interrupted',updated=? WHERE status='running'",
                 (time.time(),)).rowcount
@@ -86,6 +89,7 @@ class Store:
             "status": row["status"],
             "result": json.loads(row["result"]) if row["result"] else None,
             "error": json.loads(row["error"]) if row["error"] else None,
+            "note": row["note"],
             "created_at": row["created"], "updated_at": row["updated"]}
 
     def job(self, job_id):
@@ -98,7 +102,7 @@ class Store:
                                    (max(1, min(int(limit), 200)),)).fetchall()
             return [self._job(row) for row in rows]
 
-    def submit(self, request, risk, request_id=None):
+    def submit(self, request, risk, request_id=None, status=None, note=None, created=None, events=()):
         rid = request_id or str(uuid.uuid4())
         body = packed(request)
         with self.lock, self.db:
@@ -108,12 +112,16 @@ class Store:
                     raise ValueError("idempotency key reused with different request")
                 return self._job(prior)
             job_id = str(uuid.uuid4())
-            status = "queued" if risk == "read" else "awaiting_approval"
+            status = status or ("queued" if risk == "read" else "awaiting_approval")
             now = time.time()
             self.db.execute("""INSERT INTO jobs
-                (id,request_id,request,risk,status,created,updated)
-                VALUES(?,?,?,?,?,?,?)""", (job_id, rid, body, risk, status, now, now))
-            self._emit("job.created", {"id": job_id, "status": status, "risk": risk})
+                (id,request_id,request,risk,status,note,created,updated)
+                VALUES(?,?,?,?,?,?,?,?)""", (job_id, rid, body, risk, status, note, now, now))
+            payload = {"id": job_id, "status": status, "risk": risk}
+            payload.update(created or {})
+            self._emit("job.created", payload)
+            for kind, extra in events:
+                self._emit(kind, dict(extra, job_id=job_id))
             return self.job(job_id)
 
     def approve(self, job_id):
@@ -212,6 +220,18 @@ class Store:
                        "gemini_api": "gemini", "agy_cli": "agy"}
     NOT_REPORTED = "não informado"
 
+    @classmethod
+    def reported_cost(cls, result):
+        """Custo em dolares que o provedor informou no resultado, ou None."""
+        result = result if isinstance(result, dict) else {}
+        envelope = result.get("response") if isinstance(result.get("response"), dict) else {}
+        for source in (envelope, result):
+            for name in ("total_cost_usd", "cost_usd"):
+                value = cls._money(source.get(name))
+                if value is not None:
+                    return value
+        return None
+
     @staticmethod
     def _money(value):
         return value if type(value) in (int, float) and value >= 0 and value == value else None
@@ -235,10 +255,7 @@ class Store:
                 continue
             result = json.loads(row["result"]) if row["result"] else {}
             envelope = result.get("response") if isinstance(result.get("response"), dict) else {}
-            cost = None
-            for source in (envelope, result):
-                for name in ("total_cost_usd", "cost_usd"):
-                    cost = self._money(source.get(name)) if cost is None else cost
+            cost = self.reported_cost(result)
             model = request.get("model") or result.get("model") or envelope.get("model")
             usage = envelope.get("modelUsage")
             if not model and isinstance(usage, dict) and usage:

@@ -11,6 +11,7 @@ import pathlib
 import re
 import tempfile
 import threading
+import time
 
 MODES = ("pergunta", "equilibrado", "autonomo", "total")
 AUTO_ASK = ("auto", "ask")
@@ -26,7 +27,7 @@ CLAUDE_CEILING_MAX = (FAMILY_RANK["sonnet"], LEVEL_RANK["medium"])
 DEFAULT_POLICY = {
     "version": 1,
     "mode": "autonomo",
-    "by_risk": {"read": "auto", "write": "auto", "spend": "ask", "critical": "ask"},
+    "by_risk": {"read": "auto", "write": "ask", "spend": "ask", "critical": "ask"},
     "by_kind": {"shell": "ask", "adb": "ask", "files": "auto", "github": "ask", "root": "ask"},
     "root": {"enabled": False, "via": ["su", "tsu"]},
     "scopes": [{"path": "*", "write": "ask"}],
@@ -275,6 +276,115 @@ class ConfigStore:
     def models(self):
         return self.get("models")
 
+    # ---- historico de versoes da politica (so campos validados da politica, nunca segredo) ----
+    HISTORY_LIMIT = 500
+
+    def _hist_dir(self):
+        return self.home / "policy_history"
+
+    def _hist_path(self, version):
+        return self._hist_dir() / ("policy.v%d.json" % version)
+
+    def _hist_write(self, version, parent, changed, doc, restored_from=None, at=True):
+        folder = self._hist_dir()
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(folder, 0o700)
+        record = {"version": version, "parent": parent, "at": time.time() if at else None,
+                  "changed": changed, "by": "user" if at else "sistema",
+                  "policy": {k: v for k, v in doc.items() if k in DEFAULT_POLICY}}
+        if restored_from is not None:
+            record["restored_from"] = restored_from
+        atomic_write_json(self._hist_path(version), record)
+        stale = sorted(int(p.name[len("policy.v"):-len(".json")]) for p in folder.glob("policy.v*.json")
+                       if p.name[len("policy.v"):-len(".json")].isdigit())
+        for old in stale[:-self.HISTORY_LIMIT]:
+            try:
+                self._hist_path(old).unlink()
+            except OSError:
+                pass
+
+    def _hist_read(self, version):
+        try:
+            record = json.loads(self._hist_path(version).read_text("utf-8"))
+            if not isinstance(record, dict) or record.get("version") != version:
+                return None
+            merged = copy.deepcopy(DEFAULT_POLICY)
+            merged.update(record["policy"])
+            merged["version"] = version
+            validate_policy(merged)
+            return record
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _hist_row(self, record):
+        return {"version": record["version"], "parent": record.get("parent"), "at": record.get("at"),
+                "changed": record.get("changed", []), "mode": record["policy"].get("mode"),
+                "by": record.get("by", "user"), "restored_from": record.get("restored_from")}
+
+    def policy_history(self, limit=50):
+        with self.lock:
+            current = self._read("policy")
+            rows = []
+            folder = self._hist_dir()
+            versions = set()
+            if folder.is_dir():
+                for path in folder.glob("policy.v*.json"):
+                    number = path.name[len("policy.v"):-len(".json")]
+                    if number.isdigit() and int(number) <= current["version"]:
+                        versions.add(int(number))
+            for version in sorted(versions):
+                record = self._hist_read(version)
+                if record is not None:
+                    rows.append(self._hist_row(record))
+            if current["version"] not in versions:
+                rows.append({"version": current["version"], "parent": None, "at": None, "changed": [],
+                             "mode": current["mode"], "by": "sistema", "restored_from": None})
+            limit = max(1, min(int(limit), 500))
+            return {"current": current["version"], "history": rows[-limit:]}
+
+    def _commit(self, name, current, clean, extra=None):
+        """Grava clean como a proxima versao. Historico primeiro; o arquivo vivo por ultimo."""
+        event = self.SPECS[name][3]
+        clean = dict(clean)
+        clean["version"] = current["version"] + 1
+        changed = sorted(k for k in clean if k != "version" and clean[k] != current.get(k))
+        if name == "policy":
+            if self._hist_read(current["version"]) is None:
+                self._hist_write(current["version"], None, [], current, at=False)
+            parent = (extra or {}).get("parent", current["version"])
+            self._hist_write(clean["version"], parent, changed, clean,
+                             restored_from=(extra or {}).get("restored_from"))
+        self._write(name, clean)
+        payload = {"version": clean["version"], "changed": changed, "by": "user"}
+        if name == "policy":
+            payload["mode"] = clean["mode"]
+        if extra and "restored_from" in extra:
+            payload["restored_from"] = extra["restored_from"]
+        self.store.emit(event, payload)
+        return clean
+
+    def undo_policy(self, to_version=None):
+        with self.lock:
+            current = self._read("policy")
+            now = self._hist_read(current["version"])
+            if to_version is None:
+                to_version = now.get("parent") if now else None
+                if to_version is None:
+                    raise ConfigError("nada para desfazer")
+            if isinstance(to_version, bool) or not isinstance(to_version, int) or to_version < 1:
+                raise ConfigError("to_version deve ser um numero de versao existente")
+            if to_version == current["version"]:
+                raise ConfigError("essa já é a versão atual")
+            target = self._hist_read(to_version)
+            if target is None or to_version > current["version"]:
+                raise ConfigError("versão %d não existe no histórico ou está corrompida" % to_version)
+            merged = copy.deepcopy(DEFAULT_POLICY)
+            merged.update(target["policy"])
+            merged["version"] = current["version"]
+            clean = validate_policy(merged)
+            return self._commit("policy", current, clean, {
+                "parent": target.get("parent"), "restored_from": to_version})
+
     def update(self, name, patch):
         _, default, validate, event = self.SPECS[name]
         if not isinstance(patch, dict):
@@ -294,11 +404,4 @@ class ConfigStore:
                 else:
                     merged[key] = value
             clean = validate(merged)
-            clean["version"] = current["version"] + 1
-            changed = sorted(k for k in clean if k != "version" and clean[k] != current.get(k))
-            self._write(name, clean)
-            payload = {"version": clean["version"], "changed": changed, "by": "user"}
-            if name == "policy":
-                payload["mode"] = clean["mode"]
-            self.store.emit(event, payload)
-            return clean
+            return self._commit(name, current, clean)
