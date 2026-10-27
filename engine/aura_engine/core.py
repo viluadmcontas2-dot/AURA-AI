@@ -131,10 +131,22 @@ class Engine:
                                     "workspace": workspace},
                         "reason": "selected verified installed Agent Skill metadata",
                         "requires_model": True}
-        provider = preferred_provider if preferred_provider in (
-            "claude_cli", "gemini_cli", "claude_api", "gemini_api", "agy_cli") else "claude_cli"
+        valid = ("claude_cli", "gemini_cli", "agy_cli", "claude_api", "gemini_api")
+        capabilities = self.capabilities()
+        available = capabilities.get("providers", {})
+        if preferred_provider in valid:
+            provider = preferred_provider
+        else:
+            provider = next((kind for kind, executable in (
+                ("claude_cli", "claude"), ("gemini_cli", "gemini"), ("agy_cli", "agy"))
+                if available.get(executable, {}).get("installed")), "claude_cli")
+        executable = {"claude_cli": "claude", "gemini_cli": "gemini",
+                      "agy_cli": "agy"}.get(provider)
+        enabled = (available.get(executable, {}).get("installed", False) if executable else
+                   capabilities.get("api", {}).get("claude" if provider == "claude_api" else "gemini", False))
         return {"request": {"kind": provider, "prompt": text, "workspace": workspace},
-                "reason": "open-ended instruction requires a model", "requires_model": True}
+                "reason": "model required; prefer installed authenticated CLI, no automatic API billing",
+                "provider_installed_or_configured": bool(enabled), "requires_model": True}
 
     def add_schedule(self, request):
         if not isinstance(request, dict):
