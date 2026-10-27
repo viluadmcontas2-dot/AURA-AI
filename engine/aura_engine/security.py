@@ -20,6 +20,8 @@ class RiskPolicy:
                     "clone": "write", "fetch": "write", "commit": "write",
                     "push": "critical", "create_repo": "critical",
                     "delete_repo": "critical"}.get(action, "critical")
+        if kind == "drive":
+            return {"list": "read", "download": "write", "upload": "critical"}.get(action, "critical")
         if kind == "skills":
             return "read" if action in ("list", "read") else "critical"
         if kind == "shell":
