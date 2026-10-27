@@ -60,6 +60,10 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
     suspend fun job(id: String) = request("/v1/jobs/" + segment(id))
     suspend fun approve(id: String) = request("/v1/jobs/" + segment(id) + "/approve", "POST")
     suspend fun cancel(id: String) = request("/v1/jobs/" + segment(id) + "/cancel", "POST")
+    /** Login contract: state only; tokens/cookies never cross this boundary. */
+    suspend fun authStatus() = request("/v1/auth/status")
+    suspend fun startAuth(provider: String) =
+        request("/v1/auth/start", "POST", JSONObject().put("provider", segment(provider)))
 }
 
 class AuraEngineException(val httpStatus: Int, message: String) : Exception(message)
