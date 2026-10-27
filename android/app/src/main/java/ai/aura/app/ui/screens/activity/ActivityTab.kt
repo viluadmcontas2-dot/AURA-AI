@@ -389,8 +389,6 @@ private fun HistoryRow(
     }
 }
 
-private fun Modifier.heightIn(min = 56.dp): Modifier = this.then(Modifier.height(56.dp))
-
 private fun previewJobs(now: Long) = FakeEngineGateway.sampleJobs(now) + listOf(
     Job("job_5", "req_5", "Sincronizar Drive", "system", JobStatus.Interrupted, JobRisk.Read, now - 8_000_000),
     Job("job_6", "req_6", "Apagar builds antigos", "files", JobStatus.Cancelled, JobRisk.Critical, now - 90_000_000),
