@@ -162,6 +162,31 @@ sealed interface SpendResult {
     data class Unavailable(val reason: String? = null) : SpendResult
 }
 
+/* ---- Login fácil (docs/design/propostas/login-facil.md) ----
+ * Contas das assinaturas do dono. A UI nunca vê token: só estado, link e código de uso único. */
+
+/** Ids estáveis do contrato (GET /v1/auth/status, POST /v1/auth/start). */
+val AUTH_PROVIDER_IDS: List<String> = listOf("claude", "gemini", "agy", "codex", "github", "gdrive")
+
+/** conectado | desconectado | expirado | indisponivel. */
+enum class AuthState(val wire: String) {
+    Connected("conectado"), Disconnected("desconectado"), Expired("expirado"), Unavailable("indisponivel");
+
+    companion object {
+        fun fromWire(value: String): AuthState? = entries.firstOrNull { it.wire == value }
+    }
+}
+
+/** installable=true: o CLI não está no aparelho e o motor sabe instalar (botão Instalar). */
+data class AuthStatus(val provider: String, val state: AuthState, val installable: Boolean = false, val detail: String? = null)
+
+sealed interface AuthStartResult {
+    /** O link/código chegam pelo evento auth.prompt; o fim, por auth.done ou auth.failed. */
+    data object Started : AuthStartResult
+    /** reason: o que houve; fix: o que o dono deve fazer (português, sem log). */
+    data class Failed(val reason: String, val fix: String) : AuthStartResult
+}
+
 interface EngineGateway {
     suspend fun jobs(): List<Job>
     suspend fun approve(id: String): Job
@@ -180,6 +205,11 @@ interface EngineGateway {
     suspend fun models(): ModelsResult = ModelsResult.Unavailable()
     suspend fun saveModels(m: ModelsDoc): ModelsResult = ModelsResult.Unavailable()
     suspend fun spendSummary(): SpendResult = SpendResult.Unavailable()
+
+    // Login fácil (GET /v1/auth/status, POST /v1/auth/start). Padrão = tudo indisponível.
+    suspend fun authStatus(): List<AuthStatus> = AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) }
+    suspend fun startAuth(provider: String): AuthStartResult =
+        AuthStartResult.Failed("O motor ainda não sabe conectar contas.", "Atualize o AURA no Termux e tente de novo.")
 }
 
 /** Dados de exemplo para @Preview e telas em construção. Não fala com nada real. */
@@ -279,6 +309,35 @@ class FakeEngineGateway(
             ),
         ),
     )
+
+    // Login simulado: conecta 4 s depois do auth.prompt (só @Preview/telas em construção).
+    private val auth = linkedMapOf(
+        "claude" to AuthState.Connected, "gemini" to AuthState.Disconnected, "agy" to AuthState.Expired,
+        "codex" to AuthState.Disconnected, "github" to AuthState.Connected, "gdrive" to AuthState.Unavailable,
+    )
+    private val authPending = HashMap<String, Long>()
+
+    override suspend fun authStatus(): List<AuthStatus> {
+        val now = clock()
+        authPending.entries.filter { now - it.value >= 4_000 }.map { it.key }.forEach { p ->
+            authPending.remove(p)
+            auth[p] = AuthState.Connected
+            bus.emit(EngineEvent(nextEvent++, "auth.done", null, mapOf("provider" to p), now))
+        }
+        return auth.map { (p, st) -> AuthStatus(p, st, installable = p == "gdrive") }
+    }
+
+    override suspend fun startAuth(provider: String): AuthStartResult {
+        if (auth[provider] == null) return AuthStartResult.Failed("Conta desconhecida.", "Escolha outra conta.")
+        authPending[provider] = clock()
+        bus.emit(
+            EngineEvent(
+                nextEvent++, "auth.prompt", null,
+                mapOf("provider" to provider, "url" to "https://example.com/device", "code" to "ABCD-1234"), clock(),
+            ),
+        )
+        return AuthStartResult.Started
+    }
 
     private suspend fun update(job: Job, type: String): Job {
         store[job.id] = job

@@ -22,6 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import ai.aura.app.ui.components.AuraButtonPrimary
+import ai.aura.app.ui.components.AuraButtonSecondary
 import ai.aura.app.ui.components.AuraButtonText
 import ai.aura.app.ui.components.AuraCard
 import ai.aura.app.ui.components.EmptyState
@@ -61,11 +65,21 @@ import ai.aura.app.ui.theme.AuraType
  * e /v1/models). Não faz parte da navegação do AuraApp; quem hospeda decide como abrir e fechar.
  */
 @Composable
-fun SettingsScreen(gateway: EngineGateway, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    gateway: EngineGateway,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpenUrl: (String) -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val state = remember(gateway) { SettingsState(gateway, scope) }
     LaunchedEffect(state) { state.reload() }
     LaunchedEffect(gateway) { gateway.events.collect { state.onEvent(it) } }
+    var showAccounts by remember { mutableStateOf(false) }
+    if (showAccounts) {
+        ConnectAccountsScreen(gateway, onClose = { showAccounts = false }, onOpenUrl = onOpenUrl, modifier = modifier)
+        return
+    }
 
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         SettingsHeader(onClose = onClose, onStopAll = state::stopAll)
@@ -76,7 +90,7 @@ fun SettingsScreen(gateway: EngineGateway, onClose: () -> Unit, modifier: Modifi
             SettingsLoad.Unavailable -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 EmptyState("Motor indisponível", state.unavailableHint, "Tentar de novo", state::reload, glyph = "!")
             }
-            SettingsLoad.Ready -> SettingsBody(state, Modifier.weight(1f))
+            SettingsLoad.Ready -> SettingsBody(state, { showAccounts = true }, Modifier.weight(1f))
         }
         if (state.load == SettingsLoad.Ready) SaveBar(state)
     }
@@ -97,7 +111,7 @@ fun SettingsScreen(gateway: EngineGateway, onClose: () -> Unit, modifier: Modifi
 }
 
 @Composable
-private fun SettingsBody(state: SettingsState, modifier: Modifier) {
+private fun SettingsBody(state: SettingsState, onOpenAccounts: () -> Unit, modifier: Modifier) {
     val policy = state.policy ?: return
     val models = state.models ?: return
     val key = state.savedPolicy?.version to state.savedModels?.version
@@ -105,6 +119,12 @@ private fun SettingsBody(state: SettingsState, modifier: Modifier) {
         modifier.verticalScroll(rememberScrollState()).padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        SettingsGroup {
+            SettingRow(
+                "Contas", subtitle = "Claude, Gemini, Codex, GitHub e Drive, sem chave de API.",
+                trailing = { AuraButtonSecondary("Conectar contas", onOpenAccounts) },
+            )
+        }
         AuthorizationSection(policy, state::editPolicy)
         NoLimitsSection(
             p = policy,
