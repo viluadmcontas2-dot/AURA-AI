@@ -10,8 +10,10 @@ android {
         applicationId = "ai.aura.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Versão vem do script de release (-PauraVersion=N). Atualizar por cima exige N maior.
+        val auraVersion = (project.findProperty("auraVersion") as String?)?.toInt() ?: 1
+        versionCode = auraVersion
+        versionName = "v$auraVersion"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes { release { isMinifyEnabled = false } }
