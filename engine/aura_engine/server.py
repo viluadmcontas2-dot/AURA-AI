@@ -70,6 +70,8 @@ def make_server(engine, host="127.0.0.1", port=8765):
                         return self.send(200, {"events": engine.store.events(params.get("since", [0])[0])})
                     if path == "/v1/skills":
                         return self.send(200, {"skills": adapters.scan_skills(engine.home)})
+                    if path == "/v1/usage":
+                        return self.send(200, engine.store.usage())
                     if path == "/v1/memory":
                         return self.send(200, {"entries": engine.store.recall(
                             params.get("workspace", ["default"])[0],
