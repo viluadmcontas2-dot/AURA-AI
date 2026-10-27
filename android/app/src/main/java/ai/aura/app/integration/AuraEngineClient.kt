@@ -1,0 +1,65 @@
+package ai.aura.app.integration
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.UUID
+
+/** Typed HTTP transport for local Termux engine. UI consumes state, never terminal transcripts. */
+class AuraEngineClient(private val credentials: EngineCredentialStore) {
+    private val endpoint = "http://127.0.0.1:8765"
+    private fun segment(value: String): String {
+        require(Regex("[a-zA-Z0-9_-]{1,100}").matches(value)) { "Invalid identifier" }
+        return value
+    }
+
+    suspend fun request(path: String, method: String = "GET", body: JSONObject? = null): JSONObject =
+        withContext(Dispatchers.IO) {
+            require(path.startsWith("/v1/") && !path.contains("..")) { "Invalid API route" }
+            val token = credentials.read() ?: error("Conecte o Termux em Conexões")
+            val conn = (URL(endpoint + path).openConnection() as HttpURLConnection)
+            try {
+                conn.connectTimeout = 3000
+                conn.readTimeout = 15000
+                conn.requestMethod = method
+                conn.setRequestProperty("Authorization", "Bearer " + token)
+                conn.setRequestProperty("Accept", "application/json")
+                if (body != null) {
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                } else if (method == "POST") {
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { it.write("{}".toByteArray(Charsets.UTF_8)) }
+                }
+                val status = conn.responseCode
+                val stream = if (status in 200..299) conn.inputStream else conn.errorStream
+                val payload = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: "{}"
+                if (status !in 200..299) {
+                    val reason = runCatching { JSONObject(payload).optJSONObject("error")
+                        ?.optString("message") }.getOrNull().orEmpty()
+                    throw AuraEngineException(status, reason.ifBlank { "AURA Engine HTTP " + status })
+                }
+                JSONObject(payload)
+            } finally {
+                conn.disconnect()
+            }
+        }
+
+    suspend fun health() = request("/v1/health")
+    suspend fun capabilities() = request("/v1/capabilities")
+    suspend fun jobs() = request("/v1/jobs")
+    suspend fun events(since: Long) = request("/v1/events?since=" + since)
+    suspend fun route(text: String, workspace: String = "default"): JSONObject =
+        request("/v1/route", "POST", JSONObject().put("text", text).put("workspace", workspace))
+    suspend fun submit(command: JSONObject, requestId: String = UUID.randomUUID().toString()): JSONObject =
+        request("/v1/jobs", "POST", JSONObject().put("request_id", requestId).put("request", command))
+    suspend fun job(id: String) = request("/v1/jobs/" + segment(id))
+    suspend fun approve(id: String) = request("/v1/jobs/" + segment(id) + "/approve", "POST")
+    suspend fun cancel(id: String) = request("/v1/jobs/" + segment(id) + "/cancel", "POST")
+}
+
+class AuraEngineException(val httpStatus: Int, message: String) : Exception(message)
