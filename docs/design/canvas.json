@@ -82,11 +82,11 @@
       "is_interactive": true
     },
     "Projeto-Novo.dc.html": {
-      "x": 2350,
+      "x": 2820,
       "y": 1500,
       "w": 390,
       "h": 844,
-      "title": "09 · Ideia vira projeto",
+      "title": "10 · Ideia vira projeto",
       "radius": 36,
       "is_interactive": true
     },
@@ -369,6 +369,15 @@
       "title": "95 · Projeto da reforma",
       "radius": 36,
       "is_interactive": true
+    },
+    "Projeto-Ideia.dc.html": {
+      "x": 2350,
+      "y": 1500,
+      "w": 390,
+      "h": 844,
+      "title": "09 · Contar a ideia",
+      "radius": 36,
+      "is_interactive": true
     }
   },
   "order": [
@@ -383,6 +392,7 @@
     "Voz-2-Interrompida.dc.html",
     "Chat-1-Entendi.dc.html",
     "Chat-2-Teclado-Comandos.dc.html",
+    "Projeto-Ideia.dc.html",
     "Projeto-Novo.dc.html",
     "Chat-3-Executando.dc.html",
     "Chat-4-Aprovacao.dc.html",
@@ -469,7 +479,7 @@
       "y": 1200,
       "text": "2 · Pedir ao AURA",
       "kind": "title1",
-      "maxW": 2740
+      "maxW": 3210
     },
     "t3": {
       "x": 0,
