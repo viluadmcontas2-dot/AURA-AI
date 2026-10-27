@@ -68,6 +68,100 @@ data class RouteResult(
 /** Ferramenta/serviço real do aparelho. available=false deve ser mostrado como indisponível. */
 data class Capability(val id: String, val label: String, val available: Boolean, val detail: String? = null)
 
+/* ---- Política e modelos (docs/design/propostas/politica-modelos-e-design.md, seções 2, 2b, 3) ----
+ * Espelham policy.json / models.json. Configuração é dado: o app lê e grava, nunca decide. */
+
+/** "auto" ou "ask" no JSON. */
+enum class Gate(val wire: String) {
+    Auto("auto"), Ask("ask");
+
+    companion object {
+        fun fromWire(value: String): Gate? = entries.firstOrNull { it.wire == value }
+    }
+}
+
+/** pergunta | equilibrado | autonomo | total. */
+enum class PolicyMode(val wire: String) {
+    Pergunta("pergunta"), Equilibrado("equilibrado"), Autonomo("autonomo"), Total("total");
+
+    companion object {
+        fun fromWire(value: String): PolicyMode? = entries.firstOrNull { it.wire == value }
+    }
+}
+
+/** Chaves de by_risk e by_kind na ordem de exibição. */
+val POLICY_RISK_KEYS: List<String> = listOf("read", "write", "spend", "critical")
+val POLICY_KIND_KEYS: List<String> = listOf("shell", "adb", "files", "github", "root")
+
+data class RootPolicy(val enabled: Boolean = true, val via: List<String> = listOf("su", "tsu"))
+
+data class PolicyScope(val path: String, val write: Gate)
+
+/** null = sem limite. onReach: "avisar" | "pausar". alertPercent é extensão da UI (alerta em X%). */
+data class SpendCap(
+    val perJob: Double? = null,
+    val perDay: Double? = null,
+    val perMonth: Double? = null,
+    val onReach: String = "avisar",
+    val alertPercent: Int? = null,
+)
+
+data class PolicyDoc(
+    val version: Int,
+    val mode: PolicyMode = PolicyMode.Total,
+    val byRisk: Map<String, Gate> = POLICY_RISK_KEYS.associateWith { Gate.Auto },
+    val byKind: Map<String, Gate> = POLICY_KIND_KEYS.associateWith { Gate.Auto },
+    val root: RootPolicy = RootPolicy(),
+    val scopes: List<PolicyScope> = listOf(PolicyScope("*", Gate.Auto)),
+    val spendCap: SpendCap = SpendCap(),
+    val autoCountdownSeconds: Int = 0,
+    val notify: String = "so_se_precisar",
+)
+
+/** Linha do histórico. snapshot permite "Voltar para esta versão" (savePolicy do documento antigo). */
+data class PolicyVersion(
+    val version: Int,
+    val phrase: String?,
+    val atMillis: Long,
+    val by: String?,
+    val snapshot: PolicyDoc? = null,
+)
+
+sealed interface PolicyResult {
+    /** doc é a versão que o motor aplicou de fato. */
+    data class Ok(val doc: PolicyDoc, val history: List<PolicyVersion> = emptyList()) : PolicyResult
+    data class Rejected(val code: String, val detail: String? = null) : PolicyResult
+    data class Unavailable(val reason: String? = null) : PolicyResult
+}
+
+data class ModelRoute(val task: String, val use: List<String>)
+
+data class ModelsDoc(
+    val version: Int,
+    val deny: List<String> = listOf("fable*"),
+    val ceiling: Map<String, String> = mapOf("claude" to "sonnet:medium"),
+    val routes: List<ModelRoute> = emptyList(),
+    val preferSubscription: Boolean = true,
+    /** "never" | "allow". */
+    val apiFallback: String = "never",
+)
+
+sealed interface ModelsResult {
+    data class Ok(val doc: ModelsDoc) : ModelsResult
+    data class Rejected(val code: String, val detail: String? = null) : ModelsResult
+    data class Unavailable(val reason: String? = null) : ModelsResult
+}
+
+/** Valores em dólar; null = o motor/provedor não informou (a UI mostra "não informado"). */
+data class SpendLine(val provider: String, val model: String?, val todayUsd: Double?, val monthUsd: Double?)
+
+data class SpendSummary(val lines: List<SpendLine>)
+
+sealed interface SpendResult {
+    data class Ok(val summary: SpendSummary) : SpendResult
+    data class Unavailable(val reason: String? = null) : SpendResult
+}
+
 interface EngineGateway {
     suspend fun jobs(): List<Job>
     suspend fun approve(id: String): Job
@@ -78,6 +172,14 @@ interface EngineGateway {
 
     /** Eventos duráveis e ordenados (GET /v1/events?since=N); a UI retoma por id. */
     val events: Flow<EngineEvent>
+
+    // Política, modelos e gastos (GET/PUT /v1/policy, /v1/models). Padrão = indisponível, para
+    // não quebrar adaptadores que ainda não implementam.
+    suspend fun policy(): PolicyResult = PolicyResult.Unavailable()
+    suspend fun savePolicy(p: PolicyDoc): PolicyResult = PolicyResult.Unavailable()
+    suspend fun models(): ModelsResult = ModelsResult.Unavailable()
+    suspend fun saveModels(m: ModelsDoc): ModelsResult = ModelsResult.Unavailable()
+    suspend fun spendSummary(): SpendResult = SpendResult.Unavailable()
 }
 
 /** Dados de exemplo para @Preview e telas em construção. Não fala com nada real. */
@@ -133,6 +235,49 @@ class FakeEngineGateway(
         Capability("termux", "Termux", true),
         Capability("github", "GitHub (gh)", true, "Conectado"),
         Capability("adb", "Controle de Android (adb)", false, "Não instalado neste aparelho"),
+    )
+
+    // Política/modelos em memória (só para @Preview e telas em construção).
+    private var policyDoc = PolicyDoc(version = 1)
+    private var modelsDoc = ModelsDoc(
+        version = 1,
+        routes = listOf(
+            ModelRoute("triagem|classificar|resumir|status", listOf("haiku:medium")),
+            ModelRoute("codigo_mecanico|testes|refatoracao_simples", listOf("codex_cli", "agy_cli", "haiku:high")),
+            ModelRoute("ui_compose|planejar|revisar", listOf("sonnet:medium")),
+            ModelRoute("pesquisa_ampla", listOf("subagente:haiku:medium")),
+        ),
+    )
+    private val policyHistory = mutableListOf(
+        PolicyVersion(1, null, clock(), "dono", policyDoc),
+    )
+
+    override suspend fun policy(): PolicyResult = PolicyResult.Ok(policyDoc, policyHistory.asReversed().toList())
+
+    override suspend fun savePolicy(p: PolicyDoc): PolicyResult {
+        val applied = p.copy(version = policyDoc.version + 1)
+        policyDoc = applied
+        policyHistory += PolicyVersion(applied.version, null, clock(), "dono", applied)
+        bus.emit(EngineEvent(nextEvent++, "policy.changed", null, mapOf("version" to applied.version.toString()), clock()))
+        return PolicyResult.Ok(applied, policyHistory.asReversed().toList())
+    }
+
+    override suspend fun models(): ModelsResult = ModelsResult.Ok(modelsDoc)
+
+    override suspend fun saveModels(m: ModelsDoc): ModelsResult {
+        modelsDoc = m.copy(version = modelsDoc.version + 1)
+        bus.emit(EngineEvent(nextEvent++, "models.changed", null, mapOf("version" to modelsDoc.version.toString()), clock()))
+        return ModelsResult.Ok(modelsDoc)
+    }
+
+    override suspend fun spendSummary(): SpendResult = SpendResult.Ok(
+        SpendSummary(
+            listOf(
+                SpendLine("Claude (assinatura)", "Sonnet", todayUsd = null, monthUsd = null),
+                SpendLine("Codex (assinatura)", null, todayUsd = null, monthUsd = null),
+                SpendLine("API paga", "Haiku", todayUsd = 0.42, monthUsd = 3.10),
+            ),
+        ),
     )
 
     private suspend fun update(job: Job, type: String): Job {
