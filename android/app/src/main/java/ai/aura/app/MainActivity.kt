@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import ai.aura.app.integration.AuraEngineClient
 import ai.aura.app.integration.EngineCredentialStore
 import ai.aura.app.integration.RealEngineGateway
@@ -16,6 +19,13 @@ import ai.aura.app.ui.AuraApp
 /** Native AURA shell. No simulated provider results are ever shown in production. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Guarda o último erro que fechou o app, para mostrar na próxima abertura (sem logcat).
+        val crashFile = java.io.File(filesDir, "last_crash.txt")
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { crashFile.writeText(error.stackTraceToString().take(6000)) }
+            previousHandler?.uncaughtException(thread, error)
+        }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -25,7 +35,13 @@ class MainActivity : ComponentActivity() {
             val gateway = remember {
                 RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext)))
             }
+            var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
             AuraApp(
+                lastCrash = lastCrash,
+                onDismissCrash = {
+                    runCatching { crashFile.delete() }
+                    lastCrash = null
+                },
                 gateway = gateway,
                 onOpenUrl = { url ->
                     val uri = runCatching { Uri.parse(url) }.getOrNull()

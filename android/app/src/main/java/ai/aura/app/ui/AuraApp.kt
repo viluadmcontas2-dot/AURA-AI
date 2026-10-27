@@ -20,6 +20,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -100,8 +107,14 @@ fun AuraApp(
     onOnboardingFinished: () -> Unit = {},
     initialDraft: String = "",
     onSaveDraft: (String) -> Unit = {},
+    lastCrash: String? = null,
+    onDismissCrash: () -> Unit = {},
 ) {
     AuraTheme {
+        if (lastCrash != null) {
+            CrashReport(lastCrash, onDismissCrash)
+            return@AuraTheme
+        }
         // O valor de fora manda; rememberSaveable é só espelho para rotação.
         var onboardingDoneState by rememberSaveable(onboardingDone) { mutableStateOf(onboardingDone) }
         var draft by rememberSaveable(initialDraft) { mutableStateOf(initialDraft) }
@@ -231,9 +244,16 @@ private fun OnboardingHost(
         onRequestTermuxPermission = { onRequestTermuxPermission(); tick++ },
         onOpenTermux = { onOpenTermux(); tick++ },
         onSignIn = { id ->
-            accounts = accounts.map { if (it.id == id) it.copy(connecting = true) else it }
+            accounts = accounts.map { if (it.id == id) it.copy(connecting = true, detail = null) else it }
             scope.launch {
-                val r = runCatching { gateway.startAuth(providerOf(id)) }.getOrNull()
+                val r = runCatching { gateway.startAuth(providerOf(id)) }
+                    .getOrElse { AuthStartResult.Failed("Não consegui falar com o motor.", "Abra o Termux e confirme que o motor está rodando.") }
+                accounts = accounts.map { a ->
+                    if (a.id != id) a else when (r) {
+                        is AuthStartResult.Started -> a.copy(connecting = false, detail = "Abra o link e digite o código.")
+                        is AuthStartResult.Failed -> a.copy(connecting = false, detail = "${r.reason} ${r.fix}")
+                    }
+                }
                 if (r !is AuthStartResult.Started) tick++
             }
         },
@@ -324,4 +344,24 @@ private fun AuraAppPreview() {
 @Composable
 private fun BottomBarPreview() {
     AuraTheme { AuraBottomBar(AuraTab.Projects, {}) }
+}
+
+/** Mostra o último erro que fechou o app, com cópia. Some ao continuar. */
+@Composable
+private fun CrashReport(report: String, onContinue: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    Column(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("O AURA fechou sozinho na última vez", style = MaterialTheme.typography.titleMedium)
+        Text("Copie o erro abaixo e envie para correção. Nada foi apagado.", style = MaterialTheme.typography.bodyMedium)
+        Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Text(report, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = { clipboard.setText(AnnotatedString(report)) }) { Text("Copiar erro") }
+            Button(onClick = onContinue) { Text("Continuar") }
+        }
+    }
 }
