@@ -127,8 +127,16 @@ class Engine:
             return {"request": {"kind": "files", "action": "list", "path": ".",
                                 "workspace": workspace},
                     "reason": "local deterministic file listing", "requires_model": False}
+        if any(v in lower for v in ("organiza", "organize", "organizar")) and any(
+                word in lower for word in ("arquivos", "pastas")):
+            if any(item["id"] == "file-organization" for item in adapters.scan_skills(self.home)):
+                return {"request": {"kind": "skills", "action": "run",
+                                    "id": "file-organization", "prompt": text,
+                                    "workspace": workspace},
+                        "reason": "selected verified installed Agent Skill metadata",
+                        "requires_model": True}
         provider = preferred_provider if preferred_provider in (
-            "claude_cli", "gemini_cli", "claude_api", "gemini_api") else "claude_cli"
+            "claude_cli", "gemini_cli", "claude_api", "gemini_api", "agy_cli") else "claude_cli"
         return {"request": {"kind": provider, "prompt": text, "workspace": workspace},
                 "reason": "open-ended instruction requires a model", "requires_model": True}
 
