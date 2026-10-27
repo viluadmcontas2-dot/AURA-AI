@@ -1,10 +1,11 @@
 package ai.aura.app.integration
 
+import ai.aura.app.offline.EngineUnreachableException
+import ai.aura.app.offline.OfflineReason
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
 import java.net.ConnectException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
@@ -27,7 +28,8 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
     ): JSONObject =
         withContext(Dispatchers.IO) {
             require(path.startsWith("/v1/") && !path.contains("..")) { "Invalid API route" }
-            val token = credentials.read() ?: throw IOException("Conecte o Termux em Conexões")
+            val token = credentials.read()
+                ?: throw EngineUnreachableException("Conecte o Termux em Conexões", OfflineReason.NoToken)
             val conn = (URL(endpoint + path).openConnection() as HttpURLConnection)
             try {
                 conn.connectTimeout = 3000
@@ -60,9 +62,9 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) {
                     JSONObject(payload)
                 }
             } catch (_: ConnectException) {
-                throw IOException("Termux não responde. Abra o Termux e inicie o motor.")
+                throw EngineUnreachableException("Termux não responde. Abra o Termux e inicie o motor.", OfflineReason.EngineStopped)
             } catch (_: SocketTimeoutException) {
-                throw IOException("O motor demorou a responder. Tente de novo.")
+                throw EngineUnreachableException("O motor demorou a responder. Tente de novo.", OfflineReason.EngineStopped)
             } finally {
                 conn.disconnect()
             }
