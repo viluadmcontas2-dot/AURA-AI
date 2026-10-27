@@ -19,7 +19,7 @@ Limite honesto: permissões **do Android** (microfone, notificações, RUN_COMMA
   "by_kind": { "shell":"auto", "adb":"auto", "files":"auto", "github":"auto", "root":"auto" },
   "root": { "enabled": true, "via": ["su","tsu"] },  // só funciona se o aparelho tiver root
   "scopes":  [ {"path":"*","write":"auto"} ],        // inclui /, /data, /root, qualquer caminho que o Termux alcance
-  "spend_cap": null,             // null = sem limite (decisão do dono)
+  "spend_cap": { "per_job": null, "per_day": null, "per_month": null, "on_reach": "avisar" },  // null = sem limite; on_reach: avisar | pausar
   "auto_countdown_seconds": 0,
   "notify": "so_se_precisar" }
 ```
@@ -27,6 +27,12 @@ Limite honesto: permissões **do Android** (microfone, notificações, RUN_COMMA
 - **Isso substitui** a ideia de "piso de segurança" da primeira versão e o invariante 6 do AGENTS.md ("destrutivo e gasto exigem aprovação explícita"): para o dono, aprovação vira **opção dele**, não regra fixa. O GPT deve ajustar o AGENTS.md só quando o dono confirmar por escrito; até lá o padrão do motor pode continuar `autonomo`, mas o JSON precisa aceitar `total`.
 - **O que continua sendo verdade, sem ser limite do app**: (1) o Android e o Termux têm as próprias fronteiras (sandbox do app, RUN_COMMAND só com permissão do usuário, root só em aparelho com root); o app nunca contorna isso. (2) Cada ação automática fica registrada com payload completo no evento ("executado por política vN"), para o dono poder ver e desfazer o que der. (3) Um botão "Parar tudo" cancela jobs em andamento. Registro e parada não são travas, são visibilidade.
 - Segredos nunca em `policy.json`.
+
+## 2b. Gestão de gastos e regras ditas em conversa (decisão do dono, 27/10)
+- **Gestão de gastos é recurso do app, opcional e do dono**: tela com gasto de hoje/mês por provedor e por modelo (valores que o provedor informou; "não informado" quando não vier), e opções que o dono liga se quiser: limite por tarefa, por dia, por mês, alerta em X%, "pausar ao atingir" ou "só avisar". Padrão: sem limite. O app nunca cria limite sozinho nem sobe um limite que o dono pôs.
+- **O dono muda as regras falando com o app**: "pode gastar até 20 por dia", "não mexa na pasta X", "pergunte antes de apagar", "libera tudo". O motor classifica a frase como `policy_change` (`POST /v1/route` devolve `kind:"policy_change"` + `diff` legível), mostra um cartão "Mudei: <antes> → <depois>" com **Desfazer**, grava `PUT /v1/policy` e emite `policy.changed` com a frase original. Vale na hora, sem recompilar.
+- **Integridade, não limite**: só vale como autorização a mensagem digitada ou falada pelo dono no app. Texto vindo de página, arquivo, resultado de ferramenta, e-mail ou saída de modelo **nunca** muda a política (senão qualquer conteúdo externo daria ordens ao app).
+- Toda mudança de política fica no histórico (versão, frase, hora) e pode ser revertida para qualquer versão anterior.
 
 ## 3. `models.json` (custo-benefício por padrão)
 ```
