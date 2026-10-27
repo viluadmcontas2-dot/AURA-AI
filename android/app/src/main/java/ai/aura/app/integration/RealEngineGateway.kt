@@ -1,5 +1,9 @@
 package ai.aura.app.integration
 
+import ai.aura.app.ui.engine.AUTH_PROVIDER_IDS
+import ai.aura.app.ui.engine.AuthStartResult
+import ai.aura.app.ui.engine.AuthState
+import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.Capability
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
@@ -80,6 +84,54 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
         result += Capability("skills", "Agent Skills", data.optInt("skills", 0) > 0,
             "Capacidades locais")
         return result
+    }
+
+    override suspend fun authStatus(): List<AuthStatus> {
+        return runCatching {
+            val raw = client.authStatus()
+            val array = raw.optJSONArray("providers")
+                ?: raw.optJSONArray("statuses")
+                ?: raw.optJSONArray("accounts")
+                ?: return@runCatching emptyList()
+            List(array.length()) { index ->
+                val item = array.getJSONObject(index)
+                AuthStatus(
+                    provider = item.getString("provider"),
+                    state = AuthState.fromWire(item.optString("state")) ?: AuthState.Unavailable,
+                    installable = item.optBoolean("installable", false),
+                    detail = item.optString("detail").ifBlank { null },
+                )
+            }
+        }.getOrElse { error ->
+            AUTH_PROVIDER_IDS.map { provider ->
+                AuthStatus(
+                    provider = provider,
+                    state = AuthState.Unavailable,
+                    detail = if (error is AuraEngineException && error.httpStatus == 404) {
+                        "Este AURA Engine ainda não expõe login fácil."
+                    } else {
+                        "Não foi possível consultar o estado desta conta."
+                    },
+                )
+            }
+        }.let { statuses ->
+            if (statuses.isEmpty()) AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) } else statuses
+        }
+    }
+
+    override suspend fun startAuth(provider: String): AuthStartResult {
+        return try {
+            client.startAuth(provider)
+            AuthStartResult.Started
+        } catch (error: Exception) {
+            val unavailable = error is AuraEngineException && error.httpStatus == 404
+            AuthStartResult.Failed(
+                reason = if (unavailable) "Login fácil ainda não está disponível no motor."
+                    else "Não foi possível iniciar o login.",
+                fix = if (unavailable) "Atualize o AURA Engine no Termux e tente de novo."
+                    else "Confira o Termux e toque em Conectar novamente.",
+            )
+        }
     }
 
     override val events: Flow<EngineEvent> = flow {
