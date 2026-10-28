@@ -6,6 +6,7 @@ import threading
 import time
 
 from . import adapters, routing
+from .chat import ChatManager
 from .auth import AuthManager
 from .config import ConfigStore
 from .security import RiskPolicy, workspace_name, load_or_create_token
@@ -30,6 +31,8 @@ class Engine:
         self.cancelled = set()
         self.workers = []
         self.triage = Triage(self)
+
+        self.chat = ChatManager(self)
         if auto_worker:
             for number in range(max(1, min(int(max_workers), 4))):
                 worker = threading.Thread(target=self._loop, daemon=True,
@@ -52,6 +55,7 @@ class Engine:
 
     def close(self):
         self.stop_event.set()
+        self.chat.close()
         self.auth.close()
         with self.process_lock:
             for proc in list(self.processes.values()):
@@ -279,6 +283,20 @@ class Engine:
         elif why_extra:
             answer["why"] = why_extra
         return answer
+
+    def intent(self, text, workspace="default"):
+        """Roteador invisivel: o app decide sozinho entre conversar e agir. Sem 'reason' tecnico."""
+        if not isinstance(text, str) or not text.strip() or len(text) > 100000:
+            raise ValueError("empty or oversized utterance")
+        found = routing.intent_kind(text)
+        if found:
+            return {"kind": found, "needs_approval": False}
+        routed = self.route(text, workspace=workspace)
+        if routed.get("requires_model"):
+            return {"kind": "chat", "needs_approval": False}
+        request = routed["request"]
+        decision = self.policy.decide(request, self.policy.classify(request))[0]
+        return {"kind": "command", "request": request, "needs_approval": decision != "auto"}
 
     def add_schedule(self, request):
         if not isinstance(request, dict):

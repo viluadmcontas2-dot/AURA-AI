@@ -170,3 +170,19 @@ Job `{"kind":"rea","action":"reverse_engineer","apk_path":"...","goal"?:100,"mod
 
 ### Motor vivo
 Ao iniciar, o motor chama `termux-wake-lock` se existir (best effort, sem falhar).
+
+
+## Chat nativo (conversa em texto, sem jobs)
+O chat NAO cria job, NAO pede aprovacao e NUNCA devolve JSON cru da CLI. Todos os endpoints exigem Bearer. Roda `claude -p <texto> --output-format stream-json --verbose --include-partial-messages` no workspace, com `--session-id <uuid>` na 1a mensagem e `--resume <uuid>` nas seguintes, `--dangerously-skip-permissions` quando a politica e `total` e `--model` pelo teto de `models.json`. Sem `claude`, cai para `gemini`, depois `agy` (texto simples, sem streaming real: um unico `chat.delta`; o motor leva o fim da conversa no prompt). Com `executor` explicito e ausente, nao troca de assistente: `chat.error` `cli_missing`.
+
+POST `/v1/chat` `{text, session_id?, workspace?, executor?}` -> 202 `{chat_id, session_id}`. `text` obrigatorio (ate 100000); `session_id` UUID (omitido = conversa nova; o motor devolve o id para reusar); `executor`: `auto|claude|gemini|agy` (ou `*_cli`). Uma execucao por vez por `session_id`: mensagem enviada com outra rodando entra na fila, em ordem (`state:"queued"`). Erros de pedido: 400.
+Eventos (em `/v1/events`, mesmo formato dos `job.*`; `payload` sempre tem `chat_id`):
+- `chat.delta {chat_id, text}`: incremento de texto, em ordem. Entre mensagens do assistente separadas por ferramenta o motor insere `"\n\n"`.
+- `chat.tool {chat_id, summary}`: frase curta em portugues ("Lendo arquivos…", "Rodando comando…", "Editando app.py", "Procurando no código…", "Trabalhando…"); nunca traz argumentos.
+- `chat.done {chat_id, text, session_id[, cost]}`: `text` = resposta completa (soma dos deltas); `cost` so existe se a CLI informou (USD). Use `session_id` nas proximas mensagens.
+- `chat.error {chat_id, code, message_pt, action_pt}`; `code`: `cli_missing` ("Instalar o Claude em Conexões"), `no_executor`, `not_logged_in` ("Entrar no Claude em Conexões"), `timeout` (15 min), `network`, `stopped` (o usuario tocou Parar: mostre sem alarme), `failed` ("Tentar de novo"). Um chat termina com exatamente um `chat.done` ou `chat.error`.
+
+GET `/v1/chat/{chat_id}` -> `{chat_id, state:"queued|running|done|error", text, session_id[, error:{code,message_pt,action_pt}]}`; `text` e o acumulado ate agora. 404 se nao existe. Use para recuperar eventos perdidos. Se o motor reiniciar no meio, o chat vira `error` (`interrupted`).
+POST `/v1/chat/{chat_id}/stop` (sem corpo) -> `{chat_id, stopped:true}`; mata o processo (grupo inteiro) e emite `chat.error code:"stopped"`. Chat ja encerrado -> `{..., stopped:false}`.
+GET `/v1/chats?limit=50` -> `{chats:[{id, title, updated_at}]}` (id = `session_id`; mais recente primeiro; titulo = 1a linha da 1a mensagem, ate 60). GET `/v1/chats/{session_id}/messages` -> `{messages:[{id, chat_id, role:"user|assistant", text, created_at}]}` em ordem. Persistem no sqlite do motor.
+POST `/v1/intent` `{text, workspace?}` -> `{kind:"chat|command|reform|project|task", needs_approval:false|true[, request]}`. `chat` e o padrao e nunca pede aprovacao; `command` (atalhos locais deterministicos como listar dispositivos/arquivos) traz `request` pronto para `POST /v1/jobs` e `needs_approval` pela politica (`total` -> false); `reform|project|task` sao palavras-chave para o app abrir o fluxo proprio. Nao devolve `reason`.

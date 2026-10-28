@@ -132,6 +132,17 @@ def make_server(engine, host="127.0.0.1", port=8765):
                             params.get("q", [""])[0])})
                     if path == "/v1/schedules":
                         return self.send(200, {"schedules": engine.store.schedules()})
+                    if path == "/v1/chats":
+                        return self.send(200, {"chats": engine.store.chats(params.get("limit", [50])[0])})
+                    if len(parts) == 5 and parts[:3] == ["", "v1", "chats"] and parts[4] == "messages":
+                        if engine.store.chat_conversation(parts[3]) is None:
+                            return self.send(404, {"error": {"code": "not_found", "message": "Conversa não encontrada"}})
+                        return self.send(200, {"messages": engine.store.chat_messages(parts[3])})
+                    if len(parts) == 4 and parts[:3] == ["", "v1", "chat"]:
+                        state = engine.chat.state(parts[3])
+                        if state is None:
+                            return self.send(404, {"error": {"code": "not_found", "message": "Chat não encontrado"}})
+                        return self.send(200, state)
                     if len(parts) == 4 and parts[:3] == ["", "v1", "jobs"]:
                         job = engine.store.job(parts[3])
                         return self.send(200, job) if job else self.send(404, {"error": "job not found"})
@@ -167,6 +178,21 @@ def make_server(engine, host="127.0.0.1", port=8765):
                             raise ValueError("request is required")
                         job = engine.submit(request, request_id=data.get("request_id"))
                         return self.send(202, job)
+                    if path == "/v1/chat":
+                        data = self.body()
+                        return self.send(202, engine.chat.start(
+                            data.get("text"), session_id=data.get("session_id"),
+                            workspace=data.get("workspace", "default"), executor=data.get("executor")))
+                    if len(parts) == 5 and parts[:3] == ["", "v1", "chat"] and parts[4] == "stop":
+                        if not engine.chat.stop(parts[3]):
+                            state = engine.store.chat_run(parts[3])
+                            if state is None:
+                                return self.send(404, {"error": {"code": "not_found", "message": "Chat não encontrado"}})
+                            return self.send(200, dict(state, stopped=False))
+                        return self.send(200, {"chat_id": parts[3], "stopped": True})
+                    if path == "/v1/intent":
+                        data = self.body()
+                        return self.send(200, engine.intent(data.get("text"), workspace=data.get("workspace", "default")))
                     if path == "/v1/route":
                         data = self.body()
                         return self.send(200, engine.route(

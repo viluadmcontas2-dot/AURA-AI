@@ -36,6 +36,15 @@ class Store:
             CREATE TABLE IF NOT EXISTS schedules(
                 id TEXT PRIMARY KEY, seconds INTEGER NOT NULL, request TEXT NOT NULL,
                 next_run REAL NOT NULL, enabled INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS conversations(
+                id TEXT PRIMARY KEY, cli_session TEXT, started INTEGER NOT NULL DEFAULT 0,
+                title TEXT NOT NULL, workspace TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS chat_runs(
+                id TEXT PRIMARY KEY, session_id TEXT NOT NULL, state TEXT NOT NULL,
+                text TEXT NOT NULL DEFAULT '', error TEXT, created REAL NOT NULL, updated REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS chat_messages(
+                id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, chat_id TEXT NOT NULL,
+                role TEXT NOT NULL, text TEXT NOT NULL, created REAL NOT NULL);
         """)
         self._upgrade_memory()
         with self.lock, self.db:
@@ -47,6 +56,10 @@ class Store:
                 (time.time(),)).rowcount
             if changed:
                 self._emit("engine.recovered", {"interrupted": changed})
+            self.db.execute(
+                "UPDATE chat_runs SET state='error',error=?,updated=? WHERE state IN ('running','queued')",
+                (packed({"code": "interrupted", "message_pt": "O motor reiniciou durante a resposta.",
+                         "action_pt": "Enviar a mensagem de novo"}), time.time()))
 
     def _upgrade_memory(self):
         """Completa a tabela memory de um motor antigo (sem id, kind, source, created).
@@ -371,3 +384,69 @@ class Store:
                 self.db.execute("UPDATE schedules SET next_run=? WHERE id=?",
                                 (now + row["seconds"], row["id"]))
             return [(r["id"], json.loads(r["request"])) for r in rows]
+
+
+    # ---- chat nativo: conversas, execucoes e mensagens -------------------------
+    def chat_conversation(self, session_id):
+        with self.lock:
+            row = self.db.execute("SELECT * FROM conversations WHERE id=?", (session_id,)).fetchone()
+            return dict(row) if row else None
+
+    def chat_open(self, session_id, title, workspace, cli_session=None, started=False):
+        now = time.time()
+        with self.lock, self.db:
+            self.db.execute(
+                "INSERT OR IGNORE INTO conversations(id,cli_session,started,title,workspace,created,updated)"
+                " VALUES(?,?,?,?,?,?,?)",
+                (session_id, cli_session or session_id, 1 if started else 0, title[:60], workspace, now, now))
+
+    def chat_update_conversation(self, session_id, **fields):
+        allowed = {"cli_session", "started"}
+        sets = [(k, v) for k, v in fields.items() if k in allowed]
+        with self.lock, self.db:
+            for key, value in sets:
+                self.db.execute("UPDATE conversations SET %s=?,updated=? WHERE id=?" % key,
+                                (value, time.time(), session_id))
+
+    def chat_add_message(self, session_id, chat_id, role, text):
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO chat_messages(session_id,chat_id,role,text,created) VALUES(?,?,?,?,?)",
+                            (session_id, chat_id, role, text, time.time()))
+            self.db.execute("UPDATE conversations SET updated=? WHERE id=?", (time.time(), session_id))
+
+    def chat_run_create(self, chat_id, session_id, state):
+        now = time.time()
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO chat_runs(id,session_id,state,created,updated) VALUES(?,?,?,?,?)",
+                            (chat_id, session_id, state, now, now))
+
+    def chat_run_set(self, chat_id, state, text=None, error=None):
+        with self.lock, self.db:
+            self.db.execute(
+                "UPDATE chat_runs SET state=?,text=COALESCE(?,text),error=COALESCE(?,error),updated=? WHERE id=?",
+                (state, text, packed(error) if error else None, time.time(), chat_id))
+
+    def chat_run(self, chat_id):
+        with self.lock:
+            row = self.db.execute("SELECT * FROM chat_runs WHERE id=?", (chat_id,)).fetchone()
+            if row is None:
+                return None
+            out = {"chat_id": row["id"], "state": row["state"], "text": row["text"],
+                   "session_id": row["session_id"]}
+            if row["error"]:
+                out["error"] = json.loads(row["error"])
+            return out
+
+    def chats(self, limit=50):
+        with self.lock:
+            rows = self.db.execute("SELECT id,title,updated FROM conversations ORDER BY updated DESC LIMIT ?",
+                                   (max(1, min(int(limit), 200)),)).fetchall()
+            return [{"id": r["id"], "title": r["title"], "updated_at": r["updated"]} for r in rows]
+
+    def chat_messages(self, session_id, limit=500):
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT * FROM (SELECT * FROM chat_messages WHERE session_id=? ORDER BY id DESC LIMIT ?)"
+                " ORDER BY id ASC", (session_id, max(1, min(int(limit), 2000)))).fetchall()
+            return [{"id": r["id"], "chat_id": r["chat_id"], "role": r["role"], "text": r["text"],
+                     "created_at": r["created"]} for r in rows]
