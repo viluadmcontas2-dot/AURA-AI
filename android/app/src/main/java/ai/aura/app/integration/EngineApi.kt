@@ -47,4 +47,26 @@ interface EngineApi {
     suspend fun chatMessages(id: String): JSONObject = throw UnsupportedOperationException("chatMessages")
     /** POST /v1/intent {text}: {kind: chat|command|reform|project|task, ...}. */
     suspend fun intent(text: String): JSONObject = throw UnsupportedOperationException("intent")
+    /** GET /v1/sessions?limit=100: {sessions:[{id,title,project,updated_at,messages,source,running}]}. */
+    suspend fun sessions(): JSONObject = throw UnsupportedOperationException("sessions")
+    /** GET /v1/sessions/{id}/messages: {messages:[{id,role:user|assistant|tool,text,created_at}]}. */
+    suspend fun sessionMessages(id: String): JSONObject = throw UnsupportedOperationException("sessionMessages")
+    /** POST /v1/sessions/{id}/rename {title}. */
+    suspend fun renameSession(id: String, title: String): JSONObject = throw UnsupportedOperationException("renameSession")
+    /** DELETE /v1/sessions/{id}: esconde no AURA; o histórico do Claude Code no terminal fica. */
+    suspend fun deleteSession(id: String): JSONObject = throw UnsupportedOperationException("deleteSession")
+    /** POST /v1/sessions/{id}/stop. */
+    suspend fun stopSession(id: String): JSONObject = throw UnsupportedOperationException("stopSession")
+    /** GET /v1/processes: {processes:[{pid,kind,session_id?,started_at,cmd}]}. */
+    suspend fun processes(): JSONObject = throw UnsupportedOperationException("processes")
+    /** POST /v1/processes/{pid}/stop. */
+    suspend fun stopProcess(pid: Long): JSONObject = throw UnsupportedOperationException("stopProcess")
+    /** POST /v1/prompt/improve {text}: {improved}. Usa a chave do Gemini guardada no motor. */
+    suspend fun improvePrompt(text: String): JSONObject = throw UnsupportedOperationException("improvePrompt")
+    /** GET /v1/settings/gemini_key: {configured}. Nunca devolve a chave. */
+    suspend fun geminiKey(): JSONObject = throw UnsupportedOperationException("geminiKey")
+    /** PUT /v1/settings/gemini_key {key}. A chave nunca é registrada nem guardada no app. */
+    suspend fun putGeminiKey(key: String): JSONObject = throw UnsupportedOperationException("putGeminiKey")
+    /** DELETE /v1/settings/gemini_key. */
+    suspend fun deleteGeminiKey(): JSONObject = throw UnsupportedOperationException("deleteGeminiKey")
 }
