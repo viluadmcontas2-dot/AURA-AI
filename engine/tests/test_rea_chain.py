@@ -93,7 +93,7 @@ class ReaChain(Base):
     def test_a_failure_at_any_step_resumes_from_that_step(self):
         for index, step in enumerate(STEPS):
             with self.subTest(step=step):
-                engine = Engine(home=self.root / ("home-" + step), auto_worker=False)
+                engine = Engine(home=self.root / ("home-%d" % index), auto_worker=False)
                 self.addCleanup(engine.close)
                 bad = self.run_job(Fake(fail=step), SETUP, engine, broken_mcp=(step == "mcp"))
                 self.assertEqual(bad["status"], "failed", bad)

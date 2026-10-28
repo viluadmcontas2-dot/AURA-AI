@@ -10,6 +10,7 @@ from .auth import AuthManager
 from .config import ConfigStore
 from .security import RiskPolicy, workspace_name, load_or_create_token
 from .store import Store
+from .triage import Triage
 
 
 class Engine:
@@ -26,6 +27,7 @@ class Engine:
         self.processes = {}
         self.cancelled = set()
         self.workers = []
+        self.triage = Triage(self)
         if auto_worker:
             for number in range(max(1, min(int(max_workers), 4))):
                 worker = threading.Thread(target=self._loop, daemon=True,
@@ -182,6 +184,10 @@ class Engine:
                 self._warn_after_finish(final)
             except Exception:
                 pass  # aviso de gasto nunca derruba o job
+            try:
+                self.triage.promote()
+            except Exception:
+                pass  # a fila nunca derruba o job
             return final
         finally:
             with self.process_lock:
@@ -193,6 +199,7 @@ class Engine:
             try:
                 for _, req in self.store.due_schedules():
                     self.submit(req)
+                self.triage.promote()
                 handled = self.run_once()
                 if handled is None:
                     self.stop_event.wait(0.3)

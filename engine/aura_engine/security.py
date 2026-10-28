@@ -77,6 +77,8 @@ class RiskPolicy:
             return {"list": "read", "download": "write", "upload": "critical"}.get(action, "critical")
         if kind == "skills":
             return "read" if action in ("list", "read") else "critical"
+        if kind == "rea":
+            return {"setup": "write", "tools": "read", "measure": "read"}.get(action, "critical")
         if kind == "shell":
             return "critical"
         if kind in {"claude_cli", "gemini_cli", "agy_cli"}:

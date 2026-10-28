@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import adapters
+from . import adapters, triage
 from .config import ConfigError, VersionConflict
 
 
@@ -60,6 +60,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
             parts = path.split("/")
             params = parse_qs(parsed.query, keep_blank_values=False)
             try:
+                routed = triage.http(engine, method, path, self.body)
+                if routed is not None:
+                    return self.send(*routed)
                 if method == "GET":
                     if path == "/v1/health":
                         return self.send(200, {"service": "aura-engine", "version": 1})
