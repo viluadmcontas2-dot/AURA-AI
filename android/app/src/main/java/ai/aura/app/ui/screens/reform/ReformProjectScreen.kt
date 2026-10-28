@@ -100,6 +100,8 @@ fun ReformProjectScreen(
                 )
                 Meter("Fidelidade", progress.fidelityPct, Modifier.weight(1f).fillMaxHeight(), onClick = onOpenFidelity)
             }
+            // Também dá para tocar no medidor, mas o caminho para a Fidelidade tem que estar à vista.
+            AuraButtonSecondary("Ver fidelidade", onOpenFidelity)
             Text("Artefatos", style = AuraType.Section, modifier = Modifier.semantics { heading() })
             if (artifacts.isEmpty()) Text("$REFORM_PROGRESS_NOT_REPORTED os artefatos.", style = AuraType.Secondary)
             artifacts.forEach { a ->

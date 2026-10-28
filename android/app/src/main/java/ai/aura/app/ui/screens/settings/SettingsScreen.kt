@@ -74,6 +74,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onOpenUrl: (String) -> Unit = {},
     settings: SettingsGateway = NoEngineSettingsGateway,
+    /** Abre outra tela do app pelo id da rota (Check-up, Notificações, Modos de voz, Bastidores). Nulo = sem o grupo "Mais". */
+    onOpenScreen: ((String) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -106,6 +108,7 @@ fun SettingsScreen(
             ) {
                 AutonomySection(autonomy)
                 Text("Carregando ajustes…", style = AuraType.Secondary)
+                MoreScreensGroup(onOpenScreen)
             }
             SettingsLoad.Unavailable -> Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
@@ -114,8 +117,9 @@ fun SettingsScreen(
             ) {
                 AutonomySection(autonomy)
                 EmptyState("Motor indisponível", state.unavailableHint, "Tentar de novo", { state.reload(); autonomy.reload() }, glyph = "!")
+                MoreScreensGroup(onOpenScreen)
             }
-            SettingsLoad.Ready -> SettingsBody(state, autonomy, { showAccounts = true }, Modifier.weight(1f))
+            SettingsLoad.Ready -> SettingsBody(state, autonomy, { showAccounts = true }, onOpenScreen, Modifier.weight(1f))
         }
         if (state.load == SettingsLoad.Ready) SaveBar(state)
         // "Parar tudo" responde em qualquer estado: a barra de salvar só existe com o motor no ar.
@@ -144,7 +148,13 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenAccounts: () -> Unit, modifier: Modifier) {
+private fun SettingsBody(
+    state: SettingsState,
+    autonomy: AutonomyState,
+    onOpenAccounts: () -> Unit,
+    onOpenScreen: ((String) -> Unit)?,
+    modifier: Modifier,
+) {
     val policy = state.policy ?: return
     val models = state.models ?: return
     val key = state.savedPolicy?.version to state.savedModels?.version
@@ -170,10 +180,39 @@ private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenAc
         SpendSection(policy, state.spend, key, state::editPolicy)
         ModelsSection(models, key, state.lastModelUse, state::editModels)
         HistorySection(state.history, state.savedPolicy?.version, state::revertTo)
+        MoreScreensGroup(onOpenScreen)
         Text(
             "Tudo que roda sozinho fica em Atividade.",
             style = AuraType.SecondarySmall,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** Telas que existiam mas nada abria (docs/MAPA_DE_TELAS.md): agora saem daqui, com ou sem motor. */
+@Composable
+private fun MoreScreensGroup(onOpen: ((String) -> Unit)?) {
+    if (onOpen == null) return
+    SectionLabel("Mais do AURA")
+    SettingsGroup {
+        SettingRow(
+            "Check-up do aparelho", subtitle = "Vê o que falta para o AURA funcionar bem.",
+            trailing = { AuraButtonSecondary("Abrir check-up", { onOpen("checkup") }) },
+        )
+        RowDivider()
+        SettingRow(
+            "Notificações", subtitle = "Escolha o que o AURA pode avisar.",
+            trailing = { AuraButtonSecondary("Ajustar avisos", { onOpen("notificacoes") }) },
+        )
+        RowDivider()
+        SettingRow(
+            "Voz", subtitle = "Como o AURA fala e escuta.",
+            trailing = { AuraButtonSecondary("Escolher modo de voz", { onOpen("voz-modos") }) },
+        )
+        RowDivider()
+        SettingRow(
+            "Bastidores", subtitle = "O que o AURA fez por baixo.",
+            trailing = { AuraButtonSecondary("Ver bastidores", { onOpen("bastidores") }) },
         )
     }
 }

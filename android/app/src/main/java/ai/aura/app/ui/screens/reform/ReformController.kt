@@ -27,7 +27,7 @@ class MemoryReformIdStore : ReformIdStore {
 }
 
 /** Estado do botão "Travar escopo e começar". */
-data class ReformScopeUi(val busy: Boolean = false, val error: String? = null)
+data class ReformScopeUi(val busy: Boolean = false, val error: String? = null, val engineDown: Boolean = false)
 
 /** Id que o motor grava no ledger (contrato v1, em inglês e estável). */
 fun ReformScope.wire(): String = when (this) {
@@ -126,7 +126,7 @@ class ReformController(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                scopeMutable.value = ReformScopeUi(error = messageFor(e, "travar o escopo"))
+                scopeMutable.value = ReformScopeUi(error = messageFor(e, "travar o escopo"), engineDown = e is EngineUnreachableException)
             }
         }
     }

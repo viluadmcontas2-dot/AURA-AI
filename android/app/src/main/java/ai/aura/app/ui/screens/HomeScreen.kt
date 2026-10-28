@@ -50,6 +50,7 @@ fun HomeScreen(
     pendingPrompt: String? = null,
     onPendingPromptHandled: () -> Unit = {},
     onOpenVoice: (() -> Unit)? = null,
+    onOpenReform: (() -> Unit)? = null,
 ) {
     var entry by rememberSaveable(stateSaver = ChatEntry.Saver) { mutableStateOf(ChatEntry.Closed) }
     var current by remember { mutableStateOf<String?>(null) } // null = ainda lendo o disco
@@ -95,7 +96,7 @@ fun HomeScreen(
             HomeContent(
                 gateway = gateway, onOpenChat = { entry = it }, modifier = modifier, onOpenSettings = onOpenSettings,
                 initialDraft = start, onDraftChange = saveDraft, link = link, onEngineAction = onEngineAction,
-                onOpenVoice = onOpenVoice,
+                onOpenVoice = onOpenVoice, onOpenReform = onOpenReform,
             )
         }
     }

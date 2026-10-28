@@ -112,7 +112,8 @@ fun ReformReversionScreen(
     onBack: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onOpenBackstage: () -> Unit,
+    /** Nulo = a tela de bastidores ainda não existe: o botão some em vez de ficar mudo. */
+    onOpenBackstage: (() -> Unit)?,
     onOpenProject: () -> Unit,
     onChooseApp: () -> Unit,
     onRetry: () -> Unit,
@@ -177,7 +178,7 @@ fun ReformReversionScreen(
             AuraButtonPrimary("Ver o projeto", onOpenProject, Modifier.fillMaxWidth(), large = true)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 if (progress.paused) AuraButtonSecondary("Retomar", onResume) else AuraButtonSecondary("Pausar", onPause)
-                AuraButtonText("Ver bastidores", onOpenBackstage)
+                if (onOpenBackstage != null) AuraButtonText("Ver bastidores", onOpenBackstage)
             }
         }
     }

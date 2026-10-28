@@ -56,6 +56,8 @@ internal fun ProjectsHost(
     initialProjects: List<Project> = emptyList(),
     initialArtifacts: List<Artifact> = emptyList(),
     store: LocalStore = rememberAuraStore(),
+    /** Abre a reforma de apps (fora desta aba). Nulo = os atalhos "Reformar um app que já existe" não aparecem. */
+    onReformApp: (() -> Unit)? = null,
 ) {
     var route by rememberSaveable { mutableStateOf(Route.List) }
     var projectId by rememberSaveable { mutableStateOf("") }
@@ -151,6 +153,7 @@ internal fun ProjectsHost(
         route == Route.Idea -> ProjectIdeaScreen(
             idea = idea, onIdeaChange = { idea = it },
             onOrganize = { answer = ""; go(Route.Summary) }, onBack = ::back, modifier = modifier,
+            onReformApp = onReformApp,
         )
         route == Route.Summary -> ProjectSummaryScreen(
             idea = idea.trim(), draft = draft, question = question, needsApproval = needsApproval, busy = busy, error = error,
@@ -233,6 +236,7 @@ internal fun ProjectsHost(
             projects = projects, jobs = jobs, artifacts = artifacts, loadError = loadError,
             onRetry = { reload++ },
             onNewProject = { go(Route.Idea) },
+            onReformApp = onReformApp,
             onOpenProject = { projectId = it; go(Route.Detail) },
             onOpenArtifacts = { artifactScope = ""; go(Route.Artifacts) },
             onOpenArtifact = { id -> artifactId = id; artifactScope = ""; go(Route.Artifact) },

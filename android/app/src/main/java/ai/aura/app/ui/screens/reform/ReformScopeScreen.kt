@@ -59,6 +59,8 @@ fun ReformScopeScreen(
     busy: Boolean = false,
     /** O que deu errado ao travar, em português simples; o botão vira "Tentar de novo". */
     error: String? = null,
+    /** O motor não respondeu ao travar: o aviso ganha a ação "Iniciar o motor" (quem chama liga ao Termux). */
+    onStartEngine: (() -> Unit)? = null,
 ) {
     var scope by rememberSaveable(app?.id) { mutableStateOf(ReformScope.default) }
     var carMode by rememberSaveable(app?.id) { mutableStateOf(true) }
@@ -114,6 +116,8 @@ fun ReformScopeScreen(
                     if (error != null) {
                         ai.aura.app.ui.screens.activity.IncidentBanner(
                             ai.aura.app.ui.screens.activity.IncidentLevel.NeedsYou, "Não consegui travar o escopo", error,
+                            actionText = if (onStartEngine != null) ReformFix.StartEngine.label else null,
+                            onAction = onStartEngine,
                         )
                     }
                     AuraButtonPrimary(

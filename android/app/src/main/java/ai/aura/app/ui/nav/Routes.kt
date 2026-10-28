@@ -76,7 +76,7 @@ val ROUTES: List<Route> = listOf(
     Route("onb-termux", "Onb-2-Termux", null, false, listOf("onb-contas")),
     Route("onb-contas", "Onb-3-Contas", null, true, listOf("inicio")),
 
-    Route("inicio", "Main", AuraTab.Home, true, listOf("chat-entendi", "chat-teclado", "voz-ouvindo", "projetos", "dispositivos", "atividade", "ajustes", "conexoes")) { env ->
+    Route("inicio", "Main", AuraTab.Home, true, listOf("chat-entendi", "chat-teclado", "voz-ouvindo", "projetos", "dispositivos", "atividade", "ajustes", "conexoes", "reformar-apps")) { env ->
         HomeScreen(
             env.gateway, Modifier.fillMaxSize(),
             onChatOpenChange = env.onChatOpenChange,
@@ -88,6 +88,7 @@ val ROUTES: List<Route> = listOf(
             pendingPrompt = env.pendingPrompt,
             onPendingPromptHandled = env.onPendingPromptHandled,
             onOpenVoice = { env.open("voz-ouvindo") },
+            onOpenReform = { env.open("reformar-apps") },
         )
     },
     Route("chat-entendi", "Chat-1-Entendi", AuraTab.Home, true, listOf("chat-executando")),
@@ -111,10 +112,10 @@ val ROUTES: List<Route> = listOf(
         VoiceModesRoute(env, Modifier.fillMaxSize())
     },
 
-    Route("projetos", "Projetos", AuraTab.Projects, true, listOf("projeto-ideia", "projeto-detalhe", "vazios")) { env ->
-        ProjectsScreen(env.gateway, Modifier.fillMaxSize())
+    Route("projetos", "Projetos", AuraTab.Projects, true, listOf("projeto-ideia", "projeto-detalhe", "vazios", "reformar-apps")) { env ->
+        ProjectsScreen(env.gateway, Modifier.fillMaxSize(), onReformApp = { env.open("reformar-apps") })
     },
-    Route("projeto-ideia", "Projeto-Ideia", AuraTab.Projects, false, listOf("projeto-novo")),
+    Route("projeto-ideia", "Projeto-Ideia", AuraTab.Projects, false, listOf("projeto-novo", "reformar-apps")),
     Route("projeto-novo", "Projeto-Novo", AuraTab.Projects, false, listOf("projeto-detalhe")),
     Route("projeto-detalhe", "Projeto-Detalhe", AuraTab.Projects, true, listOf("artefatos")),
     Route("artefatos", "Artefatos", AuraTab.Projects, true, listOf("artefato-detalhe", "vazios")),
@@ -124,87 +125,26 @@ val ROUTES: List<Route> = listOf(
         DevicesScreen(env.gateway, Modifier.fillMaxSize())
     },
     Route("dispositivo-detalhe", "Dispositivo-Detalhe", AuraTab.Devices, true, listOf("reformar-apps")),
-    Route("reformar-apps", "Reformar-1-Apps", AuraTab.Devices, true, listOf("reformar-escopo", "reformar-ferramentas")) { env ->
-        // Sem lista de apps vinda do motor ainda: abre vazio e "Procurar apps" leva às ferramentas (o adb vem delas).
-        // O APK escolhido fica no controlador da reforma e segue para o Escopo.
-        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
-        ai.aura.app.ui.screens.reform.ReformAppsScreen(
-            ai.aura.app.ui.screens.reform.ReformAppsState(), env.back,
-            onNext = { app -> reform?.select(app); env.open("reformar-escopo") },
-            onFix = { env.open("reformar-ferramentas") },
-            modifier = Modifier.fillMaxSize(),
-        )
+    // Reformar apps: assistente em tela cheia (sem barra de abas), aberto pelo Início, por Projetos e por Dispositivos.
+    // Ordem: Apps (escolher APK) -> Escopo -> Reversão -> Projeto -> Fidelidade; Ferramentas é a página de apoio.
+    // Os corpos moram em ui/screens/reform/ReformRoutes.kt.
+    Route("reformar-apps", "Reformar-1-Apps", null, true, listOf("reformar-escopo", "reformar-ferramentas")) { env ->
+        ai.aura.app.ui.screens.reform.ReformAppsRoute(env)
     },
-    Route("reformar-escopo", "Reformar-2-Escopo", AuraTab.Devices, true, listOf("reformar-reversao")) { env ->
-        // "Travar escopo e começar": copia o APK para a pasta compartilhada, trava o escopo no motor e abre a Reversão.
-        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
-        val app = reform?.selectedApp?.collectAsState()?.value
-        val ui = reform?.scopeUi?.collectAsState()?.value ?: ai.aura.app.ui.screens.reform.ReformScopeUi()
-        ai.aura.app.ui.screens.reform.ReformScopeScreen(
-            app, env.back,
-            onStart = { plan -> reform?.lockScope(plan) { env.open("reformar-reversao") } },
-            modifier = Modifier.fillMaxSize(), busy = ui.busy, error = ui.error,
-        )
+    Route("reformar-escopo", "Reformar-2-Escopo", null, true, listOf("reformar-reversao")) { env ->
+        ai.aura.app.ui.screens.reform.ReformScopeRoute(env)
     },
-    Route("reformar-reversao", "Reformar-3-Reversao", AuraTab.Devices, true, listOf("reformar-fidelidade", "reformar-projeto", "bastidores")) { env ->
-        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
-        androidx.compose.runtime.LaunchedEffect(reform) { reform?.refreshProgress() }
-        val progress = reform?.progress?.collectAsState()?.value ?: ai.aura.app.ui.screens.reform.ReformProgress()
-        ai.aura.app.ui.screens.reform.ReformReversionScreen(
-            progress, System.currentTimeMillis(), env.back,
-            onPause = { reform?.pause() }, onResume = { reform?.continueReform() },
-            onOpenBackstage = { env.open("bastidores") }, onOpenProject = { env.open("reformar-projeto") },
-            onChooseApp = { env.open("reformar-apps") }, onRetry = { reform?.refreshProgress() },
-            modifier = Modifier.fillMaxSize(),
-        )
+    Route("reformar-reversao", "Reformar-3-Reversao", null, true, listOf("reformar-projeto", "bastidores")) { env ->
+        ai.aura.app.ui.screens.reform.ReformReversionRoute(env)
     },
-    Route("reformar-fidelidade", "Reformar-4-Fidelidade", AuraTab.Devices, true, listOf("reformar-projeto")) { env ->
-        // Fidelidade só nasce de um teste real (POST /verify); o app ainda não roda esse teste, então "Testar"
-        // relê o motor em vez de inventar número. Nulo continua "Ainda não medida".
-        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
-        androidx.compose.runtime.LaunchedEffect(reform) { reform?.refreshProgress() }
-        val progress = reform?.progress?.collectAsState()?.value ?: ai.aura.app.ui.screens.reform.ReformProgress()
-        ai.aura.app.ui.screens.reform.ReformFidelityScreen(
-            progress, ai.aura.app.ui.screens.reform.ReformFidelityDetails(), env.back,
-            onRunTest = { reform?.refreshProgress() }, onInstall = { env.open("reformar-ferramentas") },
-            onFixDifferences = { reform?.continueReform() }, onChooseApp = { env.open("reformar-apps") },
-            onRetry = { reform?.refreshProgress() },
-            modifier = Modifier.fillMaxSize(),
-        )
+    Route("reformar-projeto", "Reformar-6-Projeto", null, true, listOf("reformar-fidelidade", "reformar-ferramentas")) { env ->
+        ai.aura.app.ui.screens.reform.ReformProjectRoute(env)
     },
-    Route("reformar-ferramentas", "Reformar-5-Ferramentas", AuraTab.Devices, true, listOf("reformar-projeto")) { env ->
-        // "Instalar o que falta" = passo `tools` da reforma atual (o motor resolve Wi-Fi x dados móveis). Sem reforma
-        // ainda (o passo mora num projeto de reforma, criado no Escopo), cai no pedido no chat de antes: nunca mudo.
-        val pedir = {
-            val pedido = "Instalar as ferramentas da reforma de apps que faltam no Termux"
-            env.onDraftChange(if (env.draft.isBlank()) pedido else env.draft + "\n" + pedido)
-            env.openTab(AuraTab.Home)
-        }
-        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
-        val flow = ai.aura.app.ui.screens.onboarding.LocalTermuxFlow.current
-        val state = reform?.tools?.collectAsState()?.value ?: ai.aura.app.ui.screens.reform.ReformToolsState()
-        val instalar = { if (reform?.installTools() != true) pedir() }
-        ai.aura.app.ui.screens.reform.ReformToolsScreen(
-            state, env.back,
-            onInstall = instalar, onResume = instalar,
-            onFix = { fix ->
-                if (fix == ai.aura.app.ui.screens.reform.ReformFix.StartEngine && flow != null) flow.startEngine() else instalar()
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
+    Route("reformar-fidelidade", "Reformar-4-Fidelidade", null, true, listOf("reformar-projeto")) { env ->
+        ai.aura.app.ui.screens.reform.ReformFidelityRoute(env)
     },
-    Route("reformar-projeto", "Reformar-6-Projeto", AuraTab.Devices, true, listOf("reformar-ferramentas")) { env ->
-        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
-        androidx.compose.runtime.LaunchedEffect(reform) { reform?.refreshProgress() }
-        val progress = reform?.progress?.collectAsState()?.value ?: ai.aura.app.ui.screens.reform.ReformProgress()
-        // Artefatos, peças e estilo ainda não vêm do motor: a tela diz "O motor ainda não informa".
-        ai.aura.app.ui.screens.reform.ReformProjectScreen(
-            progress, emptyList(), null, null, null, env.back,
-            onOpenFidelity = { env.open("reformar-fidelidade") }, onOpenArtifact = {}, onChangeStyle = { env.open("reformar-escopo") },
-            onOpenTools = { env.open("reformar-ferramentas") }, onContinue = { reform?.continueReform() },
-            onChooseApp = { env.open("reformar-apps") }, onRetry = { reform?.refreshProgress() },
-            modifier = Modifier.fillMaxSize(),
-        )
+    Route("reformar-ferramentas", "Reformar-5-Ferramentas", null, true, emptyList()) { env ->
+        ai.aura.app.ui.screens.reform.ReformToolsRoute(env)
     },
 
     Route("atividade", "Atividade", AuraTab.Activity, true, listOf("chat-aprovacao", "intercorrencias", "vazios")) { env ->
@@ -217,8 +157,8 @@ val ROUTES: List<Route> = listOf(
     },
 
     // Ajustes abre pelo avatar do Início; nada aqui exige o motor para abrir.
-    Route("ajustes", "Ajustes", null, false, listOf("capacidades", "memoria", "checkup", "notificacoes", "voz-modos", "conexoes", "permissoes")) { env ->
-        SettingsScreen(env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(), onOpenUrl = env.onOpenUrl, settings = env.settings)
+    Route("ajustes", "Ajustes", null, false, listOf("capacidades", "memoria", "checkup", "notificacoes", "voz-modos", "conexoes", "permissoes", "bastidores")) { env ->
+        SettingsScreen(env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(), onOpenUrl = env.onOpenUrl, settings = env.settings, onOpenScreen = { env.open(it) })
     },
     Route("capacidades", "Capacidades", null, true, listOf("capacidade-detalhe")),
     Route("capacidade-detalhe", "Capacidade-Detalhe", null, true, emptyList()),
@@ -238,8 +178,13 @@ val ROUTES: List<Route> = listOf(
     Route("intercorrencias", "Intercorrencias", null, false, emptyList()),
     Route("vazios", "Vazios", null, false, emptyList()),
     Route("link-aberto", "Link-Aberto", null, false, emptyList()),
-    Route("bastidores", "Bastidores", null, true, emptyList()),
+    Route("bastidores", "Bastidores", null, true, emptyList()) { env ->
+        ai.aura.app.ui.screens.backstage.BackstageRoute(env)
+    },
 )
+
+/** A rota existe e tem tela? Botão que leva a uma rota sem tela ficaria mudo: quem chama esconde o botão. */
+fun routeHasScreen(id: String): Boolean = ROUTES.any { it.id == id && it.screen != null }
 
 /** Pilha de uma aba: o Início é sempre a raiz, então Voltar numa aba leva ao Início. */
 fun tabStack(tab: AuraTab): List<String> = when (tab) {

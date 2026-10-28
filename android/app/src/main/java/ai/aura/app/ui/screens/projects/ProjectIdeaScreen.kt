@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.aura.app.ui.components.AuraButtonPrimary
 import ai.aura.app.ui.components.AuraButtonSecondary
+import ai.aura.app.ui.components.AuraButtonText
 import ai.aura.app.voice.LocalVoiceInput
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
@@ -59,6 +60,8 @@ fun ProjectIdeaScreen(
     onOrganize: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Outra porta de entrada: em vez de uma ideia nova, reformar um app que já existe. Nulo = sem a opção. */
+    onReformApp: (() -> Unit)? = null,
 ) {
     var voiceHint by remember { mutableStateOf(false) }
     val voice = LocalVoiceInput.current
@@ -125,6 +128,7 @@ fun ProjectIdeaScreen(
                 }
             }
             Text("Não precisa de detalhes. Se faltar algo importante, eu pergunto uma vez só.", style = AuraType.SecondarySmall)
+            if (onReformApp != null) AuraButtonText("Reformar um app que já existe", onReformApp)
         }
         Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp)) {
             AuraButtonPrimary("Organizar minha ideia", onOrganize, Modifier.fillMaxWidth(), enabled = idea.isNotBlank(), large = true)

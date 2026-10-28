@@ -58,6 +58,8 @@ fun ProjectsListScreen(
     onOpenArtifacts: () -> Unit,
     onOpenArtifact: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Atalho para a reforma de apps; nulo = sem atalho. */
+    onReformApp: (() -> Unit)? = null,
 ) {
     var tabName by rememberSaveable { mutableStateOf("") } // vazio = o dono ainda não escolheu
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -90,6 +92,12 @@ fun ProjectsListScreen(
                     actionText = "Criar projeto",
                     onAction = onNewProject,
                 )
+                if (onReformApp != null) {
+                    AuraButtonSecondary(
+                        "Reformar um app que já existe", onReformApp,
+                        Modifier.align(Alignment.BottomCenter).padding(start = 20.dp, end = 20.dp, bottom = 24.dp).fillMaxWidth(),
+                    )
+                }
             }
             return@Column
         }
@@ -101,6 +109,7 @@ fun ProjectsListScreen(
                 NoteBanner(loadError, AuraColors.Risk, PIcon.Lock)
                 AuraButtonSecondary("Tentar de novo", onRetry)
             }
+            if (onReformApp != null) ReformAppsCard(onReformApp)
             if (searching) SearchField(query, { query = it })
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProjectTab.entries.forEach { t ->
@@ -121,6 +130,15 @@ fun ProjectsListScreen(
             }
             if (artifacts.isNotEmpty()) RecentArtifacts(artifacts.take(6), onOpenArtifacts, onOpenArtifact)
         }
+    }
+}
+
+/** Atalho para Reformar apps (engenharia reversa): um toque até a escolha do APK. */
+@Composable
+private fun ReformAppsCard(onClick: () -> Unit) {
+    AuraCard(Modifier.fillMaxWidth(), onClick = onClick, contentDescription = "Reformar apps. Refaça um app que já existe") {
+        Text("Reformar apps", style = CardTitle)
+        Text("Refaça um app que já existe com o visual do AURA.", style = AuraType.SecondarySmall)
     }
 }
 
