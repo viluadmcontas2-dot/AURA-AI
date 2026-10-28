@@ -1,6 +1,7 @@
 package ai.aura.app.ui.engine
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /*
  * Fronteira UI <-> engine (docs/ENGINE_CONTRACT.md). A UI só pinta com status, risk, result,
@@ -222,6 +223,50 @@ data class EngineUsage(
 
 private const val NOT_EXPOSED = "Este AURA Engine ainda não expõe isso."
 
+/* ---- Conversa (POST /v1/chat, GET /v1/chat/{id}, /v1/chats, POST /v1/intent) ----
+ * O chat não cria job: manda a mensagem, recebe o texto aos poucos e termina. A UI só vê texto em
+ * português; nada de rota, aprovação ou JSON do motor. */
+
+/** Resposta de POST /v1/chat. [sessionId] é o que o motor usa para continuar a conversa (--resume). */
+data class ChatStarted(val chatId: String, val sessionId: String?)
+
+/** O que o dono pode fazer para resolver um erro da conversa. Os rótulos são sempre os mesmos. */
+enum class ChatAction { Retry, OpenConnections, StartEngine }
+
+/** Erro de conversa já em português simples (message_pt do motor ou texto do app). */
+data class ChatFailure(val code: String, val message: String, val action: ChatAction)
+
+/** Eventos de uma resposta. [Text] traz o texto acumulado inteiro até agora (nunca só o pedaço). */
+sealed interface ChatEvent {
+    data class Text(val text: String) : ChatEvent
+    data class Tool(val summary: String) : ChatEvent
+    data class Done(val text: String, val sessionId: String?) : ChatEvent
+    data class Failed(val failure: ChatFailure) : ChatEvent
+}
+
+data class ChatSummary(val id: String, val title: String, val updatedAtMillis: Long)
+
+/** Uma mensagem de uma conversa guardada no motor. */
+data class ChatLine(val fromUser: Boolean, val text: String)
+
+/** Uma das duas respostas possíveis quando o app não tem certeza do que o dono quis. */
+data class IntentOption(val label: String, val kind: String)
+
+/** O que o motor entendeu de um texto (POST /v1/intent). Qualquer falha vale como [Chat]. */
+sealed interface IntentResult {
+    data object Chat : IntentResult
+    data class Command(val name: String) : IntentResult
+    data class Reform(val idea: String) : IntentResult
+    data class Project(val idea: String) : IntentResult
+    /** Trabalho longo pedido de forma explícita; no chat vira conversa normal. */
+    data class Task(val text: String) : IntentResult
+    /** Ambiguidade real: UMA pergunta curta e duas opções. */
+    data class Ask(val question: String, val options: List<IntentOption>) : IntentResult
+}
+
+/** O motor é de uma versão que ainda não conversa (404/501 em /v1/chat). */
+class ChatUnsupportedException(message: String = "Este motor ainda não conversa.") : Exception(message)
+
 interface EngineGateway {
     suspend fun jobs(): List<Job>
     suspend fun approve(id: String): Job
@@ -240,6 +285,17 @@ interface EngineGateway {
     suspend fun skills(): EngineResult<List<SkillInfo>> = EngineResult.Unavailable(NOT_EXPOSED)
     suspend fun health(): EngineResult<EngineHealth> = EngineResult.Unavailable(NOT_EXPOSED)
     suspend fun usage(): EngineResult<EngineUsage> = EngineResult.Unavailable(NOT_EXPOSED)
+
+    // Conversa (POST /v1/chat, GET /v1/chat/{id}, POST /v1/chat/{id}/stop, GET /v1/chats, POST /v1/intent).
+    // Padrão = o motor ainda não conversa; quem falha por falta de motor lança IOException.
+    suspend fun startChat(text: String, sessionId: String?, workspace: String = "default"): ChatStarted =
+        throw ChatUnsupportedException()
+    /** Eventos de uma resposta, na ordem; o fluxo termina depois de [ChatEvent.Done] ou [ChatEvent.Failed]. */
+    fun chatStream(chatId: String): Flow<ChatEvent> = emptyFlow()
+    suspend fun stopChat(chatId: String) {}
+    suspend fun chats(): List<ChatSummary> = emptyList()
+    suspend fun chatMessages(id: String): List<ChatLine> = emptyList()
+    suspend fun intent(text: String): IntentResult = IntentResult.Chat
 
     /** Eventos duráveis e ordenados (GET /v1/events?since=N); a UI retoma por id. */
     val events: Flow<EngineEvent>

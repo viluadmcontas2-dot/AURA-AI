@@ -114,6 +114,19 @@ class AuraEngineClient(
     override suspend fun putModels(doc: JSONObject) = request("/v1/models", "PUT", doc, readTimeoutMs = 8000)
     override suspend fun spend() = request("/v1/spend", readTimeoutMs = 5000)
 
+    override suspend fun chat(text: String, sessionId: String?, workspace: String): JSONObject =
+        request(
+            "/v1/chat", "POST",
+            JSONObject().put("text", text).put("workspace", workspace)
+                .also { body -> if (!sessionId.isNullOrBlank()) body.put("session_id", sessionId) },
+        )
+    override suspend fun chatState(id: String) = request("/v1/chat/" + segment(id), readTimeoutMs = 5000)
+    override suspend fun chatStop(id: String) = request("/v1/chat/" + segment(id) + "/stop", "POST", readTimeoutMs = 5000)
+    override suspend fun chats() = request("/v1/chats", readTimeoutMs = 5000)
+    override suspend fun chatMessages(id: String) = request("/v1/chats/" + segment(id) + "/messages", readTimeoutMs = 8000)
+    override suspend fun intent(text: String) =
+        request("/v1/intent", "POST", JSONObject().put("text", text), readTimeoutMs = 4000)
+
     override suspend fun skills() = request("/v1/skills", readTimeoutMs = 5000)
     override suspend fun usage() = request("/v1/usage", readTimeoutMs = 5000)
     override suspend fun memory(workspace: String) =

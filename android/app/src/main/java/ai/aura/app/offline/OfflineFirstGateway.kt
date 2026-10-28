@@ -2,6 +2,9 @@ package ai.aura.app.offline
 
 import ai.aura.app.integration.AuraEngineException
 import ai.aura.app.ui.engine.Capability
+import ai.aura.app.ui.engine.ChatLine
+import ai.aura.app.ui.engine.ChatStarted
+import ai.aura.app.ui.engine.ChatSummary
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.Job
@@ -142,6 +145,15 @@ class OfflineFirstGateway(
         }
         return reach { delegate.cancel(id) }
     }
+
+    // ---- conversa: sem fila de jobs; o chat guarda o rascunho e reenvia sozinho ----
+
+    override suspend fun startChat(text: String, sessionId: String?, workspace: String): ChatStarted =
+        reach { delegate.startChat(text, sessionId, workspace) }
+
+    override suspend fun chats(): List<ChatSummary> = reach { delegate.chats() }
+
+    override suspend fun chatMessages(id: String): List<ChatLine> = reach { delegate.chatMessages(id) }
 
     // ---- conexão ----
 

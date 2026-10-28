@@ -34,4 +34,17 @@ interface EngineApi {
 
     /** Só o workspace dado: sem ele o motor apagaria os de todos os workspaces. */
     suspend fun forgetAllMemory(workspace: String): JSONObject
+    /** POST /v1/chat: 202 {chat_id, session_id}. Vazio em [sessionId] = conversa nova. */
+    suspend fun chat(text: String, sessionId: String?, workspace: String): JSONObject =
+        throw UnsupportedOperationException("chat")
+    /** GET /v1/chat/{id}: {state: running|done|error, text, session_id, error?}. */
+    suspend fun chatState(id: String): JSONObject = throw UnsupportedOperationException("chatState")
+    /** POST /v1/chat/{id}/stop. */
+    suspend fun chatStop(id: String): JSONObject = throw UnsupportedOperationException("chatStop")
+    /** GET /v1/chats: lista {id, title, updated_at} (lista na raiz chega como {"items": [...]}). */
+    suspend fun chats(): JSONObject = throw UnsupportedOperationException("chats")
+    /** GET /v1/chats/{id}/messages. */
+    suspend fun chatMessages(id: String): JSONObject = throw UnsupportedOperationException("chatMessages")
+    /** POST /v1/intent {text}: {kind: chat|command|reform|project|task, ...}. */
+    suspend fun intent(text: String): JSONObject = throw UnsupportedOperationException("intent")
 }
