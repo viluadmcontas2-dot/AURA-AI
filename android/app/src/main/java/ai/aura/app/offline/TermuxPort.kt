@@ -13,8 +13,24 @@ interface TermuxPort : TermuxProbe {
     suspend fun probe(): TermuxResult
     suspend fun pairAndWait(): TermuxResult
     suspend fun runEngine(): TermuxResult
-    /** Copia o motor embutido no app para o Termux (e instala o Python se faltar). Idempotente. */
+    /**
+     * Copia o motor embutido no app para o Termux (e instala o Python se faltar). Idempotente.
+     * Só o [ai.aura.app.ui.screens.onboarding.TermuxFlow] chama, e só depois do aceite do plano (C4): nunca ao voltar
+     * ao app, ao abrir ou ao reconectar.
+     */
     suspend fun installEngine(): TermuxResult = TermuxResult.Ok
+
+    /** O app já preparou o motor neste Termux (marca local gravada depois de uma instalação que terminou bem). */
+    fun engineInstalled(): Boolean = false
+
+    /** Grava a marca de [engineInstalled]. Só depois de [installEngine] devolver Ok. */
+    fun markEngineInstalled() = Unit
+
+    /** Tamanho do motor embutido no APK (bytes): é o que o plano local declara. */
+    fun engineAssetBytes(): Long = 0L
+
+    /** Rede atual, para o plano mostrar "Conexão: Wi-Fi/dados móveis". Wi-Fi não é consentimento. */
+    fun networkKind(): NetworkKind = NetworkKind.Unknown
     suspend fun engineUp(): Boolean
 
     /** Estado do motor com detalhe: fora do ar, vivo mas recusando o token (401) ou no ar (com a versão do código dele). */
@@ -31,6 +47,9 @@ interface TermuxPort : TermuxProbe {
 }
 
 enum class TermuxResult { Ok, NotAllowed, Failed }
+
+/** Tipo de rede que o plano de instalação mostra. */
+enum class NetworkKind { Wifi, Mobile, Unknown }
 
 /** Resposta de GET /v1/health vista pelo app. */
 sealed interface EngineProbe {

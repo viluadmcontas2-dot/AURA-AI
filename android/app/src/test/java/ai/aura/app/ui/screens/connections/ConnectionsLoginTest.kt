@@ -15,6 +15,7 @@ import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.theme.AuraTheme
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
@@ -120,6 +121,18 @@ class ConnectionsLoginTest {
         }
     }
 
+    private fun showWithConsent(gateway: EngineGateway, setup: FakeSetupGateway) {
+        val gate = InstallConsentGate()
+        rule.setContent {
+            CompositionLocalProvider(LocalInstallConsent provides gate, LocalSetupGateway provides setup) {
+                AuraTheme {
+                    ConnectionsScreen(gateway, LinkState.Online, onEngineAction = {}, onOpenUrl = {}, onBack = {}, authPollMillis = 50)
+                    InstallConsentHost(gate)
+                }
+            }
+        }
+    }
+
     private fun waitForText(text: String) {
         rule.waitUntil(5_000) { rule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     }
@@ -129,27 +142,29 @@ class ConnectionsLoginTest {
         val gateway = LoginGateway()
         val opened = mutableListOf<String>()
         show(gateway, opened)
-        waitForText("Conectar Claude")
+        waitForText("Entrar no Claude")
+        rule.onAllNodesWithText("Pronto").assertCountEquals(0) // sem entrada confirmada, nada diz Pronto
 
-        rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
+        rule.onNodeWithText("Entrar no Claude").performScrollTo().performClick()
         rule.waitUntil(5_000) { gateway.started == listOf("claude") }
         assertTrue("o login não pode abrir o navegador sozinho", opened.isEmpty())
 
         // O código e o link são os que o motor devolveu.
         waitForText("ABCD-1234")
-        rule.onNodeWithText("Abra o link e digite o código.").assertIsDisplayed()
+        rule.onNodeWithText("Entre na sua conta na página que será aberta e digite o código.").assertIsDisplayed()
         rule.onNodeWithText("Copiar código").performScrollTo().performClick()
         rule.onNodeWithText("Código copiado").assertIsDisplayed()
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         assertEquals("ABCD-1234", clipboard.primaryClip?.getItemAt(0)?.text?.toString())
-        rule.onNodeWithText("Abrir link").performScrollTo().performClick()
+        rule.onNodeWithText("Abrir página de entrada").performScrollTo().performClick()
         assertEquals(listOf("https://example.com/device"), opened)
 
         // O dono termina no navegador; a conferência de estado (plano B do evento) vira Conectado.
         gateway.loggedIn = true
         waitForText("Claude conectado.")
         rule.onAllNodesWithText("ABCD-1234").assertCountEquals(0)
+        waitForText("Pronto") // agora o motor confirmou a entrada
     }
 
     @Test
@@ -158,37 +173,60 @@ class ConnectionsLoginTest {
         val fix = "Abra o Termux, inicie o motor e toque em Conectar novamente."
         val gateway = LoginGateway(startResult = AuthStartResult.Failed(reason, fix))
         show(gateway)
-        waitForText("Conectar Claude")
+        waitForText("Entrar no Claude")
 
-        rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
+        rule.onNodeWithText("Entrar no Claude").performScrollTo().performClick()
         waitForText("$reason $fix")
         // Nada travou: os botões seguem ali para tentar de novo.
-        rule.onNodeWithText("Conectar Claude").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Entrar no Claude").performScrollTo().assertIsDisplayed()
     }
 
     @Test
-    fun programaAusenteOferecaInstalarEPedeAoMotor() {
+    fun programaAusenteOferecaInstalarMasSoDepoisDoAceite() {
         val gateway = LoginGateway(initial = AuthState.Unavailable, installable = true)
-        show(gateway)
-        waitForText("Instalar Claude")
+        val setup = FakeSetupGateway()
+        showWithConsent(gateway, setup)
+        waitForText("Instalar o Claude")
 
         rule.onNodeWithText("Não instalado").assertIsDisplayed()
-        rule.onNodeWithText("Instalar Claude").performScrollTo().performClick()
-        waitForText("Claude: Instalando. Acompanhe em Atividade.")
-        assertEquals(listOf("claude"), gateway.installed)
+        rule.onNodeWithText("Instalar o Claude").performScrollTo().performClick()
+        // Só o pedido aparece: nada foi decidido no motor, e o caminho antigo de instalar direto nunca é usado.
+        waitForText("Instalar programas necessários?")
+        assertEquals(emptyList<String>(), setup.decisions)
+        assertEquals(emptyList<String>(), gateway.installed)
+
+        rule.onNodeWithText("Instalar").performClick()
+        rule.waitUntil(5_000) { setup.decisions.size == 1 }
+        waitForText("Claude instalado. Agora toque em Entrar no Claude.")
+        assertEquals(emptyList<String>(), gateway.installed)
     }
 
     @Test
-    fun programaQueNaoInstalaNoTermuxExplicaEDeixaTentarDeNovo() {
-        val gateway = LoginGateway(
-            initial = AuthState.Unavailable, installable = true,
-            installResult = ToolActionResult.Failed("Este programa não instala no Termux.", "Use outra conta por enquanto."),
-        )
-        show(gateway)
-        waitForText("Instalar Claude")
-        rule.onNodeWithText("Instalar Claude").performScrollTo().performClick()
-        waitForText("Este programa não instala no Termux. Use outra conta por enquanto.")
-        rule.onNodeWithText("Instalar Claude").performScrollTo().assertIsDisplayed()
+    fun recusarOPedidoNaoInstalaENaoTravaATela() {
+        val gateway = LoginGateway(initial = AuthState.Unavailable, installable = true)
+        val setup = FakeSetupGateway()
+        showWithConsent(gateway, setup)
+        waitForText("Instalar o Claude")
+        rule.onNodeWithText("Instalar o Claude").performScrollTo().performClick()
+        waitForText("Instalar programas necessários?")
+        rule.onNodeWithText("Agora não").performClick()
+        waitForText("Nada foi instalado. Você pode continuar usando o app.")
+        assertEquals(emptyList<String>(), setup.decisions)
+        rule.onNodeWithText("Instalar o Claude").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun instalacaoQueFalhaExplicaEDeixaTentarDeNovo() {
+        val gateway = LoginGateway(initial = AuthState.Unavailable, installable = true)
+        val setup = FakeSetupGateway()
+        setup.polls = mutableListOf(fakePlan(state = "failed", errorCode = "setup_failed", item = "Claude Code"))
+        showWithConsent(gateway, setup)
+        waitForText("Instalar o Claude")
+        rule.onNodeWithText("Instalar o Claude").performScrollTo().performClick()
+        waitForText("Instalar programas necessários?")
+        rule.onNodeWithText("Instalar").performClick()
+        waitForText("A instalação parou em Claude Code. Seu trabalho foi guardado. Toque em Instalar Claude para revisar e tentar de novo.")
+        rule.onNodeWithText("Instalar o Claude").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -196,10 +234,10 @@ class ConnectionsLoginTest {
         val gateway = LoginGateway(promptCode = null)
         val opened = mutableListOf<String>()
         show(gateway, opened)
-        waitForText("Conectar Claude")
-        rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
-        waitForText("Abra o link, entre com a sua conta e cole aqui o código que aparecer.")
-        rule.onNodeWithText("Abrir link").performScrollTo().performClick()
+        waitForText("Entrar no Claude")
+        rule.onNodeWithText("Entrar no Claude").performScrollTo().performClick()
+        waitForText("Entre na sua conta na página que será aberta e cole aqui o código que aparecer.")
+        rule.onNodeWithText("Abrir página de entrada").performScrollTo().performClick()
         assertEquals(listOf("https://example.com/device"), opened)
 
         rule.onNode(hasSetTextAction() and hasText("Código do Claude")).performScrollTo().performTextInput("COD-123")
@@ -212,8 +250,8 @@ class ConnectionsLoginTest {
     fun claudeAceitaTokenColadoENuncaOMostraDepois() {
         val gateway = LoginGateway(promptCode = null)
         show(gateway)
-        waitForText("Conectar Claude")
-        rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
+        waitForText("Entrar no Claude")
+        rule.onNodeWithText("Entrar no Claude").performScrollTo().performClick()
         waitForText("Prefiro colar um token")
         rule.onNodeWithText("Prefiro colar um token").performScrollTo().performClick()
         rule.onNode(hasSetTextAction() and hasText("Token do Claude")).performScrollTo().performTextInput("sk-segredo")

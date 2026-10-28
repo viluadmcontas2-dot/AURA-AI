@@ -8,6 +8,7 @@ import unittest.mock
 from aura_engine import adapters, rea_chain, routing, security
 from aura_engine.core import Engine
 from test_lote_c import Base
+from consent_helper import allow_installs
 from test_rea_chain import FAKE_MCP, SETUP, STEPS, Fake
 from test_reform_http import FAKE_MCP as REFORM_MCP
 
@@ -33,6 +34,7 @@ class Sized(Fake):
 class Network(Base):
     def setUp(self):
         super().setUp()
+        allow_installs(self)
         script = self.root / "fake_mcp.py"
         script.write_text(FAKE_MCP, "utf-8")
         patch = unittest.mock.patch("aura_engine.rea_chain.MCP_ARGV", [sys.executable, str(script)])

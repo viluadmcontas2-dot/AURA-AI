@@ -5,7 +5,7 @@ import secrets
 import threading
 import time
 
-from . import adapters, routing
+from . import adapters, install_consent, routing
 from .build import engine_build
 from .chat import ChatManager
 
@@ -44,6 +44,7 @@ class Engine:
         self.triage = Triage(self)
 
         self.chat = ChatManager(self)
+        self.installs = install_consent.PlanManager(self)
         if auto_worker:
             for number in range(max(1, min(int(max_workers), 4))):
                 worker = threading.Thread(target=self._loop, daemon=True,

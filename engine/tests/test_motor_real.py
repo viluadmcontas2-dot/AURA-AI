@@ -17,6 +17,7 @@ import urllib.request
 
 from aura_engine import adapters
 from test_lote_c import Base
+from consent_helper import allow_installs
 
 ENGINE_DIR = pathlib.Path(__file__).resolve().parent.parent
 
@@ -153,16 +154,24 @@ class RealEngine(unittest.TestCase):
 
     def test_tools_install_runs_npm_and_the_cli_works_afterwards(self):
         (self.bin / "claude").unlink()
-        code, made = self.call("POST", "/v1/tools/install", {"provider": "claude"})
-        self.assertEqual(code, 202, made)
+        # Sem plano aceito nada é instalado: a rota antiga só devolve o trabalho de um plano já decidido.
+        code, refused = self.call("POST", "/v1/tools/install", {"provider": "claude"})
+        self.assertEqual((code, refused["error"]["code"]), (403, "consent_required"))
+        self.assertFalse((self.dir / "npm.args").exists())
+        code, plan = self.call("POST", "/v1/install-plans", {
+            "request_id": "req-plano-claude-1", "target": "claude", "reason": "Responder aos seus pedidos"})
+        self.assertEqual((code, plan["state"]), (201, "awaiting_consent"), plan)
+        self.assertFalse((self.dir / "npm.args").exists())  # preparar o plano não baixa nada
+        code, decided = self.call("POST", "/v1/install-plans/%s/decision" % plan["plan_id"], {
+            "request_id": "req-decisao-claude-1", "manifest_hash": plan["manifest_hash"], "decision": "install"})
+        self.assertEqual((code, decided["state"]), (202, "installing"), decided)
         end = time.time() + 20
         while time.time() < end:
-            job = self.call("GET", "/v1/jobs/" + made["id"])[1]
-            if job["status"] in ("completed", "failed"):
+            plan = self.call("GET", "/v1/install-plans/" + plan["plan_id"])[1]
+            if plan["state"] in ("completed", "failed", "cancelled"):
                 break
             time.sleep(0.2)
-        self.assertEqual(job["status"], "completed", job)
-        self.assertEqual(job["result"]["via"], "npm")
+        self.assertEqual(plan["state"], "completed", plan)
         self.assertEqual(self.args("npm")[:3], ["install", "-g", "@anthropic-ai/claude-code"])
         self.assertEqual(self.call("POST", "/v1/tools/install", {"provider": "vim"})[0], 400)
 
@@ -252,6 +261,7 @@ class ReverseEngineer(Base):
 class CliSetup(Base):
     def setUp(self):
         super().setUp()
+        allow_installs(self)
         self.engine.config.set_setting("autonomy", "total")
 
     def run_install(self, provider, fake, present=lambda name: False):
@@ -260,7 +270,7 @@ class CliSetup(Base):
                 unittest.mock.patch("aura_engine.adapters.installed", present):
             return self.engine.run_once()
 
-    def test_claude_falls_back_to_glibc_runner_when_npm_fails(self):
+    def test_claude_never_falls_back_to_glibc_runner_without_a_new_plan(self):
         calls = []
 
         def fake(argv, cwd, engine, timeout=180, binary=False, env=None):
@@ -269,12 +279,28 @@ class CliSetup(Base):
                 raise adapters.ActionError("process_failed", "npm exited 1")
             return {"exit_code": 0, "stdout": "", "stderr": "", "truncated": False}
 
+        done = self.run_install("claude", fake)
+        self.assertEqual((done["status"], done["error"]["code"]), ("failed", "needs_new_plan"), done)
+        # o caminho alternativo baixa outras coisas: nem curl nem instalador rodaram
+        self.assertFalse(any(c[0] in ("curl", "sh") for c in calls), calls)
+
+    def test_claude_glibc_runner_runs_only_when_the_plan_asks_for_it(self):
+        calls = []
+
+        def fake(argv, cwd, engine, timeout=180, binary=False, env=None):
+            calls.append(argv)
+            return {"exit_code": 0, "stdout": "", "stderr": "", "truncated": False}
+
+        self.submit({"kind": "tools", "action": "install", "provider": "claude", "variant": "glibc-runner"})
         # o `claude` so passa a existir depois do instalador glibc-runner
-        done = self.run_install("claude", fake, present=lambda name: name == "claude" and any(
-            c[0] == "sh" for c in calls))
+        with unittest.mock.patch("aura_engine.adapters.run_process", fake), \
+                unittest.mock.patch("aura_engine.adapters.installed", lambda name: name == "claude" and any(
+                    c[0] == "sh" for c in calls)):
+            done = self.engine.run_once()
         self.assertEqual(done["status"], "completed", done)
         self.assertEqual(done["result"]["via"], "glibc-runner")
         self.assertTrue(any("claude-code-android" in " ".join(c) for c in calls))
+        self.assertFalse(any(c[0] == "npm" for c in calls), calls)
 
     def test_codex_failure_is_reported_as_unavailable_on_termux(self):
         def fake(argv, cwd, engine, timeout=180, binary=False, env=None):

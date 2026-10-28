@@ -13,6 +13,12 @@ import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.ToolActionResult
+import ai.aura.app.integration.SetupGateway
+import ai.aura.app.ui.screens.connections.InstallConsentGate
+import ai.aura.app.ui.screens.connections.InstallFlow
+import ai.aura.app.ui.screens.connections.InstallText
+import ai.aura.app.ui.screens.connections.LocalInstallConsent
+import ai.aura.app.ui.screens.connections.LocalSetupGateway
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraType
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +63,17 @@ internal fun providerLabel(id: String): String = when (id) {
     else -> id
 }
 
+/** Alvo do plano de instalação (C4) de cada conta: o motor instala `claude` à parte e os outros por `cli`. */
+internal fun installTarget(provider: String): Pair<String, String?> = when (provider) {
+    "claude" -> "claude" to null
+    "github" -> "cli" to "gh"
+    "gdrive", "google" -> "cli" to "rclone"
+    else -> "cli" to provider
+}
+
+internal fun installReason(provider: String): String =
+    if (provider == "claude") "Responder aos seus pedidos" else "Conectar ${providerLabel(provider)}"
+
 /** Passo ativo: link e código de uso único vindos de auth.prompt. Nunca há token aqui. */
 internal data class AuthPrompt(val provider: String, val url: String?, val code: String?)
 
@@ -74,9 +91,19 @@ internal class AccountsAuthState(
     private val scope: CoroutineScope,
     private val pollMillis: Long = AUTH_POLL_MILLIS,
     private val waitMillis: Long = AUTH_WAIT_MILLIS,
+    /** Instalar programas: pede o plano ao motor e só instala depois do aceite no [consent]. Sem eles, nada se instala. */
+    setup: SetupGateway? = null,
+    private val consent: InstallConsentGate? = null,
+    installPollMillis: Long = 2_000,
 ) {
+    private val installFlow: InstallFlow? =
+        if (setup != null && consent != null) InstallFlow(setup, consent, scope, installPollMillis) else null
+
     var statuses by mutableStateOf<List<AuthStatus>>(emptyList()); private set
     var loaded by mutableStateOf(false); private set
+
+    /** O motor respondeu de verdade à última conferência. Sem isso, "Indisponível" é falta de resposta, não fato sobre a conta. */
+    var engineAnswered by mutableStateOf(false); private set
 
     /** Conta com login em andamento (do toque em Conectar até Conectado, erro ou cancelamento). */
     var starting by mutableStateOf<String?>(null); private set
@@ -90,9 +117,9 @@ internal class AccountsAuthState(
     fun statusOf(provider: String): AuthStatus? = statuses.firstOrNull { it.provider == provider }
 
     suspend fun refresh() {
-        statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList()).ifEmpty {
-            AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) }
-        }
+        val answer = runCatching { gateway.authStatus() }.getOrDefault(emptyList())
+        engineAnswered = answer.isNotEmpty()
+        statuses = answer.ifEmpty { AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) } }
         loaded = true
     }
 
@@ -184,23 +211,55 @@ internal class AccountsAuthState(
         }
     }
 
-    fun install(provider: String) {
+    /**
+     * "Instalar X": NUNCA instala direto. Pede o plano ao motor, mostra "Instalar programas necessários?" e só
+     * depois do aceite o motor baixa. Recusa, plano vencido ou alterado e tamanho desconhecido não instalam nada.
+     */
+    fun install(provider: String, variant: String? = null) {
         if (installing != null) return // toque duplo: já tem uma instalação em andamento
-        installing = provider
+        val flow = installFlow
         val label = providerLabel(provider)
-        notice = SettingsNotice(true, "Instalando $label. Pode levar alguns minutos; pode sair desta tela.")
-        scope.launch {
-            try {
-                notice = when (val r = runCatchingNotCancelled { gateway.installTool(provider) }) {
-                    is ToolActionResult.Ok -> SettingsNotice(true, "$label: ${r.message}")
-                    is ToolActionResult.Failed -> SettingsNotice(false, "${r.reason} ${r.fix}")
-                    null -> SettingsNotice(false, ENGINE_DOWN_HINT)
-                }
-                refresh()
-            } finally {
-                installing = null
-            }
+        if (flow == null) {
+            notice = SettingsNotice(false, InstallText.NO_GATE + " Abra o AURA de novo e tente outra vez.")
+            return
         }
+        installing = provider
+        notice = SettingsNotice(true, "Preparando a instalação de $label…")
+        val (target, resource) = installTarget(provider)
+        flow.start(
+            target, installReason(provider), resource, variant,
+            onStatus = { item -> notice = SettingsNotice(true, "Instalando $label" + (item?.let { " · $it" } ?: "") + ". Pode sair desta tela.") },
+        ) { outcome -> installDone(provider, label, outcome) }
+    }
+
+    private fun installDone(provider: String, label: String, outcome: InstallFlow.Outcome) {
+        if (outcome is InstallFlow.Outcome.NeedsNewPlan) {
+            // O caminho padrão falhou. O alternativo baixa outras coisas: novo plano, nova confirmação.
+            installing = null
+            notice = SettingsNotice(true, "O caminho padrão não funcionou. Há outro caminho para $label; vou pedir a sua confirmação de novo.")
+            install(provider, variant = "glibc-runner")
+            return
+        }
+        installing = null
+        notice = when (outcome) {
+            InstallFlow.Outcome.Completed -> SettingsNotice(true, "$label instalado. Agora toque em Entrar no $label.")
+            InstallFlow.Outcome.NotNeeded -> SettingsNotice(true, "$label já está instalado.")
+            InstallFlow.Outcome.Declined -> SettingsNotice(true, InstallText.DECLINED)
+            is InstallFlow.Outcome.Rejected -> SettingsNotice(false, InstallText.rejected(outcome.reason))
+            is InstallFlow.Outcome.Failed -> SettingsNotice(
+                false,
+                "A instalação parou em ${outcome.plan.progressItem ?: label}. Seu trabalho foi guardado. " +
+                    "Toque em Instalar $label para revisar e tentar de novo.",
+            )
+            InstallFlow.Outcome.WaitingWifi -> SettingsNotice(
+                true, "Aguardando Wi-Fi. Conecte ao Wi-Fi e toque em Instalar $label de novo; nada foi baixado em dados móveis.",
+            )
+            InstallFlow.Outcome.Cancelled -> SettingsNotice(true, "Instalação cancelada. O que já foi instalado continua no Termux.")
+            InstallFlow.Outcome.TimedOut -> SettingsNotice(false, "A instalação está demorando. Abra Conexões mais tarde para conferir.")
+            is InstallFlow.Outcome.Unavailable -> SettingsNotice(false, outcome.message + " " + ENGINE_DOWN_HINT)
+            is InstallFlow.Outcome.NeedsNewPlan -> null
+        }
+        scope.launch { refresh() }
     }
 
     /** O dono colou o código que a página do Claude mostrou. O resultado final vem por auth.done ou pela conferência. */
@@ -247,7 +306,9 @@ internal fun rememberAccountsAuth(
     pollMillis: Long = AUTH_POLL_MILLIS,
 ): AccountsAuthState {
     val scope = rememberCoroutineScope()
-    val state = remember(gateway) { AccountsAuthState(gateway, scope, pollMillis) }
+    val setup = LocalSetupGateway.current
+    val consent = LocalInstallConsent.current
+    val state = remember(gateway, setup, consent) { AccountsAuthState(gateway, scope, pollMillis, setup = setup, consent = consent) }
     LaunchedEffect(state) { state.refresh() }
     LaunchedEffect(state) {
         try {
@@ -289,7 +350,7 @@ internal fun AccountsPromptSlot(auth: AccountsAuthState, onOpenUrl: (String) -> 
             )
         } else if (busy != null) {
             Text(
-                "Preparando o login de ${providerLabel(busy)}…", style = AuraType.Secondary,
+                "Preparando a entrada em ${providerLabel(busy)}…", style = AuraType.Secondary,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
@@ -298,13 +359,13 @@ internal fun AccountsPromptSlot(auth: AccountsAuthState, onOpenUrl: (String) -> 
 
 /** Lista das contas com o estado real do motor e UM botão por linha: Conectar, Reconectar ou Instalar. */
 @Composable
-internal fun AccountsList(auth: AccountsAuthState) {
+internal fun AccountsList(auth: AccountsAuthState, exclude: Set<String> = emptySet()) {
     if (!auth.loaded) {
         Text("Carregando contas…", style = AuraType.Secondary)
         return
     }
     SettingsGroup {
-        auth.statuses.forEachIndexed { i, st ->
+        auth.statuses.filter { it.provider !in exclude }.forEachIndexed { i, st ->
             if (i > 0) RowDivider()
             AccountRow(
                 st = st, busy = auth.starting != null || auth.installing != null,
@@ -330,8 +391,8 @@ private fun AccountRow(st: AuthStatus, busy: Boolean, onConnect: () -> Unit, onI
         }
         st.detail?.let { Text(it, style = AuraType.SecondarySmall) }
         when {
-            st.state == AuthState.Disconnected -> AuraButtonSecondary("Conectar $name", onConnect, enabled = !busy)
-            st.state == AuthState.Expired -> AuraButtonSecondary("Reconectar $name", onConnect, enabled = !busy)
+            st.state == AuthState.Disconnected -> AuraButtonSecondary("Entrar no $name", onConnect, enabled = !busy)
+            st.state == AuthState.Expired -> AuraButtonSecondary("Entrar novamente no $name", onConnect, enabled = !busy)
             st.state == AuthState.Unavailable && st.installable ->
                 AuraButtonSecondary("Instalar $name", onInstall, enabled = !busy)
             else -> Unit
@@ -354,9 +415,9 @@ private fun AuthPromptCard(
             Text("Conectar ${providerLabel(step.provider)}", style = AuraType.Section, modifier = Modifier.semantics { heading() })
             Text(
                 when {
-                    step.code != null -> "Abra o link e digite o código."
-                    pasteCode -> "Abra o link, entre com a sua conta e cole aqui o código que aparecer."
-                    else -> "Abra o link e entre com a sua conta."
+                    step.code != null -> "Entre na sua conta na página que será aberta e digite o código."
+                    pasteCode -> "Entre na sua conta na página que será aberta e cole aqui o código que aparecer."
+                    else -> "Entre na sua conta na página que será aberta."
                 },
                 style = AuraType.Body,
             )
@@ -364,7 +425,7 @@ private fun AuthPromptCard(
                 Text(step.code, style = AuraType.Mono.copy(fontSize = 24.sp, lineHeight = 32.sp), modifier = Modifier.padding(vertical = 4.dp))
                 AuraButtonSecondary(if (copied) "Código copiado" else "Copiar código", onCopy, Modifier.fillMaxWidth())
             }
-            AuraButtonPrimary("Abrir link", onOpen, Modifier.fillMaxWidth(), enabled = step.url != null, large = true)
+            AuraButtonPrimary("Abrir página de entrada", onOpen, Modifier.fillMaxWidth(), enabled = step.url != null, large = true)
             if (pasteCode) {
                 OutlinedTextField(
                     value = pasted, onValueChange = { pasted = it }, singleLine = true,

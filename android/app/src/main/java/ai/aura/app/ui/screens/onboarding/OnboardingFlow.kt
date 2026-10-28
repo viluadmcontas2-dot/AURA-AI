@@ -83,6 +83,12 @@ data class TermuxSetupState(
     val notice: String? = null,
     /** O motor está sendo copiado e instalado no Termux (leva minutos): nada recomeça nem cancela isso. */
     val installing: Boolean = false,
+    /** Falta a decisão da pessoa sobre instalar (diálogo "Instalar programas necessários?"). Nada foi instalado. */
+    val awaitingConsent: Boolean = false,
+    /** O motor que está no ar é de outro build que o do APK: atualizar é um pedido à parte. */
+    val updateAvailable: Boolean = false,
+    /** O app já preparou o motor neste Termux. null = ainda não sei (não mostra "Preparar motor"). */
+    val engineInstalled: Boolean? = null,
 ) {
     val ready: Boolean get() = termuxFound && permissionGranted && externalAppsAllowed && paired && engineUp
 }
@@ -287,6 +293,7 @@ fun OnboardingTermuxScreen(
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 if (state.termuxFound && state.permissionGranted && !state.testing) {
                     val label = when (proximoPasso(state)) {
+                        Passo.PrepararMotor -> "Preparar motor"
                         Passo.Parear -> "Conectar Termux"
                         Passo.IniciarMotor -> "Iniciar motor"
                         else -> "Tentar de novo"

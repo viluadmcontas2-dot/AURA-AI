@@ -82,15 +82,17 @@ class ConnectionsReachabilityTest {
         rule.onAllNodesWithText("Motor desligado").onFirst().assertIsDisplayed()
         rule.onNodeWithText("Abrir Conexões").performClick()
 
-        // Conexões abriu: Termux e motor com o motivo e a mesma ação do aviso; contas e permissões na mesma tela.
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Termux e motor").fetchSemanticsNodes().isNotEmpty() }
+        // Conexões abriu: assistente com o estado e a ação certa; conta do Claude e permissões na mesma tela.
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Assistente neste celular").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Falta conectar o Termux ao AURA.").assertIsDisplayed()
-        rule.onNodeWithText("Contas").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Permissões do Android").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Sem vínculo").assertIsDisplayed()
+        rule.onNodeWithText("Conectar Termux").assertIsDisplayed()
+        rule.onNodeWithText("Conta do Claude").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Permissões").performScrollTo().assertIsDisplayed()
         // Na própria tela de Conexões o aviso não repete o atalho para ela.
         rule.onAllNodesWithText("Abrir Conexões").assertCountEquals(0)
         rule.onNodeWithContentDescription("Voltar").performClick()
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Termux e motor").fetchSemanticsNodes().isEmpty() }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Assistente neste celular").fetchSemanticsNodes().isEmpty() }
     }
 
     @Test
@@ -126,7 +128,7 @@ class ConnectionsReachabilityTest {
                 )
             }
         }
-        rule.onNodeWithText("Desligado").assertIsDisplayed()
+        rule.onNodeWithText("Parado").assertIsDisplayed()
         rule.onNodeWithText("Iniciar o motor").performClick()
         assertEquals(listOf(OfflineReason.EngineStopped), acoes)
         // As contas dizem a verdade (indisponível) em vez de ficarem em branco.

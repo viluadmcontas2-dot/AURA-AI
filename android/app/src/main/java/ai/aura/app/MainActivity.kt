@@ -94,6 +94,8 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val port = remember { RealTermuxPort(this, bridge, realGateway) }
             val termuxFlow = remember { TermuxFlow(port, link, scope) }
+            // Preparo do assistente (C3) e instalação com decisão ligada ao plano (C4): o gate é um só no app inteiro.
+            val setupGateway = remember { ai.aura.app.integration.RealSetupGateway(engineClient) }
             val openUrl: (String) -> Unit = { url ->
                 val uri = runCatching { Uri.parse(url) }.getOrNull()
                 if (uri?.scheme == "https" && !uri.host.isNullOrBlank()) {
@@ -123,11 +125,14 @@ class MainActivity : ComponentActivity() {
                             set(value) { prefs.edit().putString("reform_id", value).apply() }
                     },
                     scope, beforeInstall = { networkReporter?.flush() },
+                    setup = setupGateway, consent = termuxFlow.consent,
                 )
             }
             var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalVoiceInput provides voiceHook, LocalTermuxFlow provides termuxFlow,
+                ai.aura.app.ui.screens.connections.LocalInstallConsent provides termuxFlow.consent,
+                ai.aura.app.ui.screens.connections.LocalSetupGateway provides setupGateway,
                 ai.aura.app.ui.screens.reform.LocalReformController provides reformController,
             ) {
             AuraApp(

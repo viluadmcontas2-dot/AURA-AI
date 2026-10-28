@@ -46,6 +46,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
+/** Texto fixo do estado "sem teste": não existe número, nem "aprovado", sem teste executado neste aparelho. */
+internal const val REFORM_NOT_TESTED = "Ainda não foi testado neste aparelho."
+
 /** Captura de uma tela do app, nas duas versões. Sem imagem a tela mostra "Sem captura ainda". */
 data class ReformFidelityShot(val title: String, val original: ImageBitmap? = null, val reformed: ImageBitmap? = null)
 
@@ -65,14 +68,15 @@ data class ReformFidelityDetails(
 
 /**
  * Reformar 4 · Original e reformado. Fidelidade só mostra número depois do teste real
- * ([ReformProgress.fidelityPct] nulo = "Ainda não medida" e UMA ação: testar). Abre sem motor (vazio e erro com uma ação).
+ * ([ReformProgress.fidelityPct] nulo = "Ainda não foi testado neste aparelho." e UMA ação: "Ver como testar").
+ * Essa ação só EXPLICA o teste (texto local): o AURA ainda não executa teste físico, e reler o motor não é testar.
+ * Abre sem motor (vazio e erro com uma ação).
  */
 @Composable
 fun ReformFidelityScreen(
     progress: ReformProgress,
     details: ReformFidelityDetails,
     onBack: () -> Unit,
-    onRunTest: () -> Unit,
     onInstall: () -> Unit,
     onFixDifferences: () -> Unit,
     onChooseApp: () -> Unit,
@@ -81,6 +85,7 @@ fun ReformFidelityScreen(
 ) {
     val pct = progress.fidelityPct
     val error = progress.error
+    var howToTest by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
         ReformProgressHeader("Original e reformado", progress.app, "Voltar para a reforma", onBack)
         if (!progress.started) {
@@ -99,6 +104,14 @@ fun ReformFidelityScreen(
                     "Fidelidade", null, Modifier.fillMaxWidth(),
                     caption = "A fidelidade só aparece depois do teste real no aparelho.",
                 )
+                Text(REFORM_NOT_TESTED, style = AuraType.BodyStrong)
+                if (howToTest) {
+                    Text(
+                        "Para medir de verdade: 1) instale a versão reformada ao lado do original; 2) abra os mesmos fluxos " +
+                            "nos dois; 3) compare. O AURA ainda não executa esse teste sozinho, então não mostra número antes disso.",
+                        style = AuraType.Secondary,
+                    )
+                }
             } else {
                 if (details.shots.isNotEmpty()) ReformFidelityCompare(details.shots)
                 Meter("Fidelidade", pct, Modifier.fillMaxWidth(), caption = "medida no teste real no aparelho")
@@ -134,7 +147,10 @@ fun ReformFidelityScreen(
             if (error != null) {
                 IncidentBanner(IncidentLevel.Failed, "A comparação parou", error, actionText = "Tentar de novo", onAction = onRetry)
             } else if (pct == null) {
-                AuraButtonPrimary("Testar no aparelho", onRunTest, Modifier.fillMaxWidth(), large = true)
+                AuraButtonPrimary(
+                    if (howToTest) "Esconder como testar" else "Ver como testar", { howToTest = !howToTest },
+                    Modifier.fillMaxWidth(), large = true,
+                )
             } else {
                 AuraButtonPrimary("Instalar ao lado do original", onInstall, Modifier.fillMaxWidth(), large = true)
                 AuraButtonSecondary("Corrigir diferenças", onFixDifferences, Modifier.fillMaxWidth())
@@ -183,7 +199,7 @@ private fun ReformFidelityPreview() {
                 shots = listOf(ReformFidelityShot("Tocando agora"), ReformFidelityShot("Lista")),
                 differences = listOf(ReformFidelityDiff("Capa do álbum maior"), ReformFidelityDiff("Equalizador ainda não refeito", missing = true)),
             ),
-            onBack = {}, onRunTest = {}, onInstall = {}, onFixDifferences = {}, onChooseApp = {}, onRetry = {},
+            onBack = {}, onInstall = {}, onFixDifferences = {}, onChooseApp = {}, onRetry = {},
         )
     }
 }

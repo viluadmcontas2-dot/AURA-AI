@@ -116,6 +116,10 @@ fun ReformReversionRoute(env: ScreenEnv) {
         onOpenProject = { env.open("reformar-projeto") },
         onChooseApp = { env.open("reformar-apps") }, onRetry = { reform?.refreshProgress() },
         modifier = Modifier.fillMaxSize(),
+        // Limite atual: depois da análise, o escopo segue no chat, sem prometer APK.
+        onContinueInChat = {
+            requestInChat(env, "Continuar a reforma do app" + (progress.app?.let { " $it" } ?: "") + " a partir da análise concluída. A reconstrução ainda não roda no AURA.")
+        },
     )
 }
 
@@ -135,8 +139,9 @@ fun ReformProjectRoute(env: ScreenEnv) {
 }
 
 /**
- * Reformar 4 · Fidelidade. O número só nasce de um teste real (POST /verify, que o app ainda não roda): "Testar"
- * relê o motor em vez de inventar. "Instalar ao lado do original" ainda não tem endpoint: vira pedido no chat.
+ * Reformar 4 · Fidelidade. O número só nasce de um teste real (POST /verify, que o app ainda não roda): sem teste, a
+ * tela diz "Ainda não foi testado neste aparelho." e "Ver como testar" só explica; ler o motor não é testar.
+ * "Instalar ao lado do original" ainda não tem endpoint e só aparece depois da fidelidade medida: vira pedido no chat.
  */
 @Composable
 fun ReformFidelityRoute(env: ScreenEnv) {
@@ -145,7 +150,6 @@ fun ReformFidelityRoute(env: ScreenEnv) {
     val progress = reform?.progress?.collectAsState()?.value ?: ReformProgress()
     ReformFidelityScreen(
         progress, ReformFidelityDetails(), env.back,
-        onRunTest = { reform?.refreshProgress() },
         onInstall = { requestInChat(env, "Instalar o app reformado ao lado do original") },
         onFixDifferences = { reform?.continueReform() }, onChooseApp = { env.open("reformar-apps") },
         onRetry = { reform?.refreshProgress() },
@@ -156,18 +160,15 @@ fun ReformFidelityRoute(env: ScreenEnv) {
 /**
  * Reformar 5 · Ferramentas (REA, JADX, Apktool, adb...). "Instalar o que falta" roda o passo `tools` da reforma atual
  * (o motor resolve Wi-Fi x dados móveis).
- * TODO(endpoint de instalação sem reforma): o passo mora num projeto de reforma, que nasce no Escopo. Quando o motor
- * tiver uma rota própria de instalação, troque SÓ [installWithoutReform] abaixo; hoje cai no pedido no chat.
+ * Sem reforma, o plano de instalação (C4) é pedido direto ao motor; com reforma, o passo `tools` recusa até o aceite.
  */
 @Composable
 fun ReformToolsRoute(env: ScreenEnv) {
     val reform = LocalReformController.current
     val flow = LocalTermuxFlow.current
     val state = reform?.tools?.collectAsState()?.value ?: ReformToolsState()
-    val installWithoutReform = {
-        requestInChat(env, "Instalar as ferramentas da reforma de apps que faltam no Termux")
-    }
-    val instalar = { if (reform?.installTools() != true) installWithoutReform() }
+    // Sem como pedir a confirmação aqui, o caminho é Conexões. Pedir ao chat para instalar NÃO passaria pela barreira.
+    val instalar = { if (reform?.installTools() != true) env.open("conexoes") }
     ReformToolsScreen(
         state, env.back,
         onInstall = instalar, onResume = instalar,

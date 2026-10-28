@@ -69,6 +69,8 @@ def cli_timeout():
 
 def run_process(argv, cwd, engine, timeout=180, binary=False, env=None):
     argv = safe_argv(argv)
+    from . import install_consent
+    install_consent.check_command(engine, argv)  # barreira única: nada instala sem um plano aceito
     if not installed(argv[0]):
         raise ActionError("tool_missing", "Install and authenticate " + argv[0] + " on this Android")
     timeout = max(1, min(int(timeout), MAX_TIMEOUT))
@@ -267,6 +269,8 @@ def run_cli(kind, request, engine, root):
             if type(turns) is not int or not 1 <= turns <= 1000:
                 raise ActionError("invalid_request", "max_turns must be an integer from 1 to 1000")
             argv.extend(["--max-turns", str(turns)])
+        from . import install_consent
+        argv.extend(install_consent.claude_guard_args())  # instalar pede consentimento, mesmo em autonomia total
     elif kind == "gemini_cli":
         argv = ["gemini", "-p", prompt, "--output-format", "json"] + (["--yolo"] if total else [])
     elif kind == "agy_cli":

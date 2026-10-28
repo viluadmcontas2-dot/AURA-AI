@@ -69,6 +69,27 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
 
     private val prefs get() = context.getSharedPreferences("aura_termux_bridge", Context.MODE_PRIVATE)
 
+    /** Marca local: este app já copiou o motor para o Termux (só depois de uma instalação aceita e concluída). */
+    fun engineMarked(): Boolean = prefs.getBoolean("engine_installed", false)
+
+    fun markEngineInstalled() {
+        prefs.edit().putBoolean("engine_installed", true).apply()
+    }
+
+    /** Tamanho do motor embutido (bytes), para o plano local dizer a verdade. 0 se o asset não abrir. */
+    fun engineAssetBytes(): Long = try {
+        context.assets.open(ENGINE_ASSET).use { stream ->
+            var total = 0L
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                val n = stream.read(buffer)
+                if (n < 0) break
+                total += n
+            }
+            total
+        }
+    } catch (_: Exception) { 0L }
+
     /** O Android já recusou o pedido vezes demais: a próxima tentativa abre os ajustes do app. */
     fun permissionBlocked(): Boolean = !hasPermission() && prefs.getInt("permission_requests", 0) >= DENIALS_BEFORE_SETTINGS
 
@@ -138,7 +159,10 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
     suspend fun runEngine(): TermuxResult =
         awaitCommand("start", baseIntent(arrayOf("-m", "aura_engine")))
 
-    /** Motor embutido (assets/engine.bin) -> ~/.aura/app no Termux. O tar viaja em argumentos base64: sem rede e sem git. */
+    /**
+     * Motor embutido (assets/engine.bin) -> ~/.aura/app no Termux. O tar viaja em argumentos base64: sem rede e sem git.
+     * ATENÇÃO: instala o Python do Termux se faltar (download). Só o TermuxFlow chama, depois do aceite do plano C4.
+     */
     suspend fun installEngine(): TermuxResult {
         val packed = try {
             context.assets.open(ENGINE_ASSET).use { android.util.Base64.encodeToString(it.readBytes(), android.util.Base64.NO_WRAP) }

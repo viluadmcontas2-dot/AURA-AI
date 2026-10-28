@@ -4,9 +4,14 @@ import ai.aura.app.integration.termuxResultFrom
 import ai.aura.app.offline.EngineLink
 import ai.aura.app.offline.EngineProbe
 import ai.aura.app.offline.LinkState
+import ai.aura.app.offline.NetworkKind
 import ai.aura.app.offline.OfflineReason
 import ai.aura.app.offline.TermuxPort
 import ai.aura.app.offline.TermuxResult
+import ai.aura.app.ui.screens.connections.InstallConsentGate
+import ai.aura.app.ui.screens.connections.InstallText
+import ai.aura.app.ui.screens.connections.LocalEnginePlan
+import ai.aura.app.ui.screens.connections.RejectReason
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
@@ -51,7 +56,16 @@ private class PortaFalsa : TermuxPort {
     var permissaoBloqueada = false
     var sondasFalhas = 0
     var ligaAoRodar = false
+    /** O app já preparou o motor neste Termux (marca local). Pareado também prova que ele foi instalado. */
+    var motorInstalado = false
+    var marcasInstalado = 0
+    var tamanhoMotor = 123_456L
+    var rede = NetworkKind.Wifi
 
+    override fun engineInstalled() = motorInstalado || pareado
+    override fun markEngineInstalled() { motorInstalado = true; marcasInstalado++ }
+    override fun engineAssetBytes() = tamanhoMotor
+    override fun networkKind() = rede
     override fun installed() = instalado
     override fun hasPermission() = permissao
     override fun isPaired() = pareado
@@ -96,7 +110,16 @@ private class PortaFalsa : TermuxPort {
 private class Cenario(scope: CoroutineScope, limite: Duration = 45.seconds) {
     val porta = PortaFalsa()
     val link = EngineLink(porta)
-    val fluxo = TermuxFlow(porta, link, scope, limite)
+    /** Relógio do aceite: o teste avança à mão para provar plano vencido. */
+    var agora = 1_000_000L
+    val gate = InstallConsentGate { agora }
+    val fluxo = TermuxFlow(porta, link, scope, limite, consent = gate)
+
+    /** Toca em Instalar vendo o plano que está na tela. null = aceitou; senão o motivo da recusa. */
+    fun tocarInstalar(): RejectReason? {
+        val plano = gate.pending.value!!.plan
+        return gate.accept(plano.planId, plano.manifestHash)
+    }
 }
 
 class TermuxFlowTest {
@@ -131,7 +154,8 @@ class TermuxFlowTest {
 
         c.porta.sonda = TermuxResult.Ok
         c.fluxo.refresh(); runCurrent()
-        assertEquals(Passo.Parear, proximoPasso(c.fluxo.state.value)) // um Termux que responde nunca é "incompatível"
+        // um Termux que responde nunca é "incompatível": o próximo passo é preparar o motor (com confirmação)
+        assertEquals(Passo.PrepararMotor, proximoPasso(c.fluxo.state.value))
     }
 
     @Test fun `ja colei recusado fica no passo de colar, e depois de colar confere sozinho ate o motor responder`() = runTest {
@@ -273,19 +297,121 @@ class TermuxFlowTest {
         assertNull(guardado)
     }
 
-    @Test fun `instala o motor no Termux antes de parear e antes de ligar`() = runTest {
+    @Test fun `nada e instalado antes do aceite e depois do aceite instala antes de parear`() = runTest {
         val c = Cenario(backgroundScope)
         c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+
+        // Zero instalação, zero pareamento, nenhum motor ligado: só existe o pedido na tela.
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(emptyList<String>(), c.porta.ordem)
+        assertEquals(0, c.porta.marcasInstalado)
+        assertTrue(c.fluxo.state.value.awaitingConsent)
+        assertFalse(c.fluxo.state.value.testing)
+        assertTrue(c.fluxo.state.value.notice!!.contains("Nada será instalado antes disso"))
+        val plano = c.gate.pending.value!!.plan
+        assertEquals("engine", plano.target)
+        assertTrue(plano.local)
+
+        assertEquals(null, c.tocarInstalar())
+        advanceTimeBy(5_000); runCurrent()
         assertEquals(listOf("instalar", "parear"), c.porta.ordem.take(2))
+        assertEquals(1, c.porta.marcasInstalado)
+        assertFalse(c.fluxo.state.value.awaitingConsent)
+    }
+
+    @Test fun `o plano local diz a verdade sobre o tamanho e a rede`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.rede = NetworkKind.Mobile
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        val plano = c.gate.pending.value!!.plan
+        val texto = InstallText.body(plano)
+        assertTrue(texto, texto.startsWith("Para executar o assistente neste celular, vou baixar Python do Termux e Motor do AURA."))
+        assertTrue(texto, texto.contains("Download: até 150 MB."))      // limite superior declarado, nunca medida
+        assertTrue(texto, texto.contains("Conexão: dados móveis."))
+        assertTrue(plano.sizeKnown)
+        assertEquals(c.agora + LocalEnginePlan.TTL_MILLIS, plano.expiresAtMillis)
+    }
+
+    @Test fun `recusar nao instala nada e o app segue usavel`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        val plano = c.gate.pending.value!!.plan
+        c.gate.decline(plano.planId)
+        advanceTimeBy(60_000); runCurrent()
+
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(0, c.porta.pareamentos)
+        assertEquals(null, c.gate.pending.value)
+        assertEquals(InstallText.DECLINED, c.fluxo.state.value.notice)
+        assertFalse(c.fluxo.state.value.testing)
+    }
+
+    @Test fun `plano vencido nao instala`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        c.agora += LocalEnginePlan.TTL_MILLIS
+        assertEquals(RejectReason.Expired, c.tocarInstalar())
+        advanceTimeBy(5_000); runCurrent()
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(InstallText.rejected(RejectReason.Expired), c.fluxo.state.value.notice)
+    }
+
+    @Test fun `plano alterado depois de visto nao instala e pede nova escolha`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        val visto = c.gate.pending.value!!.plan
+        c.porta.tamanhoMotor += 1_000 // o motor embutido mudou entre ver e tocar
+        assertEquals(null, c.tocarInstalar())
+        advanceTimeBy(5_000); runCurrent()
+
+        assertEquals(0, c.porta.instalacoes)
+        assertTrue(c.fluxo.state.value.notice!!.contains("mudou"))
+        val novo = c.gate.pending.value!!.plan
+        assertTrue(novo.manifestHash != visto.manifestHash)
+        c.tocarInstalar(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(1, c.porta.instalacoes) // agora sim: a pessoa viu e aceitou o plano novo
+    }
+
+    @Test fun `toque duplo em Instalar instala uma vez`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        val plano = c.gate.pending.value!!.plan
+        assertEquals(null, c.gate.accept(plano.planId, plano.manifestHash))
+        assertEquals(RejectReason.NoPlan, c.gate.accept(plano.planId, plano.manifestHash))
+        advanceTimeBy(5_000); runCurrent()
+        assertEquals(1, c.porta.instalacoes)
+    }
+
+    @Test fun `voltar ao app e reconectar nunca propoe nem instala`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.fluxo.resume(); advanceTimeBy(5_000); runCurrent()
+        assertTrue(c.fluxo.state.value.notice!!.contains("Preparar motor")) // diz o que falta, não faz
+        repeat(3) { c.fluxo.resume(); advanceTimeBy(5_000); runCurrent(); c.fluxo.refresh(); runCurrent() }
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(0, c.porta.pareamentos)
+        assertEquals(null, c.gate.pending.value) // nem o pedido aparece sozinho: quem pede é o toque da pessoa
+        assertEquals(Passo.PrepararMotor, proximoPasso(c.fluxo.state.value))
+    }
+
+    @Test fun `motor ja preparado e so parado liga sem instalar`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.motorInstalado = true; c.porta.pareado = true
+        c.porta.ligaAoRodar = true
+        c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(null, c.gate.pending.value)
+        assertEquals(listOf("ligar"), c.porta.ordem)
     }
 
     @Test fun `falha ao instalar o motor diz o que fazer e nao deixa a tela iniciando`() = runTest {
         val c = Cenario(backgroundScope)
         c.porta.instalacao = TermuxResult.Failed
         c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        c.tocarInstalar(); advanceTimeBy(5_000); runCurrent()
         assertFalse(c.fluxo.state.value.testing)
         assertTrue(c.fluxo.state.value.notice!!.contains("Tentar de novo"))
         assertEquals(0, c.porta.pareamentos)
+        assertEquals(0, c.porta.marcasInstalado) // instalação que falhou não vira "preparado"
     }
 
     @Test fun `motor que ja responde nao e reinstalado`() = runTest {
@@ -306,6 +432,7 @@ class TermuxFlowTest {
         val c = Cenario(backgroundScope)
         c.porta.instalacaoDemora = 120_000
         c.fluxo.confirmPasted(); advanceTimeBy(1_500); runCurrent()
+        c.tocarInstalar(); advanceTimeBy(1_500); runCurrent()
         assertTrue(c.fluxo.state.value.installing)
 
         repeat(5) { c.fluxo.resume(); c.fluxo.refresh(); advanceTimeBy(10_000); runCurrent() }
@@ -320,22 +447,46 @@ class TermuxFlowTest {
         assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
     }
 
-    @Test fun `motor vivo sem engine_build e velho, entao para, reinstala e religa`() = runTest {
+    @Test fun `motor vivo sem engine_build e velho, atualizar e outro pedido e so depois do aceite para, reinstala e religa`() = runTest {
         val c = Cenario(backgroundScope)
         c.porta.pareado = true; c.porta.motorNoAr = true
         c.porta.buildEsperado = "abc123"; c.porta.buildNoMotor = null; c.porta.ligaAoRodar = true
         c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
 
+        // Antes do aceite o motor velho continua no ar: nada parou, nada foi instalado.
+        assertEquals(emptyList<String>(), c.porta.ordem)
+        assertEquals("engine", c.gate.pending.value!!.plan.target)
+        assertEquals("local-engine-update", c.gate.pending.value!!.plan.planId)
+        assertEquals(LinkState.Online, c.link.state.value)
+
+        c.tocarInstalar(); advanceTimeBy(5_000); runCurrent()
         assertEquals(listOf("parar", "instalar", "ligar"), c.porta.ordem)
         assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
     }
 
-    @Test fun `motor vivo com engine_build diferente do APK tambem e reinstalado`() = runTest {
+    @Test fun `motor vivo com engine_build diferente do APK so atualiza com aceite`() = runTest {
         val c = Cenario(backgroundScope)
         c.porta.pareado = true; c.porta.motorNoAr = true
         c.porta.buildEsperado = "novo"; c.porta.buildNoMotor = "antigo"; c.porta.ligaAoRodar = true
         c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(0, c.porta.instalacoes)
+        c.tocarInstalar(); advanceTimeBy(5_000); runCurrent()
         assertEquals(listOf("parar", "instalar", "ligar"), c.porta.ordem)
+    }
+
+    @Test fun `ao voltar ao app com motor desatualizado nao atualiza sozinho, so avisa que ha atualizacao`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true
+        c.porta.buildEsperado = "novo"; c.porta.buildNoMotor = "antigo"
+        c.fluxo.resume(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(emptyList<String>(), c.porta.ordem)
+        assertEquals(null, c.gate.pending.value)
+        assertTrue(c.fluxo.state.value.updateAvailable)
+        assertEquals(LinkState.Online, c.link.state.value)
+
+        c.fluxo.updateEngine(); runCurrent()   // quem pede é o botão "Atualizar motor"
+        assertEquals("local-engine-update", c.gate.pending.value!!.plan.planId)
+        assertEquals(0, c.porta.instalacoes)
     }
 
     @Test fun `motor vivo com o mesmo engine_build nao e tocado`() = runTest {

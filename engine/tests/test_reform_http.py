@@ -6,6 +6,7 @@ import unittest
 import unittest.mock
 
 from test_lote_c import Base
+from consent_helper import allow_installs
 from test_rea_chain import Fake
 
 FAKE_MCP = """
@@ -39,6 +40,7 @@ for line in sys.stdin:
 class ReformHttp(Base):
     def setUp(self):
         super().setUp()
+        allow_installs(self)
         script = self.root / "fake_mcp.py"
         script.write_text(FAKE_MCP, "utf-8")
         self.script, self.calls_log = script, self.root / "mcp_calls.txt"

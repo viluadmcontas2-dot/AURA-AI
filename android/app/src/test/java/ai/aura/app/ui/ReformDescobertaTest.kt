@@ -33,6 +33,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -180,16 +181,25 @@ class ReformDescobertaTest {
         rule.toca("Voltar ao projeto")
         rule.espera("Continuar reforma")
 
-        // 5. Projeto -> Fidelidade: sem teste real, "Ainda não medida"; Testar relê o motor e passa a mostrar o número
+        // 5. Projeto -> Fidelidade: sem teste real, "Ainda não foi testado neste aparelho."; "Ver como testar" só explica
+        //    (não relê o motor nem chama verify). O número só aparece quando o motor trouxer a fidelidade medida.
         rule.toca("Ver fidelidade")
-        rule.espera("Testar no aparelho")
+        rule.espera("Ainda não foi testado neste aparelho.")
+        rule.waitForIdle()
         val leituras = motorDaReforma.calls.count { it.startsWith("summary:") }
-        motorDaReforma.onSummary = { FakeReformGateway.summary(fidelity = 95, stepsDone = listOf("tools")) }
-        rule.toca("Testar no aparelho")
-        rule.espera("Instalar ao lado do original")
-        assertTrue(motorDaReforma.calls.count { it.startsWith("summary:") } > leituras)
+        rule.toca("Ver como testar")
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("O AURA ainda não executa esse teste sozinho", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(leituras, motorDaReforma.calls.count { it.startsWith("summary:") })
+        assertTrue(motorDaReforma.calls.none { it.startsWith("verify:") })
+        assertTrue(!rule.tem("Instalar ao lado do original"))
 
-        // 6. Instalar ao lado do original vira pedido no chat do Início (sem endpoint próprio ainda)
+        // 6. Com a fidelidade medida pelo motor, "Instalar ao lado do original" libera e vira pedido no chat do Início
+        motorDaReforma.onSummary = { FakeReformGateway.summary(fidelity = 95, stepsDone = listOf("tools")) }
+        rule.onNodeWithContentDescription("Voltar para a reforma").performClick()
+        rule.toca("Ver fidelidade")
+        rule.espera("Instalar ao lado do original")
         rule.toca("Instalar ao lado do original")
         rule.espera("Instalar o app reformado ao lado do original")
     }

@@ -1,12 +1,16 @@
 """Instala as CLIs dentro do Termux: claude, codex, gemini, agy, gh, rclone.
 
 Acao `kind: tools, action: install, provider: <nome>` (HTTP: POST /v1/tools/install).
-Mesma regra de rede da cadeia REA: dados moveis esperam o Wi-Fi (nao falha; rodar de novo retoma),
-download grande so avisa. Cada comando passa por adapters.run_process (os testes trocam por um falso).
+Nada aqui instala sem consentimento (docs/FLUXOS_DE_USO.md secao 7): o trabalho so roda com o `plan_id` de um
+plano ACEITO (install_consent.py). Sem plano, ou com o plano errado, falha com `consent_required` antes de
+qualquer download. Nao existe caminho alternativo automatico: se o caminho do plano falhar, o motor diz
+`needs_new_plan` e a pessoa decide sobre um plano novo.
+Mesma regra de rede da cadeia REA: dados moveis esperam o Wi-Fi (nao falha; rodar de novo retoma).
+Cada comando passa por adapters.run_process (os testes trocam por um falso).
 """
 import shlex
 
-from . import adapters, rea_chain
+from . import adapters, install_consent, rea_chain
 
 NODE_PKGS = ["pkg", "install", "-y", "nodejs-lts", "git"]
 NPM = {"claude": "@anthropic-ai/claude-code", "codex": "@openai/codex", "gemini": "@google/gemini-cli"}
@@ -57,15 +61,28 @@ def _agy_steps(home):
     return [("agy", [["curl", "-fsSL", "-o", script, AGY_URL], ["bash", script]])]
 
 
+def plan_steps(provider, home, variant=None):
+    """Os passos do caminho escolhido para instalar [provider]. Mesma fonte para o plano e para a execução."""
+    if provider == "claude" and variant == "glibc-runner":
+        return _claude_fallback(home)
+    if provider in NPM:
+        return _npm_steps(provider)
+    if provider == "agy":
+        return _agy_steps(home)
+    return [(provider, [["pkg", "install", "-y", PKG[provider]]])]
+
+
 def _run_steps(steps, provider, home, engine, job_id, notices):
     emit = engine.store.emit
     for name, commands in steps:
         event = {"id": job_id, "name": "%s:%s" % (provider, name)}
         if rea_chain.step_downloads(commands):
+            install_consent.check_step_size(engine, name, commands)
             mb = rea_chain.estimate_download_mb((name, commands), home, engine)
             if mb is not None and mb > rea_chain.NOTICE_MB:
                 notices.append({"step": name, "mb": mb})
                 emit("download.notice", {"id": job_id, "step": name, "mb": mb})
+        install_consent.note_item(engine, name)
         emit("tool.install", dict(event, state="installing", pct=0))
         try:
             for argv in commands:
@@ -78,7 +95,7 @@ def _run_steps(steps, provider, home, engine, job_id, notices):
         emit("tool.install", dict(event, state="ready", pct=100))
 
 
-def install(provider, engine):
+def install(provider, engine, variant=None):
     home = engine.home
     (home / "tools").mkdir(parents=True, exist_ok=True)
     job_id = getattr(engine.context, "job_id", None)
@@ -86,44 +103,38 @@ def install(provider, engine):
     if _works(exe, home, engine):
         engine.store.emit("tool.install", {"id": job_id, "name": provider, "state": "ready", "pct": 100})
         return {"provider": provider, "state": "ready", "already_installed": True, "via": None}
+    # Falta instalar: daqui para a frente só com um plano aceito. Nada é baixado antes disso.
+    install_consent.require_grant(engine)
     if rea_chain.network_blocks(engine):
         engine.store.emit("tool.install", {"id": job_id, "name": provider, "state": "waiting_wifi", "pct": 0})
         return {"provider": provider, "state": "waiting_wifi", "via": None,
                 "message": "Estou em dados móveis. Conecte ao Wi-Fi e toque em Tentar de novo."}
     notices, via = [], None
     try:
-        if provider in NPM:
-            _run_steps(_npm_steps(provider), provider, home, engine, job_id, notices)
-            via = "npm"
-            if not _works(exe, home, engine):
-                raise adapters.ActionError("process_failed", "%s --version falhou" % exe)
-        elif provider == "agy":
-            _run_steps(_agy_steps(home), provider, home, engine, job_id, notices)
-            via = "installer"
-        else:
-            _run_steps([(provider, [["pkg", "install", "-y", PKG[provider]]])],
-                       provider, home, engine, job_id, notices)
-            via = "pkg"
+        steps = plan_steps(provider, home, variant)
+        _run_steps(steps, provider, home, engine, job_id, notices)
+        via = {"claude": "glibc-runner" if variant == "glibc-runner" else "npm", "agy": "installer"}.get(
+            provider, "npm" if provider in NPM else "pkg")
     except adapters.ActionError as err:
-        if err.code == "cancelled":
+        if err.code in ("cancelled", "consent_required", "plan_changed"):
             raise
+        if provider == "claude" and variant != "glibc-runner":
+            # O caminho alternativo baixa outras coisas: precisa de um plano novo e de uma nova decisão.
+            raise adapters.ActionError(
+                "needs_new_plan", "A instalação padrão do Claude não funcionou neste Termux: %s. "
+                "Há um caminho alternativo; ele precisa de um novo plano e da sua confirmação."
+                % adapters.redact(str(err))[:300])
         if provider == "claude":
-            # npm falhou ou nao roda (so ha binario glibc): tenta o caminho glibc-runner
-            try:
-                _run_steps(_claude_fallback(home), provider, home, engine, job_id, notices)
-                via = "glibc-runner"
-            except adapters.ActionError as err2:
-                raise adapters.ActionError(
-                    "setup_failed", "Não consegui instalar o claude (npm e glibc-runner falharam): %s"
-                    % adapters.redact(str(err2))[:300])
-        elif provider == "codex":
+            raise adapters.ActionError(
+                "setup_failed", "Não consegui instalar o claude (npm e glibc-runner falharam): %s"
+                % adapters.redact(str(err))[:300])
+        if provider == "codex":
             raise adapters.ActionError(
                 "indisponivel_no_termux", "O Codex não instalou neste Termux "
                 "(sem fonte confirmada para Android): %s" % adapters.redact(str(err))[:300])
-        else:
-            raise adapters.ActionError(
-                "setup_failed", "Falhou instalar %s: %s. Toque em Tentar de novo."
-                % (provider, adapters.redact(str(err))[:300]))
+        raise adapters.ActionError(
+            "setup_failed", "Falhou instalar %s: %s. Toque em Tentar de novo."
+            % (provider, adapters.redact(str(err))[:300]))
     if not _works(exe, home, engine):
         code = "indisponivel_no_termux" if provider == "codex" else "setup_failed"
         raise adapters.ActionError(code, "%s --version não respondeu depois de instalar" % exe)
@@ -137,4 +148,6 @@ def run(request, engine):
     provider = request.get("provider")
     if provider not in EXE:
         raise adapters.ActionError("invalid_request", "provider must be one of: " + ", ".join(PROVIDERS))
-    return install(provider, engine)
+    variant = request.get("variant")
+    target, resource = ("claude", None) if provider == "claude" else ("cli", provider)
+    return engine.installs.run_planned(request, target, resource, lambda: install(provider, engine, variant))

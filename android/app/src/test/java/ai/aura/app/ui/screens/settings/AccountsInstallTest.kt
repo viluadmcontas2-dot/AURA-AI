@@ -8,11 +8,17 @@ import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.RouteResult
+import ai.aura.app.integration.PlanResult
 import ai.aura.app.ui.engine.ToolActionResult
+import ai.aura.app.ui.screens.connections.FakeSetupGateway
+import ai.aura.app.ui.screens.connections.InstallConsentGate
+import ai.aura.app.ui.screens.connections.InstallText
+import ai.aura.app.ui.screens.connections.fakePlan
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -43,7 +49,7 @@ private class InstallGateway(val install: CompletableDeferred<ToolActionResult> 
 
 private fun toolEvent(state: String) = EngineEvent(1, "tool.install", "job_1", mapOf("state" to state, "name" to "claude"), 0L)
 
-/** Contas: o que o motor emite em tool.install (installing, ready, failed, waiting_wifi) e o toque duplo no Instalar. */
+/** Contas: o que o motor emite em tool.install (installing, ready, failed, waiting_wifi) e o Instalar sempre passando pelo consentimento. */
 class AccountsInstallTest {
     @Test fun `ready recarrega o estado das contas e waiting_wifi avisa do Wi-Fi`() = runTest {
         val gw = InstallGateway()
@@ -62,38 +68,96 @@ class AccountsInstallTest {
         assertEquals(2, gw.statusReads.get())
     }
 
-    @Test fun `toque duplo em Instalar so instala uma vez e o resultado aparece ao fim`() = runTest {
+    @Test fun `Instalar nunca instala direto, pede o plano e espera a decisao`() = runTest {
         val gw = InstallGateway()
-        val auth = AccountsAuthState(gw, backgroundScope)
+        val setup = FakeSetupGateway()
+        val gate = InstallConsentGate { 1_000L }
+        val auth = AccountsAuthState(gw, backgroundScope, setup = setup, consent = gate, installPollMillis = 1_000)
 
         auth.install("claude")
-        auth.install("claude") // segundo toque enquanto instala
+        auth.install("claude") // segundo toque enquanto o pedido está na tela
         runCurrent()
 
-        assertEquals(listOf("claude"), gw.installs)
+        assertEquals(emptyList<String>(), gw.installs)            // o caminho antigo nunca é usado
+        assertEquals(listOf(Triple("claude", null, null)), setup.created) // um plano só
+        assertEquals(emptyList<String>(), setup.decisions)        // zero instalação antes do aceite
         assertEquals("claude", auth.installing)
-        assertTrue(auth.notice!!.text.contains("Instalando"))
+        assertTrue(gate.pending.value != null)
 
-        gw.install.complete(ToolActionResult.Ok("Instalado. Agora toque em Conectar."))
-        runCurrent()
+        val plano = gate.pending.value!!.plan
+        gate.accept(plano.planId, plano.manifestHash); runCurrent()
+        assertEquals(1, setup.decisions.size)
+        advanceTimeBy(1_500); runCurrent()
 
         assertNull(auth.installing)
         assertTrue(auth.notice!!.ok)
-        assertTrue(auth.notice!!.text.contains("Instalado"))
-        assertFalse(auth.notice!!.text.contains("Atividade"))
-        auth.install("claude") // depois de acabar, pode instalar de novo
+        assertEquals("Claude instalado. Agora toque em Entrar no Claude.", auth.notice!!.text)
+        auth.install("claude") // depois de acabar, pode pedir de novo
         runCurrent()
-        assertEquals(2, gw.installs.size)
+        assertEquals(2, setup.created.size)
+    }
+
+    @Test fun `recusar libera o botao e nada foi instalado`() = runTest {
+        val gw = InstallGateway()
+        val setup = FakeSetupGateway()
+        val gate = InstallConsentGate { 1_000L }
+        val auth = AccountsAuthState(gw, backgroundScope, setup = setup, consent = gate)
+        auth.install("claude"); runCurrent()
+        gate.decline("plan-1"); runCurrent()
+
+        assertNull(auth.installing)
+        assertEquals(InstallText.DECLINED, auth.notice!!.text)
+        assertEquals(emptyList<String>(), setup.decisions)
+    }
+
+    @Test fun `sem como pedir a confirmacao nada e instalado`() = runTest {
+        val gw = InstallGateway()
+        val auth = AccountsAuthState(gw, backgroundScope) // sem setup nem gate
+        auth.install("claude"); runCurrent()
+        assertEquals(emptyList<String>(), gw.installs)
+        assertNull(auth.installing)
+        assertFalse(auth.notice!!.ok)
+        assertTrue(auth.notice!!.text.startsWith(InstallText.NO_GATE))
     }
 
     @Test fun `falha na instalacao aparece em portugues com o que fazer`() = runTest {
         val gw = InstallGateway()
-        val auth = AccountsAuthState(gw, backgroundScope)
+        val setup = FakeSetupGateway()
+        setup.polls = mutableListOf(fakePlan(state = "failed", errorCode = "setup_failed", item = "Node.js e Git"))
+        val gate = InstallConsentGate { 1_000L }
+        val auth = AccountsAuthState(gw, backgroundScope, setup = setup, consent = gate)
         auth.install("claude"); runCurrent()
-        gw.install.complete(ToolActionResult.Failed("Não consegui instalar este programa.", "Confira a internet e toque em Instalar de novo."))
-        runCurrent()
+        val plano = gate.pending.value!!.plan
+        gate.accept(plano.planId, plano.manifestHash); runCurrent()
+
         assertFalse(auth.notice!!.ok)
-        assertEquals("Não consegui instalar este programa. Confira a internet e toque em Instalar de novo.", auth.notice!!.text)
+        assertEquals(
+            "A instalação parou em Node.js e Git. Seu trabalho foi guardado. Toque em Instalar Claude para revisar e tentar de novo.",
+            auth.notice!!.text,
+        )
         assertNull(auth.installing)
+    }
+
+    @Test fun `caminho padrao do Claude que falhou pede um plano novo e outra confirmacao`() = runTest {
+        val gw = InstallGateway()
+        val setup = FakeSetupGateway()
+        setup.plans = mutableListOf(PlanResult.Ok(fakePlan(id = "plan-1")), PlanResult.Ok(fakePlan(id = "plan-2", hash = "sha256:alt")))
+        setup.polls = mutableListOf(fakePlan(state = "failed", errorCode = "needs_new_plan"))
+        val gate = InstallConsentGate { 1_000L }
+        val auth = AccountsAuthState(gw, backgroundScope, setup = setup, consent = gate)
+        auth.install("claude"); runCurrent()
+        gate.accept("plan-1", "sha256:h1"); runCurrent()
+
+        // O caminho alternativo é outro plano: ainda não foi decidido nada sobre ele.
+        assertEquals(listOf(Triple("claude", null, null), Triple("claude", null, "glibc-runner")), setup.created)
+        assertEquals(listOf("plan-1:install:sha256:h1"), setup.decisions)
+        assertEquals("plan-2", gate.pending.value!!.plan.planId)
+    }
+
+    @Test fun `cada conta pede o alvo certo ao motor`() {
+        assertEquals("claude" to null, installTarget("claude"))
+        assertEquals("cli" to "gh", installTarget("github"))
+        assertEquals("cli" to "rclone", installTarget("gdrive"))
+        assertEquals("cli" to "gemini", installTarget("gemini"))
     }
 }
