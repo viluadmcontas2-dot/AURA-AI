@@ -1,9 +1,17 @@
 """Defeitos do PRIMEIRO USO no celular (auditoria adversarial): motor real por HTTP + `claude` falso."""
+import hashlib
 import json
 import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
 import unittest
+import unittest.mock
 
-from test_chat import ChatBase
+from aura_engine import adapters, cli_setup
+from test_chat import FAKE_CLAUDE, ChatBase
 
 
 class SemClaude(ChatBase):
@@ -20,6 +28,54 @@ class SemClaude(ChatBase):
         self.assertEqual(p["code"], "cli_missing")
         self.assertEqual(p["message_pt"], "O Claude ainda não está instalado neste Termux.")
         self.assertEqual(p["action_pt"], "Instalar o Claude em Conexões")
+
+
+class ClaudeNoPathDoMotor(ChatBase):
+    def test_PU2_claude_em_local_bin_e_achado_mesmo_fora_do_PATH(self):
+        casa = self.root / "casa"
+        (casa / ".local" / "bin").mkdir(parents=True)
+        exe = casa / ".local" / "bin" / "claude"
+        exe.write_text(FAKE_CLAUDE % {"py": sys.executable})
+        exe.chmod(0o755)
+        with unittest.mock.patch.dict(os.environ, {"HOME": str(casa)}):
+            self.assertTrue(adapters.installed("claude"))
+            _, started = self.call("POST", "/v1/chat", {"text": "Ola"})
+            self.assertEqual(self.wait_final(started["chat_id"])["type"], "chat.done")
+
+    def test_PU2_sem_o_diretorio_o_claude_continua_ausente(self):
+        casa = self.root / "casa-vazia"
+        casa.mkdir()
+        with unittest.mock.patch.dict(os.environ, {"HOME": str(casa)}):
+            self.assertFalse(adapters.installed("claude"))
+
+
+class InstaladorDeTerceiro(unittest.TestCase):
+    def test_PU2_fallback_fixa_commit_e_sha256_nunca_a_branch(self):
+        self.assertRegex(cli_setup.CLAUDE_ANDROID_COMMIT, r"^[0-9a-f]{40}$")
+        self.assertRegex(cli_setup.CLAUDE_ANDROID_SHA256, r"^[0-9a-f]{64}$")
+        self.assertIn(cli_setup.CLAUDE_ANDROID_COMMIT, cli_setup.CLAUDE_ANDROID_URL)
+        self.assertNotIn("/main/", cli_setup.CLAUDE_ANDROID_URL)
+
+    @unittest.skipUnless(shutil.which("sha256sum") and shutil.which("bash"), "precisa de sha256sum e bash")
+    def test_PU2_script_so_roda_se_o_sha256_bater(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp)
+            (home / "tools").mkdir()
+            marca = home / "rodou"
+            script = home / "tools" / "claude-code-android-install.sh"
+            script.write_text("#!/bin/bash\ntouch %s\n" % marca)
+            certo = hashlib.sha256(script.read_bytes()).hexdigest()
+            with unittest.mock.patch.object(cli_setup, "CLAUDE_ANDROID_SHA256", certo):
+                comando = cli_setup._claude_fallback(home)[0][1][1]
+            self.assertEqual(comando[:2], ["sh", "-c"])
+            self.assertEqual(subprocess.run(comando, stdin=subprocess.DEVNULL).returncode, 0)
+            self.assertTrue(marca.exists())
+            marca.unlink()
+            script.write_text("#!/bin/bash\ntouch %s\n# adulterado\n" % marca)  # conteudo mudou
+            self.assertNotEqual(subprocess.run(comando, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                               stdout=subprocess.DEVNULL).returncode, 0)
+            self.assertFalse(marca.exists())
 
 
 if __name__ == "__main__":

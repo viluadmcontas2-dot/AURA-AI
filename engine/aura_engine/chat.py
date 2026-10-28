@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 
-from . import adapters, routing
+from . import adapters, pathutil, routing
 from .security import safe_argv, workspace_name
 
 UUID_RE = re.compile(r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}")
@@ -272,10 +272,10 @@ class ChatManager:
             cwd = pathlib.Path(conv["cwd"])
         argv = self._build(run, kind, conv)
         try:
-            env = None
+            env = pathutil.child_env()  # PATH ampliado: acha o `claude` recem-instalado em ~/.local/bin
             if kind == "claude_cli" and adapters.is_total(self.engine) and hasattr(os, "geteuid") \
                     and os.geteuid() == 0:
-                env = dict(os.environ, IS_SANDBOX="1")  # o Claude Code recusa o bypass como root sem isto
+                env["IS_SANDBOX"] = "1"  # o Claude Code recusa o bypass como root sem isto
             proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, start_new_session=True, env=env)
         except OSError:
