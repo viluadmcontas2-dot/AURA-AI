@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -50,8 +52,30 @@ val packEngine = tasks.register<Tar>("packEngine") {
     archiveFileName.set("engine.bin")
     destinationDirectory.set(layout.buildDirectory.dir("generated/engineAssets"))
 }
+// assets/engine.build: sha256 (12 primeiros hex) do conteúdo de aura_engine/**, o mesmo que o motor devolve em
+// GET /v1/health (engine_build). Algoritmo: arquivos .py em ordem de caminho; para cada um entram
+// "aura_engine/<caminho relativo>", 0x00, os bytes do arquivo, 0x00. __pycache__ e *.pyc ficam de fora.
+val engineBuildFile = layout.buildDirectory.file("generated/engineAssets/engine.build")
+val packEngineBuild = tasks.register("packEngineBuild") {
+    val src = rootProject.file("../engine/aura_engine")
+    inputs.dir(src)
+    outputs.file(engineBuildFile)
+    doLast {
+        val digest = MessageDigest.getInstance("SHA-256")
+        src.walkTopDown()
+            .filter { it.isFile && !it.path.contains("__pycache__") && !it.name.endsWith(".pyc") }
+            .map { "aura_engine/" + it.relativeTo(src).invariantSeparatorsPath to it }
+            .sortedBy { it.first }
+            .forEach { (rel, file) ->
+                digest.update(rel.toByteArray(Charsets.UTF_8)); digest.update(0)
+                digest.update(file.readBytes()); digest.update(0)
+            }
+        val hex = digest.digest().joinToString("") { "%02x".format(it) }.take(12)
+        engineBuildFile.get().asFile.apply { parentFile.mkdirs(); writeText(hex) }
+    }
+}
 android.sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/engineAssets"))
-tasks.configureEach { if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(packEngine) }
+tasks.configureEach { if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(packEngine, packEngineBuild) }
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
     implementation(composeBom)

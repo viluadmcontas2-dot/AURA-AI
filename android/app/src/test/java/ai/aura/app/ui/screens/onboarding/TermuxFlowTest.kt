@@ -2,6 +2,7 @@ package ai.aura.app.ui.screens.onboarding
 
 import ai.aura.app.integration.termuxResultFrom
 import ai.aura.app.offline.EngineLink
+import ai.aura.app.offline.EngineProbe
 import ai.aura.app.offline.LinkState
 import ai.aura.app.offline.OfflineReason
 import ai.aura.app.offline.TermuxPort
@@ -38,6 +39,18 @@ private class PortaFalsa : TermuxPort {
     var instalacoes = 0
     var ordem = mutableListOf<String>()
     var sondagens = 0
+    /** engine_build que o motor vivo informa (null = motor velho, que não informa). */
+    var buildNoMotor: String? = null
+    /** Hash do motor embutido no APK (null = não sei, não compara). */
+    var buildEsperado: String? = null
+    var recusaToken = false
+    var saudeFalhasAntes = 0
+    var paradas = 0
+    var credencialApagada = 0
+    var instalacaoDemora = 0L
+    var permissaoBloqueada = false
+    var sondasFalhas = 0
+    var ligaAoRodar = false
 
     override fun installed() = instalado
     override fun hasPermission() = permissao
@@ -46,19 +59,38 @@ private class PortaFalsa : TermuxPort {
     override fun requestPermission() = Unit
     override fun openInstaller() = Unit
     override fun openTermux() = Unit
+    override fun permissionBlocked() = permissaoBloqueada
     override suspend fun probe(): TermuxResult {
         sondagens++
+        if (sondasFalhas > 0) { sondasFalhas--; return TermuxResult.Failed }
         return sonda
     }
     override suspend fun pairAndWait(): TermuxResult {
         pareamentos++
         ordem += "parear"
-        if (pareamento == TermuxResult.Ok) pareado = true
+        if (pareamento == TermuxResult.Ok) { pareado = true; recusaToken = false }
         return pareamento
     }
-    override suspend fun installEngine(): TermuxResult { instalacoes++; ordem += "instalar"; return instalacao }
-    override suspend fun runEngine(): TermuxResult = processoDoMotor ?: awaitCancellation()
-    override suspend fun engineUp() = motorNoAr
+    override suspend fun installEngine(): TermuxResult {
+        instalacoes++; ordem += "instalar"
+        delay(instalacaoDemora)
+        return instalacao
+    }
+    override suspend fun runEngine(): TermuxResult {
+        ordem += "ligar"
+        processoDoMotor?.let { return it }
+        if (ligaAoRodar) { motorNoAr = true; buildNoMotor = buildEsperado } // o motor novo sobe com o código novo
+        awaitCancellation()
+    }
+    override suspend fun engineUp() = motorNoAr && !recusaToken
+    override suspend fun engineProbe(): EngineProbe {
+        if (recusaToken) return EngineProbe.Unauthorized
+        if (saudeFalhasAntes > 0) { saudeFalhasAntes--; return EngineProbe.Down }
+        return if (motorNoAr) EngineProbe.Up(buildNoMotor) else EngineProbe.Down
+    }
+    override fun expectedEngineBuild() = buildEsperado
+    override suspend fun stopEngine(): TermuxResult { paradas++; ordem += "parar"; motorNoAr = false; return TermuxResult.Ok }
+    override fun forgetCredential() { credencialApagada++; pareado = false }
 }
 
 private class Cenario(scope: CoroutineScope, limite: Duration = 45.seconds) {
@@ -144,7 +176,7 @@ class TermuxFlowTest {
         c.fluxo.refresh(); runCurrent()
 
         c.porta.processoDoMotor = TermuxResult.Failed // ex.: o Python do Termux não está instalado
-        c.fluxo.startEngine(); advanceTimeBy(2_000); runCurrent()
+        c.fluxo.startEngine(); advanceTimeBy(4_000); runCurrent()
         assertFalse(c.fluxo.state.value.testing)
         assertTrue("falhou antes do limite", currentTime < 10_000)
         assertEquals(LinkState.Offline(OfflineReason.EngineStopped), c.link.state.value)
@@ -268,5 +300,89 @@ class TermuxFlowTest {
         assertEquals(TermuxResult.Ok, termuxResultFrom("install", 0, -1, null, "x\nAURA_ENGINE_OK\n", nada))
         assertEquals(TermuxResult.Failed, termuxResultFrom("install", 0, -1, null, "sem marca", nada))
         assertEquals(TermuxResult.Failed, termuxResultFrom("install", 1, -1, null, "AURA_ENGINE_OK", nada))
+    }
+
+    @Test fun `voltar do Termux durante a instalacao so observa e nao cancela nem instala de novo`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.instalacaoDemora = 120_000
+        c.fluxo.confirmPasted(); advanceTimeBy(1_500); runCurrent()
+        assertTrue(c.fluxo.state.value.installing)
+
+        repeat(5) { c.fluxo.resume(); c.fluxo.refresh(); advanceTimeBy(10_000); runCurrent() }
+
+        assertEquals(1, c.porta.instalacoes)
+        assertTrue("a instalacao segue de pe", c.fluxo.state.value.installing)
+        c.porta.motorNoAr = true
+        advanceTimeBy(80_000); runCurrent()
+        assertFalse(c.fluxo.state.value.installing)
+        assertEquals(1, c.porta.instalacoes)
+        assertEquals(1, c.porta.pareamentos)
+        assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
+    }
+
+    @Test fun `motor vivo sem engine_build e velho, entao para, reinstala e religa`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true
+        c.porta.buildEsperado = "abc123"; c.porta.buildNoMotor = null; c.porta.ligaAoRodar = true
+        c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
+
+        assertEquals(listOf("parar", "instalar", "ligar"), c.porta.ordem)
+        assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
+    }
+
+    @Test fun `motor vivo com engine_build diferente do APK tambem e reinstalado`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true
+        c.porta.buildEsperado = "novo"; c.porta.buildNoMotor = "antigo"; c.porta.ligaAoRodar = true
+        c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(listOf("parar", "instalar", "ligar"), c.porta.ordem)
+    }
+
+    @Test fun `motor vivo com o mesmo engine_build nao e tocado`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true
+        c.porta.buildEsperado = "igual"; c.porta.buildNoMotor = "igual"
+        c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(emptyList<String>(), c.porta.ordem)
+        assertEquals(0, c.porta.paradas)
+    }
+
+    @Test fun `saude lenta nao derruba o motor vivo, pergunta duas vezes antes de reinstalar`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true
+        c.porta.buildEsperado = "igual"; c.porta.buildNoMotor = "igual"
+        c.porta.saudeFalhasAntes = 1
+        c.fluxo.startEngine(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(0, c.porta.paradas)
+        assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
+    }
+
+    @Test fun `motor vivo que recusa o token (401) refaz o pareamento e nao reinstala`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true; c.porta.recusaToken = true
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+
+        assertEquals(1, c.porta.credencialApagada)
+        assertEquals(1, c.porta.pareamentos)
+        assertEquals(0, c.porta.instalacoes)
+        assertEquals(0, c.porta.paradas)
+        assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
+    }
+
+    @Test fun `sonda que falha num Termux frio e repetida uma vez`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.sondasFalhas = 1
+        c.fluxo.refresh(); runCurrent()
+        assertEquals(2, c.porta.sondagens)
+        assertTrue(c.fluxo.state.value.externalAppsAllowed)
+    }
+
+    @Test fun `permissao recusada duas vezes manda abrir os ajustes do app`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.permissao = false; c.porta.permissaoBloqueada = true
+        c.fluxo.refresh(); runCurrent()
+        assertEquals("Toque para abrir os ajustes e permitir.", c.fluxo.state.value.notice)
+        assertEquals(Passo.PedirPermissao, proximoPasso(c.fluxo.state.value))
     }
 }

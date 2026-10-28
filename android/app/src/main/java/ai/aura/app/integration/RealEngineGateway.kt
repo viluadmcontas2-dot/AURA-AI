@@ -567,9 +567,10 @@ class RealEngineGateway(
         client.skills().getJSONArray("skills").mapObjects { skillFrom(it) }
     }
 
-    override suspend fun health(): EngineResult<EngineHealth> = call("o estado do motor") {
+    /** 401 vira `Rejected("unauthorized")`: o motor está vivo, só não aceita o nosso token. */
+    override suspend fun health(): EngineResult<EngineHealth> = call("o estado do motor", rejectOn = setOf(401)) {
         val raw = client.health()
-        EngineHealth(raw.getString("service"), raw.optInt("version"))
+        EngineHealth(raw.getString("service"), raw.optInt("version"), raw.text("engine_build"))
     }
 
     override suspend fun usage(): EngineResult<EngineUsage> = call("o uso") {
@@ -581,12 +582,18 @@ class RealEngineGateway(
     }
 
     /** [rejects]: o motor recusar (404, 409...) é a resposta, e a mensagem dele chega à tela. */
-    private suspend fun <T> call(what: String, rejects: Boolean = false, block: suspend () -> T): EngineResult<T> = try {
+    private suspend fun <T> call(
+        what: String,
+        rejects: Boolean = false,
+        rejectOn: Set<Int> = emptySet(),
+        block: suspend () -> T,
+    ): EngineResult<T> = try {
         EngineResult.Ok(block())
     } catch (e: CancellationException) {
         throw e
     } catch (e: AuraEngineException) {
-        if (rejects) EngineResult.Rejected(e.code, e.message ?: "O motor recusou o pedido.")
+        if (e.httpStatus in rejectOn) EngineResult.Rejected("unauthorized", e.message ?: "O motor recusou o pedido.")
+        else if (rejects) EngineResult.Rejected(e.code, e.message ?: "O motor recusou o pedido.")
         else EngineResult.Unavailable(reasonFor(e, what))
     } catch (e: Exception) {
         EngineResult.Unavailable(reasonFor(e, what))

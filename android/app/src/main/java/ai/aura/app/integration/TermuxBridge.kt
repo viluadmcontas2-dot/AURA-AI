@@ -28,6 +28,23 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
         private val nextRequestId = AtomicInteger(1001)
         const val PERMISSION = "com.termux.permission.RUN_COMMAND"
         const val ENGINE_ASSET = "engine.bin"
+        /** sha256 curto de aura_engine/, gravado no build; o motor devolve o mesmo em /v1/health (engine_build). */
+        const val ENGINE_BUILD_ASSET = "engine.build"
+        /** Sonda para um Termux frio (recém-aberto) responder; o fluxo repete uma vez. */
+        const val PROBE_MILLIS = 5_000L
+        /** Depois de tantos pedidos recusados o Android para de perguntar: só os ajustes do app resolvem. */
+        const val DENIALS_BEFORE_SETTINGS = 2
+        // Sai só do motor do AURA: o `[p]` impede que o próprio comando case com o padrão.
+        private val STOP_SCRIPT = """
+            export PATH=/data/data/com.termux/files/usr/bin:${'$'}PATH
+            if command -v pkill >/dev/null 2>&1; then pkill -f '[p]ython.*aura_engine'; else
+              for d in /proc/[0-9]*; do p=${'$'}{d#/proc/}; [ "${'$'}p" = "${'$'}${'$'}" ] && continue
+                tr '\0' ' ' < "${'$'}d/cmdline" 2>/dev/null | grep -q '[p]ython.*aura_engine' && kill "${'$'}p" 2>/dev/null
+              done
+            fi
+            sleep 1
+            exit 0
+        """.trimIndent()
         // Instala o Python só se faltar, apaga a cópia antiga do motor e extrai a nova. Termina com a marca de sucesso.
         private val INSTALL_SCRIPT = """
             export PATH=/data/data/com.termux/files/usr/bin:${'$'}PATH
@@ -50,8 +67,22 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
     override fun hasPermission(): Boolean =
         context.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
 
+    private val prefs get() = context.getSharedPreferences("aura_termux_bridge", Context.MODE_PRIVATE)
+
+    /** O Android já recusou o pedido vezes demais: a próxima tentativa abre os ajustes do app. */
+    fun permissionBlocked(): Boolean = !hasPermission() && prefs.getInt("permission_requests", 0) >= DENIALS_BEFORE_SETTINGS
+
     fun askPermission(activity: Activity) {
-        if (!hasPermission()) activity.requestPermissions(arrayOf(PERMISSION), 707)
+        if (hasPermission()) return
+        if (permissionBlocked()) {
+            activity.startActivity(
+                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:${context.packageName}")),
+            )
+            return
+        }
+        prefs.edit().putInt("permission_requests", prefs.getInt("permission_requests", 0) + 1).apply()
+        activity.requestPermissions(arrayOf(PERMISSION), 707)
     }
 
     /** Intents contain only hardcoded python module paths, never user-provided command text. */
@@ -84,7 +115,7 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
         PairState.message.value = "Motor solicitado. Conferindo a conexão..."
     }
 
-    suspend fun probe(): TermuxResult = withTimeoutOrNull(1_500L) {
+    suspend fun probe(): TermuxResult = withTimeoutOrNull(PROBE_MILLIS) {
         awaitCommand("probe", baseIntent(arrayOf("aura-ok")).apply {
             putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/echo")
             putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
@@ -93,6 +124,14 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
 
     suspend fun pairAndWait(): TermuxResult = withTimeoutOrNull(15_000L) {
         awaitCommand("pair", baseIntent(arrayOf("-m", "aura_engine.pair", "--emit-token")))
+    } ?: TermuxResult.Failed
+
+    /** Pede ao motor que está rodando para sair (sem /v1/shutdown no motor: encerra o processo dele pelo Termux). */
+    suspend fun stopEngine(): TermuxResult = withTimeoutOrNull(15_000L) {
+        awaitCommand("stop", baseIntent(arrayOf("-c", STOP_SCRIPT)).apply {
+            putExtra("com.termux.RUN_COMMAND_PATH", BASH)
+            putExtra("com.termux.RUN_COMMAND_WORKDIR", HOME)
+        })
     } ?: TermuxResult.Failed
 
     // O processo do motor só responde ao callback quando termina; o fluxo confere a saúde em paralelo.

@@ -79,6 +79,8 @@ data class TermuxSetupState(
     val engineUp: Boolean = false,
     val pageSize: Int = 4096,
     val notice: String? = null,
+    /** O motor está sendo copiado e instalado no Termux (leva minutos): nada recomeça nem cancela isso. */
+    val installing: Boolean = false,
 ) {
     val ready: Boolean get() = termuxFound && permissionGranted && externalAppsAllowed && paired && engineUp
 }

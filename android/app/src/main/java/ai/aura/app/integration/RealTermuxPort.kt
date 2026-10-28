@@ -1,5 +1,6 @@
 package ai.aura.app.integration
 
+import ai.aura.app.offline.EngineProbe
 import ai.aura.app.offline.TermuxPort
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.EngineResult
@@ -20,6 +21,7 @@ class RealTermuxPort(
     override fun isPaired() = EngineCredentialStore(activity).read() != null
     override fun pageSize() = Os.sysconf(OsConstants._SC_PAGESIZE).toInt()
     override fun requestPermission() = bridge.askPermission(activity)
+    override fun permissionBlocked() = bridge.permissionBlocked()
     override fun openInstaller() {
         activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://f-droid.org/packages/com.termux/")))
     }
@@ -36,4 +38,21 @@ class RealTermuxPort(
         val result = gateway.health()
         return result is EngineResult.Ok && result.value.service == "aura-engine"
     }
+
+    override suspend fun engineProbe(): EngineProbe = when (val result = gateway.health()) {
+        is EngineResult.Ok -> if (result.value.service == "aura-engine") EngineProbe.Up(result.value.build) else EngineProbe.Down
+        is EngineResult.Rejected -> if (result.code == "unauthorized") EngineProbe.Unauthorized else EngineProbe.Down
+        is EngineResult.Unavailable -> EngineProbe.Down
+    }
+
+    /** Hash gravado em assets/engine.build na hora do build (mesmo cálculo do motor sobre aura_engine/). */
+    override fun expectedEngineBuild(): String? = try {
+        activity.assets.open(TermuxBridge.ENGINE_BUILD_ASSET).use { it.readBytes().toString(Charsets.UTF_8).trim() }.ifEmpty { null }
+    } catch (_: Exception) {
+        null
+    }
+
+    override suspend fun stopEngine() = bridge.stopEngine()
+
+    override fun forgetCredential() = EngineCredentialStore(activity).clear()
 }
