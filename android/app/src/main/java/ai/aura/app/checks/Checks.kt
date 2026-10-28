@@ -27,12 +27,14 @@ private const val TIMEOUT_MS = 5_000L
 private const val GB = 1024L * 1024 * 1024
 private const val SMALL_PAGE = 4096
 private const val PAGE_16K_NOTICE = "Este Android usa páginas de 16 KB e o Termux atual não roda aqui"
+private const val ADB_INSTALL_COMMAND = "pkg install -y android-tools"
 private val BRAINS = setOf("claude", "gemini", "agy", "codex")
 
 /** Nunca lança: o que quebra ou passa de 5 s vira "não consegui verificar". Só o cancelamento de verdade passa. */
 suspend fun Check.safeRun(): CheckResult {
+    val body = run
     val result = try {
-        withTimeoutOrNull(TIMEOUT_MS) { run() }
+        withTimeoutOrNull(TIMEOUT_MS) { body() }
     } catch (e: TimeoutCancellationException) {
         null // prazo de dentro da verificação (ex.: pedido ao motor); não é o cancelamento do Checkup
     } catch (e: CancellationException) {
@@ -89,7 +91,11 @@ fun standardChecks(
             )
         },
         Check("adb", "ADB") {
-            verdict(adbInstalled(), "ADB instalado no Termux", "ADB não instalado no Termux", "Instalar o ADB")
+            // Só o Termux instala pacotes: o botão copia o comando.
+            verdict(
+                adbInstalled(), "ADB instalado no Termux", "ADB não instalado no Termux",
+                "Copiar comando", command = ADB_INSTALL_COMMAND,
+            )
         },
         Check("notifications", "Notificações") {
             verdict(notificationsOn(), "Notificações liberadas", "Notificações bloqueadas: você pode perder avisos", "Permitir notificações")

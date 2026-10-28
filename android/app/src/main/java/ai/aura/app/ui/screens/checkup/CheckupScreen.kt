@@ -122,7 +122,7 @@ private fun ProblemCard(r: CheckResult, primary: Boolean, onAct: () -> Unit) {
             Text(r.message, style = AuraType.BodyStrong.copy(color = tone.fg), modifier = Modifier.weight(1f))
         }
         val label = r.fix ?: return@AuraCard // sem ação não há botão (nunca um botão mudo)
-        val click = {
+        val click: () -> Unit = {
             if (r.command != null) {
                 clipboard.setText(AnnotatedString(r.command))
                 copied = true

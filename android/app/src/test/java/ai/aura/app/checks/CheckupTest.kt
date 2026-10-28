@@ -87,7 +87,7 @@ class ChecksTest {
             Case("battery", world(), CheckState.Ok),
             Case("battery", world(battery = false), CheckState.Warning, "Liberar bateria"),
             Case("adb", world(), CheckState.Ok),
-            Case("adb", world(adb = false), CheckState.Warning, "Instalar o ADB"),
+            Case("adb", world(adb = false), CheckState.Warning, "Copiar comando", "pkg install -y android-tools"),
             Case("adb", world(engine = false), CheckState.Warning, RETRY),
             Case("long_tasks", world(sdk = 30), CheckState.Ok),
             Case("long_tasks", world(sdk = 34), CheckState.Warning, "Ver como evitar"),
@@ -135,7 +135,7 @@ class CheckupScreenTest {
         return clipboard.primaryClip?.getItemAt(0)?.text?.toString()
     }
 
-    @Test fun `abre sem motor: mostra o placar e cada linha`() {
+    @Test fun `abre sem motor e mostra o placar e cada linha`() {
         show(world(engine = false, battery = false, sdk = 34))
 
         rule.onNodeWithText("Checkup do ambiente").assertExists()
@@ -165,11 +165,12 @@ class CheckupScreenTest {
         assertEquals(2, rule.onAllNodesWithText("Copiado").fetchSemanticsNodes().size)
     }
 
-    @Test fun `com o motor no ar, contas e ADB levam ao destino certo`() {
+    @Test fun `com o motor no ar, contas levam ao destino e o ADB copia o comando`() {
         show(world(accounts = emptyList(), adb = false))
 
         rule.onNodeWithText("9 de 11 ok").assertExists()
         tap("Conectar contas", "accounts")
-        tap("Instalar o ADB", "adb")
+        rule.onNodeWithText("Copiar comando").performScrollTo().performClick()
+        assertEquals("pkg install -y android-tools", copied())
     }
 }
