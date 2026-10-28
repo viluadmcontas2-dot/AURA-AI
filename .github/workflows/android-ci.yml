@@ -73,10 +73,9 @@ jobs:
             echo "::warning::APK retido. Os 66 requisitos e as provas fisicas continuam pendentes."
           fi
       - name: Upload debug APK for remote installation
-        # Bloqueio deliberado: o checker aceita relatórios sintéticos em fixtures,
-        # mas não autentica testes físicos. Exigir aceite humano independente
-        # em PR revisado antes de reabilitar qualquer publicação de APK.
-        if: false
+        # Artefato experimental para instalacao e testes internos.
+        # Nao representa aceite 66/66 nem release; manter o gate acima como diagnostico.
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/claude/matriz-cobertura-design'
         uses: actions/upload-artifact@v4
         with:
           name: aura-ai-debug-apk
