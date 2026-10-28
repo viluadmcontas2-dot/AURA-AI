@@ -105,6 +105,18 @@ class DesignCoverageGateTest(unittest.TestCase):
                 [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
                 text=True, capture_output=True, check=False, timeout=10)
             self.assertNotEqual(conflicting.returncode, 0, conflicting.stdout)
+            failed_report.write_text(original_report + "Dispositivo: outro-aparelho\n", encoding="utf-8")
+            duplicate_device = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertNotEqual(duplicate_device.returncode, 0, duplicate_device.stdout)
+            failed_report.write_text(original_report.replace(
+                "Dispositivo: fixture-sintetico", "Dispositivo:"), encoding="utf-8")
+            blank_device = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertNotEqual(blank_device.returncode, 0, blank_device.stdout)
+            failed_report.write_text(original_report, encoding="utf-8")
             failed_report.write_text(original_report, encoding="utf-8")
             failed_report.write_text(
                 failed_report.read_text(encoding="utf-8").replace(
