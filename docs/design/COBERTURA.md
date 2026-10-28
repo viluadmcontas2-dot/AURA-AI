@@ -1,8 +1,14 @@
 # Matriz de cobertura: design → app
 
-Toda tela e função do design precisa virar código com teste e evidência. O APK final só sai quando `python3 scripts/check_design_coverage.py --release` passar (tudo `feito` com evidência).
+Toda tela e função do design precisa virar código com teste e evidência. O APK só pode ser **publicado** quando `python3 scripts/check_design_coverage.py --release` passar. Compilar em CI não é autorizar entrega.
 
-Status: `pendente`, `em andamento`, `feito`. Evidência = teste, captura de tela ou link de CI/dispositivo. `-` conta como sem evidência.
+Status: `pendente`, `em andamento`, `feito`. Para marcar `feito`, a célula Evidência precisa ter **um** vínculo rastreável:
+- Teste remoto: URL completa de um **job** Actions, por exemplo `https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456` (IDs acima são apenas exemplos sintéticos). Na revisão, conferir resultado, SHA, comando e teste correspondente.
+- Verificação Android/Termux: `docs/design/evidence/UI-05.md`, ou `docs/design/evidence/FN-10.md`, substituindo pelo ID pertinente. O arquivo deve existir e conter campos preenchidos `Dispositivo:`, `Procedimento:`, `Resultado: aprovado` (linha exata, somente após o teste ter sido aprovado) e `Registro:`, com detalhes reais do aparelho e referência auditável. `Resultado: falha`, `pendente` ou `não testado` não autorizam entrega. Nunca incluir tokens ou dados pessoais. Fotos e captura podem estar no registro quando autorizadas.
+
+Em **19 IDs que dependem do aparelho** (definidos em `DEVICE_REQUIRED` no checker), somente o segundo tipo é aceito. São principalmente onboarding/Termux, voz, notificações, REA, fidelidade visual, credenciais, retomada e teclado. Um job JVM ou link de Actions isolado nunca comprova esses resultados.
+
+**Limite importante:** o script valida estrutura, existência de relatório e coerência básica, **não autentica o conteúdo, não consulta GitHub para verificar URLs e não executa testes físicos**. O revisor ainda precisa conferir que a evidência é verdadeira, satisfaz o requisito e pertence ao SHA relevante. Uma string preenchida ou documentação fabricada nunca é autorização de entrega. `-` conta como sem evidência.
 
 ## Telas
 
