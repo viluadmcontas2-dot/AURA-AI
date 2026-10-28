@@ -52,6 +52,36 @@ class NavGraphTest {
         assertEquals("rotas inalcançáveis", emptySet<String>(), ROUTES.map { it.id }.toSet() - vistas)
     }
 
+    /** Órfã de verdade: a tela existe, mas o único caminho passa por rota sem tela (botão mudo). Foi o caso da Reforma. */
+    @Test
+    fun todaTelaQueExisteSeAlcancaPassandoSoPorTelasQueExistem() {
+        val porId = ROUTES.associateBy { it.id }
+        val vistas = mutableSetOf<String>()
+        val fila = ArrayDeque(entradas)
+        while (fila.isNotEmpty()) {
+            val id = fila.removeFirst()
+            if (!vistas.add(id)) continue
+            if (porId.getValue(id).screen != null) fila += porId.getValue(id).edges
+        }
+        val orfas = ROUTES.filter { it.screen != null }.map { it.id }.toSet() - vistas
+        assertEquals("telas que existem mas nada leva até elas", emptySet<String>(), orfas)
+    }
+
+    @Test
+    fun reformarAppsAbreEmUmToqueDeInicioProjetosENovoProjetoEOFluxoTemTodasAsTelas() {
+        val porId = ROUTES.associateBy { it.id }
+        for (origem in listOf("inicio", "projetos", "projeto-ideia")) {
+            assertTrue("$origem não leva a reformar-apps", "reformar-apps" in porId.getValue(origem).edges)
+        }
+        assertEquals(listOf("inicio", "reformar-apps"), pushRoute(listOf("inicio"), "reformar-apps"))
+        val fluxo = listOf("reformar-apps", "reformar-escopo", "reformar-reversao", "reformar-projeto", "reformar-fidelidade", "reformar-ferramentas")
+        for (id in fluxo) assertTrue("$id sem tela", porId.getValue(id).screen != null)
+        // Cada passo leva ao seguinte.
+        fluxo.zipWithNext().take(4).forEach { (de, para) -> assertTrue("$de -> $para", para in porId.getValue(de).edges) }
+        // Assistente em tela cheia: sem barra de abas no meio do fluxo.
+        for (id in fluxo) assertNull(id, porId.getValue(id).tab)
+    }
+
     /** Informativo até a T17, que troca o corpo por `assertEquals(emptyList<String>(), pending)` (portão de entrega). */
     @Test
     fun pendingEOQueAindaNaoTemTela() {
