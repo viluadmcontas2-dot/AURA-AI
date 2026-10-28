@@ -58,6 +58,38 @@ class DesignCoverageGateTest(unittest.TestCase):
             self.assertIn("UI-01", result.stdout + result.stderr)
             self.assertIn("prova", (result.stdout + result.stderr).lower())
 
+    def test_release_accepts_full_job_urls_and_device_report(self):
+        """Referências auditáveis podem ser registradas sem inventar sucesso de CI."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "scripts").mkdir()
+            shutil.copyfile(CHECKER, root / "scripts/check_design_coverage.py")
+            screens = root / "docs/design/telas"
+            screens.mkdir(parents=True)
+            report_dir = root / "docs/design/evidence"
+            report_dir.mkdir()
+            report = report_dir / "FN-10.md"
+            report.write_text(
+                "Dispositivo: telefone real, revisão pendente\\n"
+                "Procedimento: abertura de Termux\\n"
+                "Resultado: falha observada\\n"
+                "Registro: laudo identificável\\n", encoding="utf-8")
+            job = "https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456"
+            rows = ["| ID | Tela/Função | Status | Evidência |",
+                    "|---|---|---|---|"]
+            for i in range(1, 46):
+                name = f"Screen-{i:02d}.dc.html"
+                (screens / name).write_text("fixture", encoding="utf-8")
+                rows.append(f"| UI-{i:02d} | `{name}` | feito | {job} |")
+            for i in range(1, 22):
+                evidence = "docs/design/evidence/FN-10.md" if i == 10 else job
+                rows.append(f"| FN-{i:02d} | Função {i} | feito | {evidence} |")
+            (root / "docs/design/COBERTURA.md").write_text("\n".join(rows), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_engine_ci_follows_android_and_design_changes_for_exact_sha(self):
         workflow = (ROOT / ".github/workflows/engine-ci.yml").read_text(encoding="utf-8")
         for dependency in ("android/**", "docs/design/**", ".github/workflows/android-ci.yml",
