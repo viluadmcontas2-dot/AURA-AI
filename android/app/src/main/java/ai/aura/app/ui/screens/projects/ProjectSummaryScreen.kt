@@ -165,20 +165,3 @@ private fun QuestionCard(question: String, onAnswer: (String) -> Unit) {
         Text("Se preferir, toque em Criar projeto e eu sigo assim.", style = AuraType.SecondarySmall)
     }
 }
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 900)
-@Composable
-private fun SummaryPreview() {
-    AuraTheme {
-        ProjectSummaryScreen("Crie um aplicativo de finanças completo", ExampleData.financas, null, true, false, null, {}, {}, {})
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 900)
-@Composable
-private fun SummaryQuestionPreview() {
-    AuraTheme {
-        ProjectSummaryScreen("Finanças", ExampleData.financas.copy(screens = emptyList()), "O que o aplicativo precisa fazer por você?", true, false,
-            "Não consegui criar o projeto. Toque em Criar projeto para tentar de novo.", {}, {}, {})
-    }
-}

@@ -1,5 +1,7 @@
 package ai.aura.app.integration
 
+import ai.aura.app.offline.EngineUnreachableException
+import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.engine.AUTH_PROVIDER_IDS
 import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.AuthState
@@ -7,15 +9,20 @@ import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.Capability
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
+import ai.aura.app.ui.engine.EngineHealth
+import ai.aura.app.ui.engine.EngineResult
+import ai.aura.app.ui.engine.EngineUsage
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
+import ai.aura.app.ui.engine.MemoryEntry
 import ai.aura.app.ui.engine.ModelsDoc
 import ai.aura.app.ui.engine.ModelsResult
 import ai.aura.app.ui.engine.PolicyDoc
 import ai.aura.app.ui.engine.PolicyResult
 import ai.aura.app.ui.engine.RouteResult
+import ai.aura.app.ui.engine.SkillInfo
 import ai.aura.app.ui.engine.SpendResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -26,30 +33,44 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.shareIn
+import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
+import java.util.concurrent.atomic.AtomicLong
 
-/** Production EngineGateway. Never substitutes FakeEngineGateway for a missing Termux process. */
-class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
-    private val routedRequests = ConcurrentHashMap<String, String>()
+/** Production EngineGateway. Never substitutes a fake for a missing Termux process. */
+class RealEngineGateway(
+    private val client: EngineApi,
+    /** Escopo do polling de eventos: sem assinantes ele para (WhileSubscribed), então nada fica vivo. */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+) : EngineGateway {
+    // Só os últimos MAX_ROUTED comandos interpretados ficam guardados; o mais velho sai primeiro.
+    private val routedRequests = Collections.synchronizedMap(object : LinkedHashMap<String, String>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>) = size > MAX_ROUTED
+    })
+    private val syntheticIds = AtomicLong(0)
     private fun key(request: JobRequest): String =
         request.kind + "\u0000" + request.workspace + "\u0000" + request.prompt
 
     override suspend fun jobs(): List<Job> {
         val items = client.jobs().getJSONArray("jobs")
-        return List(items.length()) { index -> asJob(items.getJSONObject(index)) }
+        // Um job malformado é descartado; a lista inteira não se perde por causa dele.
+        return (0 until items.length()).mapNotNull { runCatching { asJob(items.getJSONObject(it)) }.getOrNull() }
     }
 
     override suspend fun approve(id: String): Job = asJob(client.approve(id))
     override suspend fun cancel(id: String): Job = asJob(client.cancel(id))
 
-    override suspend fun route(text: String): RouteResult {
-        val response = client.route(text)
+    override suspend fun route(text: String): RouteResult = route(text, "default")
+
+    override suspend fun route(text: String, workspace: String): RouteResult {
+        val response = client.route(text, workspace)
         val raw = response.getJSONObject("request")
         val command = JobRequest(
             kind = raw.getString("kind"),
             prompt = text,
-            workspace = raw.optString("workspace", "default")
+            workspace = raw.optString("workspace", workspace)
         )
         // Retain the exact structured command. For ADB/files, "kind + prompt" is not enough.
         routedRequests[key(command)] = raw.toString()
@@ -235,43 +256,39 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
         }
     }
 
-    /** Escopo do gateway: sem assinantes o polling para (WhileSubscribed), então nada fica vivo. */
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     /** Um único polling compartilhado por todas as telas (evita N laços e tempestade de jobs()). */
     override val events: Flow<EngineEvent> = flow {
-        var cursor: Long? = null
+        var cursor = -1L // -1: ainda não sei; começa no último id que existe hoje
+        var connected: Boolean? = null
         var failures = 0
         while (true) {
-            try {
-                val start = cursor ?: currentCursor().also { cursor = it }
-                val batch = client.events(start).getJSONArray("events")
-                failures = 0
-                for (i in 0 until batch.length()) {
-                    val event = batch.getJSONObject(i)
-                    val id = event.getLong("id")
-                    if (id <= (cursor ?: 0L)) continue
-                    val payload = event.optJSONObject("payload") ?: JSONObject()
-                    val map = mutableMapOf<String, String>()
-                    val fields = payload.keys()
-                    while (fields.hasNext()) {
-                        val field = fields.next()
-                        map[field] = payload.optString(field)
-                    }
-                    emit(EngineEvent(id = id, type = event.getString("type"),
-                        jobId = payload.optString("id").ifBlank { null },
-                        payload = map,
-                        timestampMillis = (event.optDouble("created_at", 0.0) * 1000).toLong()))
-                    cursor = id
-                }
-                delay(EventBackoff.POLL_MS)
+            val batch = try {
+                if (cursor < 0) cursor = currentCursor()
+                // Pede a partir do último id já visto: o motor devolve esse de novo, então lista vazia = banco novo.
+                client.events(maxOf(cursor - 1, 0)).getJSONArray("events")
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // Termux fora do ar ou sem token: tenta de novo com espera crescente, sem derrubar a tela.
+            } catch (e: Exception) {
+                // Termux fora do ar ou sem token: avisa uma vez e tenta de novo com espera crescente.
                 failures++
+                if (connected != false) emit(connection("connection.lost", e))
+                connected = false
                 delay(EventBackoff.delayMillis(failures))
+                continue
             }
+            failures = 0
+            if (connected == false) emit(connection("connection.restored", null))
+            connected = true
+            // shortcut: se o banco novo já passou do cursor antigo, o reinício não é percebido; trocar por um id de instância do motor.
+            if (batch.length() == 0 && cursor > 0) cursor = 0
+            for (i in 0 until batch.length()) {
+                val item = batch.optJSONObject(i) ?: continue
+                val id = item.optLong("id", 0L)
+                if (id <= cursor) continue
+                cursor = id // o cursor sempre avança, mesmo se este evento estiver estragado
+                eventFrom(item, id)?.let { emit(it) }
+            }
+            delay(EventBackoff.POLL_MS)
         }
     }.shareIn(scope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000), replay = 0)
 
@@ -285,6 +302,103 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
             if (last <= cursor) return cursor
             cursor = last
         }
+    }
+
+    /** Evento sintético da conexão: id negativo e único, para nunca colidir com os do motor. */
+    private fun connection(type: String, cause: Exception?) = EngineEvent(
+        id = -syntheticIds.incrementAndGet(),
+        type = type,
+        jobId = null,
+        payload = if (cause == null) emptyMap() else mapOf("reason" to reasonOf(cause)),
+        timestampMillis = System.currentTimeMillis(),
+    )
+
+    private fun reasonOf(e: Exception): String = when {
+        e is EngineUnreachableException -> e.reason.name
+        e is AuraEngineException && e.httpStatus == 401 -> OfflineReason.NoToken.name
+        else -> OfflineReason.EngineStopped.name
+    }
+
+    /** null = evento estragado: é descartado e o polling segue. */
+    private fun eventFrom(item: JSONObject, id: Long): EngineEvent? = try {
+        val payload = item.optJSONObject("payload") ?: JSONObject()
+        val fields = payload.keys().asSequence().filterNot { payload.isNull(it) }
+            .associateWith { payload.get(it).toString() }
+        EngineEvent(
+            id = id,
+            type = item.getString("type"),
+            jobId = payload.text("id") ?: payload.text("job_id"),
+            payload = fields,
+            timestampMillis = (item.optDouble("created_at", 0.0) * 1000).toLong(),
+        )
+    } catch (_: JSONException) {
+        null
+    }
+
+    // ---- Memória, skills, saúde e uso ----------------------------------------------------
+
+    override suspend fun memory(): EngineResult<List<MemoryEntry>> = call("a memória") {
+        client.memory(WORKSPACE).getJSONArray("entries").mapObjects { entryFrom(it) }
+    }
+
+    /** Um id fora do formato nem chega ao motor. */
+    override suspend fun forgetMemory(id: String): EngineResult<Unit> {
+        if (!SEGMENT.matches(id)) return EngineResult.Rejected("invalid_id", "Não encontrei essa lembrança.")
+        return call("a memória", rejects = true) { client.forgetMemory(id); Unit }
+    }
+
+    /** Só o workspace que a tela mostra: sem `workspace` o motor apagaria o de todos. */
+    override suspend fun forgetAllMemory(): EngineResult<Int> =
+        call("a memória", rejects = true) { client.forgetAllMemory(WORKSPACE).optInt("deleted") }
+
+    override suspend fun skills(): EngineResult<List<SkillInfo>> = call("as skills") {
+        client.skills().getJSONArray("skills").mapObjects { skillFrom(it) }
+    }
+
+    override suspend fun health(): EngineResult<EngineHealth> = call("o estado do motor") {
+        val raw = client.health()
+        EngineHealth(raw.getString("service"), raw.optInt("version"))
+    }
+
+    override suspend fun usage(): EngineResult<EngineUsage> = call("o uso") {
+        val raw = client.usage()
+        EngineUsage(
+            raw.optLong("input_tokens"), raw.optLong("output_tokens"), raw.optLong("cache_read_tokens"),
+            raw.optInt("reported_jobs"), raw.optInt("unreported_jobs"),
+        )
+    }
+
+    /** [rejects]: o motor recusar (404, 409...) é a resposta, e a mensagem dele chega à tela. */
+    private suspend fun <T> call(what: String, rejects: Boolean = false, block: suspend () -> T): EngineResult<T> = try {
+        EngineResult.Ok(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: AuraEngineException) {
+        if (rejects) EngineResult.Rejected(e.code, e.message ?: "O motor recusou o pedido.")
+        else EngineResult.Unavailable(reasonFor(e, what))
+    } catch (e: Exception) {
+        EngineResult.Unavailable(reasonFor(e, what))
+    }
+
+    /** Item malformado é descartado; a lista inteira não se perde por causa dele. */
+    private fun <T : Any> JSONArray.mapObjects(parse: (JSONObject) -> T): List<T> =
+        (0 until length()).mapNotNull { runCatching { parse(getJSONObject(it)) }.getOrNull() }
+
+    private fun entryFrom(o: JSONObject): MemoryEntry {
+        val id = o.getString("id")
+        require(id.isNotBlank())
+        return MemoryEntry(
+            id = id,
+            kind = o.text("kind") ?: "preference",
+            text = o.getString("text"),
+            source = o.text("source"),
+            createdAtMillis = (o.optDouble("createdAt", 0.0) * 1000).toLong(), // o motor manda segundos
+        )
+    }
+
+    private fun skillFrom(o: JSONObject): SkillInfo {
+        val id = o.getString("id")
+        return SkillInfo(id, o.text("name") ?: id, o.text("description").orEmpty(), o.text("origin") == "bundled")
     }
 
     private fun predictedRisk(raw: JSONObject): JobRisk {
@@ -305,10 +419,12 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
 
     private fun asJob(raw: JSONObject): Job {
         val request = raw.optJSONObject("request") ?: JSONObject()
-        val status = JobStatus.fromWire(raw.getString("status"))
-            ?: error("Estado desconhecido retornado pelo AURA Engine")
-        val risk = JobRisk.fromWire(raw.getString("risk"))
-            ?: error("Risco desconhecido retornado pelo AURA Engine")
+        val wire = raw.getString("status")
+        val known = JobStatus.fromWire(wire)
+        // Estado novo que este app não conhece: aparece como falha, com o motivo, em vez de sumir.
+        val status = known ?: JobStatus.Failed
+        // Risco desconhecido: trata como o mais perigoso (pede aprovação).
+        val risk = JobRisk.fromWire(raw.text("risk").orEmpty()) ?: JobRisk.Critical
         val summary = request.optString("prompt")
             .ifBlank { request.optString("action", "Tarefa local") }
         val outcome = raw.optJSONObject("result")
@@ -319,14 +435,22 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
         }
         return Job(
             id = raw.getString("id"),
-            requestId = raw.optString("request_id"),
+            requestId = raw.text("request_id").orEmpty(),
             title = summary.take(100),
             kind = request.optString("kind", "system"),
             status = status,
             risk = risk,
             createdAtMillis = (raw.optDouble("created_at", 0.0) * 1000).toLong(),
             result = resultText?.take(5000),
-            errorCode = raw.optJSONObject("error")?.optString("code")
+            errorCode = if (known == null) "unknown_status:" + wire.take(40) else raw.optJSONObject("error")?.text("code")
         )
     }
+
+    private companion object {
+        const val MAX_ROUTED = 200
+        const val WORKSPACE = "default"
+    }
 }
+
+/** Texto do campo, ou null se ausente, JSON null ou vazio (no Android `optString` devolveria "null"). */
+private fun JSONObject.text(key: String): String? = if (isNull(key)) null else optString(key).ifBlank { null }

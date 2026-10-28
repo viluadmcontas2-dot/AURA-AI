@@ -48,7 +48,6 @@ import ai.aura.app.ui.components.EmptyState
 import ai.aura.app.ui.components.StatusChip
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.JobRisk
@@ -411,25 +410,6 @@ private fun HistoryRow(
                 }
             }
         }
-    }
-}
-
-private fun previewJobs(now: Long) = FakeEngineGateway.sampleJobs(now) + listOf(
-    Job("job_5", "req_5", "Sincronizar Drive", "system", JobStatus.Interrupted, JobRisk.Read, now - 8_000_000),
-    Job("job_6", "req_6", "Apagar builds antigos", "files", JobStatus.Cancelled, JobRisk.Critical, now - 90_000_000),
-)
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 900)
-@Composable
-private fun ActivityPreview() {
-    val now = 1_700_000_000_000L
-    AuraTheme {
-        ActivityContent(
-            jobs = previewJobs(now), loadFailed = false,
-            events = listOf(EngineEvent(1, "job.progress", "job_1", mapOf("step" to "3", "total" to "4", "label" to "Gerar o APK"), now)),
-            now = now, actionError = null, onApprove = {}, onRefuse = {}, onCancel = {}, onReload = {},
-            onRetry = {}, onStartRequest = {},
-        )
     }
 }
 

@@ -54,7 +54,6 @@ import ai.aura.app.ui.components.AuraCard
 import ai.aura.app.ui.components.EmptyState
 import ai.aura.app.ui.components.auraFocusRing
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraSpacing
@@ -270,10 +269,4 @@ private fun AllowAllDialog(rootDetail: String?, onConfirm: () -> Unit, onCancel:
             }
         }
     }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 1200)
-@Composable
-private fun SettingsScreenPreview() {
-    AuraTheme { SettingsScreen(FakeEngineGateway(), onClose = {}) }
 }

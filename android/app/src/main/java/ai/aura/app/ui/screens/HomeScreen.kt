@@ -4,7 +4,6 @@ import ai.aura.app.offline.LinkState
 import ai.aura.app.offline.LocalStore
 import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.screens.chat.ChatEntry
 import ai.aura.app.ui.screens.chat.ChatScreen
 import ai.aura.app.ui.screens.home.HomeContent
@@ -90,9 +89,12 @@ fun HomeScreen(
         }
     }
 }
+<<<<<<< HEAD
 
 @Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, widthDp = 390, heightDp = 844)
 @Composable
 private fun HomeScreenPreview() {
     AuraTheme { HomeScreen(FakeEngineGateway(), store = LocalStore(File(System.getProperty("java.io.tmpdir"), "aura-preview"))) }
 }
+=======
+>>>>>>> origin/claude/t4-gateway

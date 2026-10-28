@@ -20,7 +20,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import ai.aura.app.offline.LocalStore
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.screens.rememberAuraStore
@@ -241,6 +240,7 @@ internal fun ProjectsHost(
         )
     }
 }
+<<<<<<< HEAD
 
 @Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 780)
 @Composable
@@ -252,3 +252,5 @@ private fun ProjectsHostPreview() {
         )
     }
 }
+=======
+>>>>>>> origin/claude/t4-gateway

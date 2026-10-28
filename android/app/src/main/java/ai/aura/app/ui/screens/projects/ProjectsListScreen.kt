@@ -198,12 +198,6 @@ internal fun artifactLine(a: Artifact): String = when {
     else -> a.subtitle
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 780)
-@Composable
-private fun ProjectsListPreview() {
-    AuraTheme { ProjectsListScreen(ExampleData.projects, ExampleData.jobMap, ExampleData.artifacts, null, {}, {}, {}, {}, {}) }
-}
-
 @Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 600)
 @Composable
 private fun ProjectsListEmptyPreview() {

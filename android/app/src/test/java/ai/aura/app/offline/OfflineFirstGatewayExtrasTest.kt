@@ -10,6 +10,7 @@ import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.engine.PolicyResult
 import ai.aura.app.ui.engine.RouteResult
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
@@ -20,6 +21,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.Executors
 
 /** Casos que o `OfflineFirstGatewayTest` não cobre: o que o gateway decidiu além do contrato mínimo. */
 private class ScriptedEngine : EngineGateway {
@@ -31,6 +33,9 @@ private class ScriptedEngine : EngineGateway {
     /** Idempotente por requestId, como o motor de verdade. */
     val known = linkedMapOf<String, Job>()
     val order = mutableListOf<String>()
+    val cancelled = mutableListOf<String>()
+    val routedWorkspaces = mutableListOf<String>()
+    var jobsThread = ""
     override val events: Flow<EngineEvent> = emptyFlow()
 
     private fun gate() {
@@ -38,12 +43,18 @@ private class ScriptedEngine : EngineGateway {
         if (unauthorized) throw AuraEngineException(401, "token inválido", "unauthorized")
     }
 
-    override suspend fun jobs(): List<Job> { gate(); return known.values.toList() }
+    override suspend fun jobs(): List<Job> { gate(); jobsThread = Thread.currentThread().name; return known.values.toList() }
     override suspend fun approve(id: String): Job = error("não usado")
-    override suspend fun cancel(id: String): Job = error("não usado")
-    override suspend fun route(text: String): RouteResult {
+    override suspend fun cancel(id: String): Job {
+        cancelled += id
+        val job = known.values.firstOrNull { it.id == id } ?: throw AuraEngineException(404, "job not found", "not_found")
+        return job.copy(status = JobStatus.Cancelled)
+    }
+    override suspend fun route(text: String): RouteResult = route(text, "default")
+    override suspend fun route(text: String, workspace: String): RouteResult {
         gate()
-        return RouteResult(JobRequest("claude_cli", text), "ok", 1.0, false, JobRisk.Read)
+        routedWorkspaces += workspace
+        return RouteResult(JobRequest("claude_cli", text, workspace), "ok", 1.0, false, JobRisk.Read)
     }
     override suspend fun submit(requestId: String, request: JobRequest): Job {
         gate()
@@ -165,5 +176,41 @@ class OfflineFirstGatewayExtrasTest {
         gw.submit("novo", pedido("novo"))
 
         assertEquals(listOf("novo", "antigo"), gw.jobs().map { it.requestId })
+    }
+
+    @Test fun `cancelar depois da entrega cancela o job de verdade`() = runTest {
+        engine.up = false
+        val gw = gateway()
+        gw.submit("req-1", pedido("um"))
+        engine.up = true
+        gw.jobs() // a fila sai e o motor guarda job_1 com o mesmo requestId
+
+        gw.cancel("local_req-1")
+
+        assertEquals(listOf("job_1"), engine.cancelled)
+    }
+
+    @Test fun `a fila reenvia com o workspace e o tipo guardados`() = runTest {
+        engine.up = false
+        val gw = gateway()
+        gw.submit("req-1", JobRequest("auto", "um", "projeto-x"))
+        gw.submit("req-2", JobRequest("system", "dois"))
+        engine.up = true
+
+        gw.jobs()
+
+        assertEquals(listOf("projeto-x"), engine.routedWorkspaces) // só o "auto" precisa ser interpretado
+        assertEquals(listOf("claude_cli", "system"), engine.known.values.map { it.kind })
+    }
+
+    @Test fun `disco e motor rodam no contexto io`() = runTest {
+        val pool = Executors.newSingleThreadExecutor { Thread(it, "io-teste") }
+        try {
+            OfflineFirstGateway(engine, LocalStore(tmp.root), link, pool.asCoroutineDispatcher()) { 5_000L }.jobs()
+
+            assertEquals("io-teste", engine.jobsThread)
+        } finally {
+            pool.shutdown()
+        }
     }
 }

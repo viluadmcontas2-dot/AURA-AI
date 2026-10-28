@@ -227,17 +227,3 @@ internal fun JobChip(j: Job) = when (j.status) {
     JobStatus.Cancelled -> StatusChip(StatusKind.Neutral, "Cancelado")
     JobStatus.Interrupted -> StatusChip(StatusKind.Neutral, "Interrompido")
 }
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 820)
-@Composable
-private fun DetailNeedsYouPreview() {
-    val p = ExampleData.tv
-    AuraTheme { ProjectDetailScreen(p, phaseOf(p, ExampleData.jobMap), listOf(ExampleData.jobs[1]), emptyList(), false, null, {}, {}, {}, {}, {}, {}) }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 820)
-@Composable
-private fun DetailRunningPreview() {
-    val p = ExampleData.financas
-    AuraTheme { ProjectDetailScreen(p, phaseOf(p, ExampleData.jobMap), listOf(ExampleData.jobs[0], ExampleData.jobs[2]), ExampleData.artifacts, false, null, {}, {}, {}, {}, {}, {}) }
-}
