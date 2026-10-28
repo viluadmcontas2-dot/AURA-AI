@@ -43,6 +43,15 @@ for screen in screens:
     if len(matches) != 1:
         errors.append(f"tela sem vínculo UI único: {screen}")
 
+# Elementos que exigem interação com Android/Termux, impossível de
+# reproduzir com build/JVM de Actions. CI verde não basta para estes IDs.
+DEVICE_REQUIRED = {
+    "UI-05", "UI-06", "UI-08", "UI-09", "UI-14",
+    "UI-15", "UI-16", "UI-35", "UI-43", "UI-44",
+    "FN-01", "FN-02", "FN-10", "FN-11", "FN-13",
+    "FN-15", "FN-16", "FN-18", "FN-20",
+}
+
 # O gate não aceita uma afirmação textual ('OK', 'testado', etc.) como prova.
 # Provas de CI apontam para um job identificável; provas físicas devem ter
 # relatório auditável, com aparelho, procedimento, resultado e registro.
@@ -73,6 +82,10 @@ for ident, cells in rows.items():
     status = cells[1].lower()
     evidence = cells[2]
     referenced = evidence_reference(ident, evidence)
+    if "--release" in sys.argv and ident in DEVICE_REQUIRED:
+        report_path = f"docs/design/evidence/{ident}.md"
+        if evidence != report_path:
+            referenced = False
     verified_cell = status == "feito" and referenced
     if verified_cell:
         complete += 1
