@@ -34,6 +34,9 @@ private class PortaFalsa : TermuxPort {
     /** null = o processo do motor fica vivo (o normal); senão ele acaba logo com este resultado. */
     var processoDoMotor: TermuxResult? = null
     var pareamentos = 0
+    var instalacao = TermuxResult.Ok
+    var instalacoes = 0
+    var ordem = mutableListOf<String>()
     var sondagens = 0
 
     override fun installed() = instalado
@@ -49,9 +52,11 @@ private class PortaFalsa : TermuxPort {
     }
     override suspend fun pairAndWait(): TermuxResult {
         pareamentos++
+        ordem += "parear"
         if (pareamento == TermuxResult.Ok) pareado = true
         return pareamento
     }
+    override suspend fun installEngine(): TermuxResult { instalacoes++; ordem += "instalar"; return instalacao }
     override suspend fun runEngine(): TermuxResult = processoDoMotor ?: awaitCancellation()
     override suspend fun engineUp() = motorNoAr
 }
@@ -234,5 +239,34 @@ class TermuxFlowTest {
         guardado = null
         assertEquals(TermuxResult.Failed, termuxResultFrom("pair", 0, -1, null, "lixo", salvar))
         assertNull(guardado)
+    }
+
+    @Test fun `instala o motor no Termux antes de parear e antes de ligar`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        assertEquals(listOf("instalar", "parear"), c.porta.ordem.take(2))
+    }
+
+    @Test fun `falha ao instalar o motor diz o que fazer e nao deixa a tela iniciando`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.instalacao = TermuxResult.Failed
+        c.fluxo.confirmPasted(); advanceTimeBy(5_000); runCurrent()
+        assertFalse(c.fluxo.state.value.testing)
+        assertTrue(c.fluxo.state.value.notice!!.contains("Tentar de novo"))
+        assertEquals(0, c.porta.pareamentos)
+    }
+
+    @Test fun `motor que ja responde nao e reinstalado`() = runTest {
+        val c = Cenario(backgroundScope)
+        c.porta.pareado = true; c.porta.motorNoAr = true
+        c.fluxo.startEngine(); runCurrent()
+        assertEquals(0, c.porta.instalacoes)
+    }
+
+    @Test fun `instalacao so vale com a marca de sucesso e saida zero`() {
+        val nada: (String) -> Unit = {}
+        assertEquals(TermuxResult.Ok, termuxResultFrom("install", 0, -1, null, "x\nAURA_ENGINE_OK\n", nada))
+        assertEquals(TermuxResult.Failed, termuxResultFrom("install", 0, -1, null, "sem marca", nada))
+        assertEquals(TermuxResult.Failed, termuxResultFrom("install", 1, -1, null, "AURA_ENGINE_OK", nada))
     }
 }

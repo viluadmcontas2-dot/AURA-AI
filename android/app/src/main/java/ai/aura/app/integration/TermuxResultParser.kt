@@ -3,6 +3,9 @@ package ai.aura.app.integration
 import ai.aura.app.offline.TermuxResult
 import org.json.JSONObject
 
+/** Última linha que o script de instalação imprime quando o motor ficou pronto no Termux. */
+const val ENGINE_INSTALLED_MARK = "AURA_ENGINE_OK"
+
 /** Valida a resposta antes de salvar qualquer credencial; nunca expõe stdout à interface. */
 fun termuxResultFrom(
     operation: String,
@@ -18,6 +21,7 @@ fun termuxResultFrom(
     if (exitCode != 0 || internalError != -1) return TermuxResult.Failed
     return when (operation) {
         "probe" -> if (stdout?.trim() == "aura-ok") TermuxResult.Ok else TermuxResult.Failed
+        "install" -> if (stdout?.contains(ENGINE_INSTALLED_MARK) == true) TermuxResult.Ok else TermuxResult.Failed
         "pair" -> try {
             val value = JSONObject(stdout.orEmpty().trim())
             require(value.getString("service") == "aura-engine")

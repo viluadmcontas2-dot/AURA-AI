@@ -43,6 +43,15 @@ if (!file("src/main/java/ai/aura/app/offline/EngineLink.kt").exists()) {
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().matching { it.name == "compileDebugUnitTestKotlin" }
         .configureEach { exclude("**/offline/**") }
 }
+// O motor Python viaja dentro do APK (assets/engine.tar.gz); o app o instala no Termux sem rede nem git.
+val packEngine = tasks.register<Tar>("packEngine") {
+    from(rootProject.file("../engine")) { include("aura_engine/**"); exclude("**/__pycache__/**", "**/*.pyc") }
+    compression = Compression.GZIP
+    archiveFileName.set("engine.tar.gz")
+    destinationDirectory.set(layout.buildDirectory.dir("generated/engineAssets"))
+}
+android.sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/engineAssets"))
+tasks.configureEach { if (name.startsWith("merge") && name.endsWith("Assets")) dependsOn(packEngine) }
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
     implementation(composeBom)

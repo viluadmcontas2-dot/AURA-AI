@@ -10,6 +10,8 @@ interface TermuxPort : TermuxProbe {
     suspend fun probe(): TermuxResult
     suspend fun pairAndWait(): TermuxResult
     suspend fun runEngine(): TermuxResult
+    /** Copia o motor embutido no app para o Termux (e instala o Python se faltar). Idempotente. */
+    suspend fun installEngine(): TermuxResult = TermuxResult.Ok
     suspend fun engineUp(): Boolean
 }
 

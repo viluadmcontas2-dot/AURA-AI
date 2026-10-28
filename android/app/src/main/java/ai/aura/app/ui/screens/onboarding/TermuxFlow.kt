@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 val LocalTermuxFlow = androidx.compose.runtime.staticCompositionLocalOf<TermuxFlow?> { null }
@@ -38,12 +39,15 @@ fun proximoPasso(state: TermuxSetupState): Passo = when {
     else -> Passo.Pronto
 }
 
+private const val SILENT = "O Termux ou o motor não respondeu. Abra o Termux, confira o comando e a instalação do motor e toque em Tentar de novo."
+
 /** Uma tentativa por vez; nenhuma espera fica sem prazo ou ignora cancelamento. */
 class TermuxFlow(
     private val port: TermuxPort,
     private val link: EngineLink,
     private val scope: CoroutineScope,
     private val limit: Duration = 60.seconds,
+    private val installLimit: Duration = 10.minutes,
 ) {
     private val mutable = MutableStateFlow(TermuxSetupState())
     val state = mutable.asStateFlow()
@@ -53,12 +57,18 @@ class TermuxFlow(
         if (localState()) checkProbe()
     }
 
-    fun confirmPasted() = begin {
+    fun confirmPasted() = begin(limit + installLimit) {
         if (localState() && checkProbe()) connectAndStart()
     }
 
     /** Chamado ao voltar do Termux: uma sonda a cada 2 s, por até 60 s. */
-    fun resume() = begin {
+    fun resume() = begin(limit + installLimit) {
+        val answered = withTimeoutOrNull(limit.inWholeMilliseconds) { waitForTermux() }
+        if (answered == null) fail(SILENT)
+        else if (answered) connectAndStart()
+    }
+
+    private suspend fun waitForTermux(): Boolean {
         while (localState()) {
             val responded = coroutineScope {
                 val interval = async { delay(2_000) }
@@ -70,15 +80,13 @@ class TermuxFlow(
                     false
                 }
             }
-            if (responded) {
-                connectAndStart()
-                return@begin
-            }
+            if (responded) return true
         }
+        return false
     }
 
-    fun startEngine() = begin {
-        if (localState()) waitForEngine()
+    fun startEngine() = begin(limit + installLimit) {
+        if (localState() && ensureEngine()) bounded { waitForEngine() }
     }
 
     fun cancel() {
@@ -88,14 +96,14 @@ class TermuxFlow(
         mutable.value = mutable.value.copy(testing = false, notice = "Cancelado. Toque em Tentar de novo quando quiser.")
     }
 
-    private fun begin(action: suspend () -> Unit) {
+    private fun begin(budget: Duration = limit, action: suspend () -> Unit) {
         work?.cancel()
         link.startFailed()
         work = scope.launch {
             mutable.value = mutable.value.copy(testing = true, notice = null)
             try {
-                val finished = withTimeoutOrNull(limit.inWholeMilliseconds) { action(); true }
-                if (finished == null) fail("O Termux ou o motor não respondeu. Abra o Termux, confira o comando e a instalação do motor e toque em Tentar de novo.")
+                val finished = withTimeoutOrNull(budget.inWholeMilliseconds) { action(); true }
+                if (finished == null) fail(SILENT)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -131,6 +139,7 @@ class TermuxFlow(
     }
 
     private suspend fun connectAndStart() {
+        if (!ensureEngine()) return
         if (!port.isPaired()) {
             if (port.pairAndWait() != TermuxResult.Ok) {
                 fail("Não foi possível conectar o Termux. Confira a instalação do motor no Termux e toque em Tentar de novo.")
@@ -138,7 +147,23 @@ class TermuxFlow(
             }
             mutable.value = mutable.value.copy(paired = true)
         }
-        waitForEngine()
+        bounded { waitForEngine() }
+    }
+
+    /** Põe o motor embutido no Termux antes de parear ou ligar; sem isso `python -m aura_engine` não acha nada. */
+    private suspend fun ensureEngine(): Boolean {
+        if (port.engineUp()) return true
+        mutable.value = mutable.value.copy(notice = "Instalando o motor no Termux. Pode levar alguns minutos na primeira vez.")
+        if (port.installEngine() == TermuxResult.Ok) {
+            mutable.value = mutable.value.copy(notice = null)
+            return true
+        }
+        fail("Não foi possível instalar o motor no Termux. Confira a internet e toque em Tentar de novo.")
+        return false
+    }
+
+    private suspend fun bounded(action: suspend () -> Unit) {
+        if (withTimeoutOrNull(limit.inWholeMilliseconds) { action(); true } == null) fail(SILENT)
     }
 
     private suspend fun waitForEngine() = coroutineScope {

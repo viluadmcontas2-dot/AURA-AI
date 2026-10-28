@@ -21,9 +21,24 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
         private const val TERMUX_PACKAGE = "com.termux"
         private const val SERVICE = "com.termux.app.RunCommandService"
         private const val PYTHON = "/data/data/com.termux/files/usr/bin/python"
-        private const val WORKDIR = "/data/data/com.termux/files/home/AURA-AI/engine"
+        private const val HOME = "/data/data/com.termux/files/home"
+        private const val WORKDIR = "$HOME/.aura/app"
+        private const val BASH = "/data/data/com.termux/files/usr/bin/bash"
+        private const val CHUNK = 60_000
         private val nextRequestId = AtomicInteger(1001)
         const val PERMISSION = "com.termux.permission.RUN_COMMAND"
+        const val ENGINE_ASSET = "engine.tar.gz"
+        // Instala o Python só se faltar, apaga a cópia antiga do motor e extrai a nova. Termina com a marca de sucesso.
+        private val INSTALL_SCRIPT = """
+            export PATH=/data/data/com.termux/files/usr/bin:${'$'}PATH
+            H=/data/data/com.termux/files/home
+            command -v python >/dev/null 2>&1 || { yes | pkg install -y python || exit 1; }
+            rm -rf "${'$'}H/.aura/app/aura_engine"
+            mkdir -p "${'$'}H/.aura/app" || exit 1
+            printf %s "${'$'}@" | base64 -d | tar xz -C "${'$'}H/.aura/app" || exit 1
+            test -f "${'$'}H/.aura/app/aura_engine/__main__.py" || exit 1
+            echo $ENGINE_INSTALLED_MARK
+        """.trimIndent()
     }
 
     override fun installed(): Boolean = try {
@@ -83,6 +98,19 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
     // O processo do motor só responde ao callback quando termina; o fluxo confere a saúde em paralelo.
     suspend fun runEngine(): TermuxResult =
         awaitCommand("start", baseIntent(arrayOf("-m", "aura_engine")))
+
+    /** Motor embutido (assets/engine.tar.gz) -> ~/.aura/app no Termux. O tar viaja em argumentos base64: sem rede e sem git. */
+    suspend fun installEngine(): TermuxResult {
+        val packed = try {
+            context.assets.open(ENGINE_ASSET).use { android.util.Base64.encodeToString(it.readBytes(), android.util.Base64.NO_WRAP) }
+        } catch (_: Exception) { return TermuxResult.Failed }
+        val chunks = packed.chunked(CHUNK).toTypedArray()
+        val intent = baseIntent(arrayOf("-c", INSTALL_SCRIPT, "aura-install") + chunks).apply {
+            putExtra("com.termux.RUN_COMMAND_PATH", BASH)
+            putExtra("com.termux.RUN_COMMAND_WORKDIR", HOME)
+        }
+        return awaitCommand("install", intent)
+    }
 
     private suspend fun awaitCommand(operation: String, command: Intent): TermuxResult {
         if (!installed()) return TermuxResult.Failed

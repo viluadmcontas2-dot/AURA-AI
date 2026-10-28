@@ -31,6 +31,7 @@ class RealTermuxPort(
     override suspend fun probe() = bridge.probe()
     override suspend fun pairAndWait() = bridge.pairAndWait()
     override suspend fun runEngine() = bridge.runEngine()
+    override suspend fun installEngine() = bridge.installEngine()
     override suspend fun engineUp(): Boolean {
         val result = gateway.health()
         return result is EngineResult.Ok && result.value.service == "aura-engine"
