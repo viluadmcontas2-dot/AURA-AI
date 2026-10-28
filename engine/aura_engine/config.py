@@ -36,6 +36,14 @@ DEFAULT_POLICY = {
     "notify": "so_se_precisar",
 }
 
+AUTONOMY = ("total", "ask_destructive", "ask_all", "custom")  # custom = policy.json (avancado)
+TRANSPORT_MAX = 40
+DEFAULT_SETTINGS = {
+    "autonomy": "total",  # decisao do dono: sem aprovacao por padrao
+    "cost_lock": True,    # interruptor do dono: dinheiro nao volta, entao comeca ligado
+    "network": {"metered": False, "transport": "unknown"},  # desconhecido = Wi-Fi
+}
+
 DEFAULT_MODELS = {
     "version": 1,
     "deny": ["fable*"],
@@ -272,6 +280,49 @@ class ConfigStore:
 
     def policy(self):
         return self.get("policy")
+
+    # ---- ajustes do dono (autonomia, trava de custo, rede): settings.json, sem versao ----
+    def settings(self):
+        with self.lock:
+            merged = copy.deepcopy(DEFAULT_SETTINGS)
+            try:
+                doc = json.loads((self.home / "settings.json").read_text("utf-8"))
+            except (OSError, ValueError):
+                return merged
+            if not isinstance(doc, dict):
+                return merged
+            if doc.get("autonomy") in AUTONOMY:
+                merged["autonomy"] = doc["autonomy"]
+            if isinstance(doc.get("cost_lock"), bool):
+                merged["cost_lock"] = doc["cost_lock"]
+            net = doc.get("network")
+            if (isinstance(net, dict) and isinstance(net.get("metered"), bool)
+                    and isinstance(net.get("transport"), str)):
+                merged["network"] = {"metered": net["metered"], "transport": net["transport"][:TRANSPORT_MAX]}
+            return merged
+
+    def set_setting(self, key, value):
+        """Valida e grava um ajuste. A mensagem nunca repete o valor recebido."""
+        if key == "autonomy":
+            value = _enum(value, AUTONOMY, "autonomy")
+        elif key == "cost_lock":
+            if not isinstance(value, bool):
+                raise ConfigError("cost_lock deve ser verdadeiro ou falso")
+        elif key == "network":
+            if (not isinstance(value, dict) or set(value) != {"metered", "transport"}
+                    or not isinstance(value["metered"], bool) or not isinstance(value["transport"], str)
+                    or not 0 < len(value["transport"]) <= TRANSPORT_MAX):
+                raise ConfigError("network precisa de metered (verdadeiro ou falso) e transport (texto curto)")
+            value = {"metered": value["metered"], "transport": value["transport"]}
+        else:
+            raise ConfigError("ajuste desconhecido")
+        with self.lock:
+            current = self.settings()
+            current[key] = value
+            self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+            atomic_write_json(self.home / "settings.json", current)
+        self.store.emit("settings.changed", {"key": key, "value": value})
+        return value
 
     def models(self):
         return self.get("models")

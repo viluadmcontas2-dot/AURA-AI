@@ -32,6 +32,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** Reconhecedor falso: guarda quem escuta e deixa o teste "falar". */
 private class FakeRecognizer(override val available: Boolean = true) : SpeechRecognizerPort {
@@ -46,6 +47,7 @@ private class FakeRecognizer(override val available: Boolean = true) : SpeechRec
 
 /** Uma classe, ~8 testes: cada tela de voz (Voz-1 a Voz-5), o orbe e o "Falar a ideia" de Projetos. */
 @RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "w390dp-h844dp")
 class VoiceScreensTest {
     @get:Rule val compose = createComposeRule()
 

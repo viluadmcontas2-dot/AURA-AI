@@ -20,6 +20,8 @@ class EngineContracts(unittest.TestCase):
         self.home = pathlib.Path(temp.name)
         self.engine = Engine(home=self.home, auto_worker=False)
         self.addCleanup(self.engine.close)
+        # O padrao agora e autonomia total; estes testes exercitam a politica granular (policy.json).
+        self.engine.config.set_setting("autonomy", "custom")
 
     def test_HTTP_approval_and_cancel_without_body(self):
         server = make_server(self.engine, "127.0.0.1", 0)

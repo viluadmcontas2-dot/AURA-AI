@@ -19,7 +19,7 @@ from .adapters import ActionError
 
 KINDS = {'scope_locked', 'obligation_added', 'tool_call', 'evidence', 'unknown',
          'step_done', 'coverage_evaluated', 'rebuild_progress', 'model_call',
-         'approval', 'fidelity_measured', 'checkpoint'}
+         'approval', 'fidelity_measured', 'checkpoint', 'notice'}
 COUNTS = {'coverage_evaluated': 'satisfied', 'rebuild_progress': 'ready',
           'fidelity_measured': 'passed'}
 
@@ -182,6 +182,9 @@ class ReformLedger:
             if payload['cost_class'] == 'paid':
                 _require(self._approved(entries, key, kind, 'paid'),
                          'Custo bloqueado: aprove especificamente esta chamada paga.')
+        elif kind == 'notice':
+            _require(_text(payload.get('step')) and type(payload.get('mb')) is int and payload['mb'] > 0,
+                     'Informe o passo e o tamanho do download em MB.')
         elif kind == 'step_done':
             _require(_text(payload.get('step')) and _text(payload.get('proof')),
                      'Informe o passo concluído e sua prova.')

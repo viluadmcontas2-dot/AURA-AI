@@ -5,6 +5,7 @@ de verdade e do T18. Retomar = rodar de novo: o passo que ja tem checkpoint e pu
 """
 import json
 import os
+import re
 import subprocess
 import time
 
@@ -31,6 +32,67 @@ def steps(home):
         ("rea", [["npm", "install", "-g", "rea-agents@" + REA_VERSION]]),
         ("mcp", []),  # prova de que o servidor sobe: tools/list de verdade
     ]
+
+
+NOTICE_MB = 100
+NPM_ESTIMATE_MB = {"rea-agents": 40}  # estimativa por pacote conhecido; desconhecido = sem aviso
+_NEED = re.compile(r"Need to get ([\d.,]+)\s*(kB|MB|GB)", re.I)
+_UNIT = {"kb": 1 / 1024, "mb": 1, "gb": 1024}
+
+
+def is_download(argv):
+    """Comando que BAIXA da rede: pkg install, curl, npm install."""
+    return bool(argv) and (argv[0] in ("curl", "wget") or (
+        argv[0] in ("pkg", "npm") and "install" in argv))
+
+
+def step_downloads(commands):
+    return any(is_download(argv) for argv in commands)
+
+
+def _run_quiet(argv, home, engine):
+    try:
+        return adapters.run_process(argv, home, engine, 120).get("stdout") or ""
+    except adapters.ActionError:
+        return ""  # estimar nunca derruba nem bloqueia nada
+
+
+def estimate_download_mb(step, home=None, engine=None):
+    """Tamanho aproximado (MB inteiros) do que o passo baixa, ou None se nao der para saber.
+
+    step = (nome, comandos). curl: HEAD/Content-Length. pkg: `apt-get -s install` ("Need to get").
+    npm: tabela de pacotes conhecidos."""
+    home = home or engine.home
+    total, known = 0.0, False
+    for argv in step[1]:
+        mb = None
+        if argv[0] == "curl":
+            urls = [a for a in argv if a.startswith("http")]
+            if urls:
+                head = _run_quiet(["curl", "-s", "-I", "-L", urls[-1]], home, engine)
+                sizes = re.findall(r"content-length:\s*(\d+)", head, re.I)
+                mb = int(sizes[-1]) / 1048576 if sizes else None
+        elif argv[0] == "pkg" and "install" in argv:
+            pkgs = [a for a in argv[argv.index("install") + 1:] if not a.startswith("-")]
+            out = _run_quiet(["apt-get", "-s", "install", "-y"] + pkgs, home, engine)
+            found = _NEED.search(out)
+            if found:
+                try:
+                    mb = float(found.group(1).replace(",", "")) * _UNIT[found.group(2).lower()]
+                except ValueError:
+                    mb = None
+        elif argv[0] == "npm" and "install" in argv:
+            names = [a.rsplit("@", 1)[0] if a.rfind("@") > 0 else a for a in argv if not a.startswith("-")]
+            hits = [NPM_ESTIMATE_MB[n] for n in names if n in NPM_ESTIMATE_MB]
+            mb = sum(hits) if hits else None
+        if mb is not None:
+            total, known = total + mb, True
+    return int(round(total)) if known else None
+
+
+def network_blocks(engine):
+    """Dados moveis (rede medida) nao baixam pacote. Sem estado conhecido = Wi-Fi."""
+    return bool(engine.config.settings()["network"]["metered"])
 
 
 def _done(home):
@@ -138,11 +200,25 @@ def setup(engine):
     home, emit = engine.home, engine.store.emit
     job_id = getattr(engine.context, "job_id", None)
     done = _done(home)
+    notices = []
     for name, commands in steps(home):
         event = {"id": job_id, "name": name}
         if name in done:
             emit("tool.install", dict(event, state="ready", pct=100))  # ja tem checkpoint: pula
             continue
+        if step_downloads(commands):
+            if network_blocks(engine):
+                # Dados moveis: nao falha. Guarda onde parou e espera o Wi-Fi (rodar de novo retoma).
+                atomic_write_json(home / "rea" / "checkpoint.json", {"done": done, "waiting_wifi": name})
+                emit("tool.install", dict(event, state="waiting_wifi", pct=0))
+                return {"state": "waiting_wifi", "waiting_step": name, "steps": sorted(done),
+                        "checkpoint": last_done(home), "download_notices": notices,
+                        "message": "Estou em dados móveis. Conecte ao Wi-Fi e toque em Tentar de novo: "
+                                   "continuo do passo %s." % name}
+            mb = estimate_download_mb((name, commands), home, engine)
+            if mb is not None and mb > NOTICE_MB:  # aviso discreto: nunca bloqueia
+                notices.append({"step": name, "mb": mb})
+                emit("download.notice", {"id": job_id, "step": name, "mb": mb})
         emit("tool.install", dict(event, state="installing", pct=0))
         try:
             for argv in commands:
@@ -158,7 +234,7 @@ def setup(engine):
         done[name] = time.time()
         atomic_write_json(home / "rea" / "checkpoint.json", {"done": done})
         emit("tool.install", dict(event, state="ready", pct=100))
-    return {"steps": sorted(done), "checkpoint": last_done(home)}
+    return {"steps": sorted(done), "checkpoint": last_done(home), "download_notices": notices}
 
 
 def run(request, engine):

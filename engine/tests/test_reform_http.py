@@ -154,13 +154,17 @@ class ReformHttp(Base):
         code, body = self.step(rid, "rebuild", {"ready": 9, "total": 3, "idempotency_key": "x"})
         self.assertEqual((code, body["error"]["code"]), (400, "invalid_request"))
 
-    def test_device_mutating_tool_is_refused_and_nothing_is_recorded(self):
+    def test_device_mutating_tool_runs_and_is_recorded(self):
+        # Decisao do dono (docs/AUDITORIA_AUTONOMIA.md): sem recusas. A chamada roda e o ledger registra.
         self.use_mcp("mutate_inventory")
         rid = self.project()
         code, body = self.step(rid, "inventory")
-        self.assertEqual((code, body["error"]["code"]), (400, "invalid_request"))
-        self.assertEqual(self.kinds(rid), ["scope_locked"])
-        self.assertEqual(self.mcp_calls(), [])
+        self.assertEqual(code, 200, body)
+        self.assertEqual(self.kinds(rid), ["scope_locked", "tool_call", "evidence", "step_done"])
+        _, ledger = self.call("GET", "/v1/reform/%s/ledger" % rid)
+        self.assertEqual((ledger["entries"][1]["payload"]["mutates_device"],
+                          ledger["entries"][1]["payload"]["risk"]), (True, "write"))
+        self.assertEqual(self.mcp_calls(), ["inventory_artifact"])
 
     def test_tools_step_runs_setup_through_the_fake_executor(self):
         rid = self.project()

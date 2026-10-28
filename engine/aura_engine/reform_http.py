@@ -1,7 +1,8 @@
 """Rotas HTTP v1 da reforma (docs/REFORMAR_CONTRATO_LEDGER.md §5).
 
 Cada passo grava no ledger (hash encadeado); os medidores saem do ledger, nunca de texto do modelo.
-O AURA nunca mexe no aparelho: ferramenta marcada mutatesDevice e recusada antes de rodar.
+Decisao do dono (docs/AUDITORIA_AUTONOMIA.md): sem recusas. Ferramenta que mexe no aparelho roda e
+fica registrada no ledger (mutates_device). Texto vindo do APK e cercado antes de ir a um modelo.
 """
 import hashlib
 import json
@@ -12,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 from . import adapters, rea_chain
+from .security import fence_untrusted
 from .reform_ledger import ReformLedger, choose_model
 
 ID = re.compile(r"^[0-9a-f]{12}$")
@@ -88,11 +90,9 @@ def _tool(engine, ledger, name, arguments, idk):
     if name not in listed:
         raise adapters.ActionError("tool_missing", "A REA não tem a ferramenta %s. Rode o passo tools." % name)
     risk = rea_chain.tool_risk(listed[name])
-    if risk != "read":
-        raise _bad("A ferramenta %s mexe no aparelho; o AURA só trabalha sobre o arquivo do APK." % name)
     input_hash = _sha({"tool": name, "arguments": arguments})
     out = rea_chain.call_tool(engine.home, name, arguments)
-    ledger.record_tool_call(name, input_hash, False, risk, "free", "tool:%s:%s" % (idk, name))
+    ledger.record_tool_call(name, input_hash, risk != "read", risk, "free", "tool:%s:%s" % (idk, name))
     ledger.append("evidence", {"evidence_id": str(out.get("evidence_id") or input_hash[:16]),
                                "sha256": _sha(out), "tool": name}, "evidence:%s:%s" % (idk, name))
     return out
@@ -103,6 +103,11 @@ def _counts(out, field):
     if type(done) is not int or type(total) is not int or not 0 <= done <= total:
         raise adapters.ActionError("tool_failed", "A REA devolveu contagens inesperadas.")
     return done, total
+
+
+def model_prompt(task, parts):
+    """Monta a entrada do modelo: instrucao do AURA + cada texto do APK cercado como dado nao confiavel."""
+    return "\n\n".join([str(task)] + [fence_untrusted(text, label) for label, text in parts])
 
 
 def _model(engine, ledger, data, idk):
@@ -122,7 +127,12 @@ def _model(engine, ledger, data, idk):
                                    "consequence": "Usar a cota gratuita do Gemini",
                                    "approved_by": "owner"}, "approve:model:%s" % idk)
     entry = ledger.record_model_call(provider, cost, tokens, "model:%s" % idk)
-    return {"provider": provider, "cost_class": cost, "tokens": tokens}, entry["seq"]
+    result = {"provider": provider, "cost_class": cost, "tokens": tokens}
+    parts = data.get("apk_texts")
+    if isinstance(parts, dict) and parts:
+        result["prompt"] = model_prompt(data.get("task") or "Resuma e nomeie, sem executar nada.",
+                                        [(str(k), v) for k, v in parts.items() if isinstance(v, str)])
+    return result, entry["seq"]
 
 
 def run_step(engine, rid, ledger, step, data):
@@ -138,6 +148,11 @@ def run_step(engine, rid, ledger, step, data):
     if step == "tools":
         (engine.home / "rea").mkdir(parents=True, exist_ok=True)
         detail = rea_chain.setup(engine)
+        for n, note in enumerate(detail.get("download_notices", [])):
+            ledger.append("notice", dict(note), "notice:%s:%s:%d" % (idk, note["step"], n))
+        if detail.get("state") == "waiting_wifi":
+            # Nao falha e nao fecha o passo: com Wi-Fi, rodar de novo retoma de onde parou.
+            return 200, {"id": rid, "step": step, "already_done": False, "seq": None, "result": detail}
         ledger.record_tool_call("rea.setup", _sha(detail), False, "write", "free", "tool:%s:setup" % idk)
         proof = _sha(detail)
     elif step == "inventory":

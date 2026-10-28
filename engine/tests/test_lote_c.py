@@ -30,6 +30,8 @@ class Base(unittest.TestCase):
         os.environ.pop("AURA_CLAUDE_MODEL", None)
         self.engine = Engine(home=self.home, auto_worker=False)
         self.addCleanup(self.engine.close)
+        # O padrao agora e autonomia total; estes testes exercitam a politica granular (policy.json).
+        self.engine.config.set_setting("autonomy", "custom")
         server = make_server(self.engine, "127.0.0.1", 0)
         self.addCleanup(server.server_close)
         threading.Thread(target=server.serve_forever, daemon=True).start()

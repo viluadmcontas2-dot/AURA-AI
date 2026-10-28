@@ -90,6 +90,18 @@ def make_server(engine, host="127.0.0.1", port=8765):
                             "code": "not_found",
                             "message": "Lembrança não encontrada. Talvez já tenha sido esquecida."}})
                     return self.send(404, {"error": {"code": "not_found", "message": "Unknown endpoint"}})
+                setting = {"/v1/settings/autonomy": "autonomy", "/v1/settings/cost_lock": "cost_lock",
+                           "/v1/network": "network"}.get(path)
+                if setting and method in ("GET", "POST"):
+                    if method == "POST":
+                        data = self.body()
+                        if setting == "network":
+                            engine.config.set_setting("network", {k: data.get(k) for k in ("metered", "transport")}
+                                                      if set(data) >= {"metered", "transport"} else data)
+                        else:
+                            engine.config.set_setting(setting, data.get(setting))
+                    current = engine.config.settings()[setting]
+                    return self.send(200, current if setting == "network" else {setting: current})
                 if method == "GET":
                     if path == "/v1/health":
                         return self.send(200, {"service": "aura-engine", "version": 1})

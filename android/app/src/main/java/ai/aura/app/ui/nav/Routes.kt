@@ -8,6 +8,10 @@ import ai.aura.app.ui.screens.DevicesScreen
 import ai.aura.app.ui.screens.HomeScreen
 import ai.aura.app.ui.screens.ProjectsScreen
 import ai.aura.app.ui.screens.settings.SettingsScreen
+import ai.aura.app.ui.screens.voice.VoiceCompactRoute
+import ai.aura.app.ui.screens.voice.VoiceListeningRoute
+import ai.aura.app.ui.screens.voice.VoiceModesRoute
+import ai.aura.app.ui.screens.voice.VoiceTriageRoute
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -79,11 +83,21 @@ val ROUTES: List<Route> = listOf(
     Route("chat-executando", "Chat-3-Executando", AuraTab.Home, true, listOf("chat-aprovacao", "chat-resultado", "bastidores")),
     Route("chat-aprovacao", "Chat-4-Aprovacao", AuraTab.Home, true, listOf("chat-resultado")),
     Route("chat-resultado", "Chat-5-Resultado", AuraTab.Home, true, listOf("link-aberto", "artefato-detalhe", "dispositivo-detalhe")),
-    Route("voz-ouvindo", "Voz-1-Ouvindo", AuraTab.Home, false, listOf("voz-compacta", "voz-interrompida", "chat-entendi")),
-    Route("voz-interrompida", "Voz-2-Interrompida", AuraTab.Home, false, listOf("voz-ouvindo")),
-    Route("voz-compacta", "Voz-3-Compacta", AuraTab.Home, false, listOf("voz-triagem")),
-    Route("voz-triagem", "Voz-4-Triagem", AuraTab.Home, true, emptyList()),
-    Route("voz-modos", "Voz-5-Modos", AuraTab.Home, false, emptyList()),
+    Route("voz-ouvindo", "Voz-1-Ouvindo", AuraTab.Home, false, listOf("voz-compacta", "voz-interrompida", "chat-entendi")) { env ->
+        VoiceListeningRoute(env, Modifier.fillMaxSize())
+    },
+    Route("voz-interrompida", "Voz-2-Interrompida", AuraTab.Home, false, listOf("voz-ouvindo")) { env ->
+        VoiceListeningRoute(env, Modifier.fillMaxSize())
+    },
+    Route("voz-compacta", "Voz-3-Compacta", AuraTab.Home, false, listOf("voz-triagem", "voz-ouvindo")) { env ->
+        VoiceCompactRoute(env, Modifier.fillMaxSize())
+    },
+    Route("voz-triagem", "Voz-4-Triagem", AuraTab.Home, true, listOf("voz-ouvindo")) { env ->
+        VoiceTriageRoute(env, Modifier.fillMaxSize())
+    },
+    Route("voz-modos", "Voz-5-Modos", AuraTab.Home, false, emptyList()) { env ->
+        VoiceModesRoute(env, Modifier.fillMaxSize())
+    },
 
     Route("projetos", "Projetos", AuraTab.Projects, true, listOf("projeto-ideia", "projeto-detalhe", "vazios")) { env ->
         ProjectsScreen(env.gateway, Modifier.fillMaxSize())

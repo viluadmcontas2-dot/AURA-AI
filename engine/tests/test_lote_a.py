@@ -58,6 +58,8 @@ class Base(unittest.TestCase):
     def make_engine(self, **kw):
         engine = Engine(home=self.home, auto_worker=False, **kw)
         self.addCleanup(engine.close)
+        # O padrao agora e autonomia total; estes testes exercitam a politica granular (policy.json).
+        engine.config.set_setting("autonomy", "custom")
         server = make_server(engine, "127.0.0.1", 0)
         self.addCleanup(server.server_close)
         threading.Thread(target=server.serve_forever, daemon=True).start()
