@@ -142,3 +142,38 @@ def choose_executor(task_kind, agy_available=None, gemini_key=None, cost_lock=Tr
     if gemini_key and (not cost_lock or gemini_free):
         return "gemini_api"
     return "claude_min"
+
+CHAT_EXECUTORS = (("claude_cli", "claude"), ("gemini_cli", "gemini"), ("agy_cli", "agy"))
+_ALIASES = {"claude": "claude_cli", "claude_cli": "claude_cli", "gemini": "gemini_cli",
+            "gemini_cli": "gemini_cli", "agy": "agy_cli", "agy_cli": "agy_cli"}
+
+
+def executor_kind(name):
+    return _ALIASES.get(name) if isinstance(name, str) else None
+
+
+def chat_executors(installed, preferred=None):
+    """Executores do chat instalados, em ordem. Se `preferred` for pedido e nao estiver instalado, so ele conta
+    como ausente (lista vazia): o app mostra a acao de instalar em vez de trocar de assistente escondido."""
+    order = [kind for kind, exe in CHAT_EXECUTORS if installed(exe)]
+    want = executor_kind(preferred)
+    if want is None:
+        return order
+    return [want] + [k for k in order if k != want] if want in order else []
+
+
+_INTENT_WORDS = (
+    ("reform", ("reformar", "reforma ", "refatorar", "refatore", "redesenhar", "redesenhe")),
+    ("project", ("novo projeto", "criar projeto", "crie um projeto", "criar um projeto", "começar um projeto",
+                 "comecar um projeto")),
+    ("task", ("agende", "agendar", "todo dia", "toda semana", "todos os dias", "crie uma tarefa",
+              "criar uma tarefa")),
+)
+
+
+def intent_kind(text):
+    lower = text.casefold()
+    for kind, words in _INTENT_WORDS:
+        if any(w in lower for w in words):
+            return kind
+    return None
