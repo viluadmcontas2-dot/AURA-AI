@@ -32,3 +32,13 @@ Legenda: [ ] pendente, [x] verde com evidência em docs/REGISTRO.md.
 
 ## F. Atualização
 - [ ] APK novo instala por cima do anterior (mesma assinatura, versionCode maior) sem perder dados nem login.
+
+## G. Sessões, melhorar pedido e chave do Gemini (no aparelho; a JVM já cobre os cliques)
+- [ ] Sessões: abre do ícone do Início, do botão "Sessões" do Chat e de Ajustes; lista mostra "No AURA", "No terminal" e "Respondendo agora".
+- [ ] Tocar numa sessão do terminal abre o Chat com o histórico dela e a próxima mensagem continua a mesma conversa no Claude Code.
+- [ ] Renomear, Esconder (no terminal só esconde no AURA; o histórico do Claude continua) e Parar resposta funcionam com o motor real.
+- [ ] "No celular agora" lista claude/agy/gemini/codex/motor e Parar encerra o programa; o motor não tem botão.
+- [ ] Sem motor: Sessões mostra "Iniciar o motor" e as conversas já vistas; nunca tela em branco.
+- [ ] Melhorar pedido: aparece só com mais de 160 caracteres (digitados ou falados), troca o texto, Desfazer restaura, nunca envia sozinho.
+- [ ] Sem chave: "Cole a chave do Gemini em Conexões para melhorar pedidos." + "Abrir Conexões". Em Conexões, Salvar chave -> "Chave salva" -> Remover chave; a chave nunca aparece.
+- [ ] Chat: "Pensando…" entre o envio e a primeira palavra; a frase da ferramenta troca por ela; o indicador some quando o texto cresce.
