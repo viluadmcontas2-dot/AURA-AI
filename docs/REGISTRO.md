@@ -146,3 +146,10 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Estado (leitura estática, sem SDK): `EngineApi`/`AuraEngineClient`/`RealEngineGateway` ganharam installTool, submitAuthCode, submitAuthToken; `AccountsAuth.kt` mostra o campo e os botões Enviar código/Enviar token; token vai direto ao motor e nunca é exibido.
 - Suposição não verificada: o formato dos payloads dos eventos tool.install e download.notice (usei `state`=aguardando_wifi e `waiting_wifi`); ajustar quando o contrato do motor estiver na branch.
 - Testes: ConnectionsLoginTest (Instalar, não instala no Termux, código colado, token) e RealEngineGatewayTest. Não rodados (sem SDK).
+
+## 2026-10-28 — Chat de verdade no app (sem tarefa, rota, aprovação nem JSON)
+- Objetivo: digitar e ver a RESPOSTA em texto, em streaming, como num chat; `/comando` é do app e nunca vai à IA; erros em português com uma ação.
+- Estado (leitura estática, sem SDK): `EngineGateway` ganhou startChat/chatStream/stopChat/chats/chatMessages/intent (padrão = motor não conversa); `RealEngineGateway` junta eventos `chat.*` com `GET /v1/chat/{id}`; `ChatController` reescrito (session_id em cada mensagem, Parar, mensagem guardada quando o motor está desligado e reenvio sozinho, histórico no disco + `GET /v1/chats/{id}/messages`); removidos cartão Entendi, Começar/Ajustar pedido, aprovação, JobPanel, "FALTA/PRÓXIMO PASSO" e `ApprovalSheet`. Microfone do composer usa a digitação por voz do Google (`LocalVoiceInput`) e o texto cai no campo.
+- Testes escritos: `RealEngineChatTest` (servidor HTTP falso real), `ChatFlowTest` (Compose + Robolectric), `AbasTest` (histórico do disco). Não rodados aqui (sem SDK): a CI é o veredito.
+- Suposições: `/v1/chats/{id}` usa o session_id; `/v1/intent` NÃO é chamado no envio (a mensagem vai direto ao Claude). Sem evento de aprovação no contrato de chat: políticas ask_* ainda não pedem ok no app.
+- Próximo item: CI compilar e rodar; combinar com o motor o evento de aprovação do chat.

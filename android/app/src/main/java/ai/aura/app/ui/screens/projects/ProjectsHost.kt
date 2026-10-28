@@ -58,6 +58,9 @@ internal fun ProjectsHost(
     store: LocalStore = rememberAuraStore(),
     /** Abre a reforma de apps (fora desta aba). Nulo = os atalhos "Reformar um app que já existe" não aparecem. */
     onReformApp: (() -> Unit)? = null,
+    /** Ideia que veio do chat: abre direto o passo "Qual é a sua ideia?" com ela preenchida. */
+    startIdea: String = "",
+    onStartIdeaHandled: () -> Unit = {},
 ) {
     var route by rememberSaveable { mutableStateOf(Route.List) }
     var projectId by rememberSaveable { mutableStateOf("") }
@@ -78,6 +81,13 @@ internal fun ProjectsHost(
     }
     LaunchedEffect(projects, loaded) {
         if (loaded) withContext(Dispatchers.IO + NonCancellable) { store.saveProjects(projects) }
+    }
+
+    LaunchedEffect(startIdea) {
+        if (startIdea.isNotBlank()) {
+            idea = startIdea.trim(); answer = ""; route = Route.Idea
+            onStartIdeaHandled()
+        }
     }
 
     var jobs by remember { mutableStateOf<Map<String, Job>>(emptyMap()) }

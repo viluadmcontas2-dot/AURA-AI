@@ -60,6 +60,10 @@ class ScreenEnv(
     val onPendingPromptHandled: () -> Unit = {},
     /** Cria o pedido no chat (mesmo caminho do envio do composer). */
     val sendPrompt: (String) -> Unit = {},
+    /** Ideia vinda de "/projeto ideia": a aba Projetos abre o passo da ideia já preenchida. */
+    val projectIdea: String = "",
+    val onProjectIdeaHandled: () -> Unit = {},
+    val startProjectIdea: (String) -> Unit = {},
     val queue: ai.aura.app.integration.QueueGateway = ai.aura.app.integration.NoEngineQueueGateway,
     /** Estado do motor e a ação por motivo (mesmas do banner "Motor desligado"): Conexões mostra e usa os dois. */
     val link: ai.aura.app.offline.LinkState = ai.aura.app.offline.LinkState.Unknown,
@@ -95,6 +99,9 @@ val ROUTES: List<Route> = listOf(
             onPendingPromptHandled = env.onPendingPromptHandled,
             onOpenVoice = { env.open("voz-ouvindo") },
             onOpenReform = { env.open("reformar-apps") },
+            link = env.link,
+            onEngineAction = env.onEngineAction,
+            onNavigate = { target, rest -> openChatTarget(env, target, rest) },
         )
     },
     Route("chat-entendi", "Chat-1-Entendi", AuraTab.Home, true, listOf("chat-executando")),
@@ -119,7 +126,10 @@ val ROUTES: List<Route> = listOf(
     },
 
     Route("projetos", "Projetos", AuraTab.Projects, true, listOf("projeto-ideia", "projeto-detalhe", "vazios", "reformar-apps")) { env ->
-        ProjectsScreen(env.gateway, Modifier.fillMaxSize(), onReformApp = { env.open("reformar-apps") })
+        ProjectsScreen(
+            env.gateway, Modifier.fillMaxSize(), onReformApp = { env.open("reformar-apps") },
+            startIdea = env.projectIdea, onStartIdeaHandled = env.onProjectIdeaHandled,
+        )
     },
     Route("projeto-ideia", "Projeto-Ideia", AuraTab.Projects, false, listOf("projeto-novo", "reformar-apps")),
     Route("projeto-novo", "Projeto-Novo", AuraTab.Projects, false, listOf("projeto-detalhe")),
@@ -194,6 +204,20 @@ val ROUTES: List<Route> = listOf(
         ai.aura.app.ui.screens.backstage.BackstageRoute(env)
     },
 )
+
+/** Comando "/" do chat: abre a tela certa. Nunca vai à IA. */
+internal fun openChatTarget(env: ScreenEnv, target: ai.aura.app.ui.screens.chat.AppTarget, rest: String) {
+    when (target) {
+        ai.aura.app.ui.screens.chat.AppTarget.Projects ->
+            if (rest.isNotBlank()) env.startProjectIdea(rest) else env.openTab(AuraTab.Projects)
+        ai.aura.app.ui.screens.chat.AppTarget.Reform -> env.open("reformar-apps")
+        ai.aura.app.ui.screens.chat.AppTarget.Connections -> env.open("conexoes")
+        ai.aura.app.ui.screens.chat.AppTarget.Settings -> env.open("ajustes")
+        ai.aura.app.ui.screens.chat.AppTarget.Activity -> env.openTab(AuraTab.Activity)
+        ai.aura.app.ui.screens.chat.AppTarget.Voice -> env.open("voz-ouvindo")
+        ai.aura.app.ui.screens.chat.AppTarget.Devices -> env.openTab(AuraTab.Devices)
+    }
+}
 
 /** A rota existe e tem tela? Botão que leva a uma rota sem tela ficaria mudo: quem chama esconde o botão. */
 fun routeHasScreen(id: String): Boolean = ROUTES.any { it.id == id && it.screen != null }
