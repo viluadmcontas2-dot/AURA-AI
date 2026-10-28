@@ -35,6 +35,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.core.app.ActivityOptionsCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,6 +116,12 @@ class ReformDescobertaTest {
     private fun ComposeContentTestRule.toca(t: String) {
         espera(t)
         onNodeWithText(t).performClick()
+    }
+
+    /** Para telas que rolam: o botão pode estar abaixo da dobra e um clique fora da janela se perde. */
+    private fun ComposeContentTestRule.tocaRolando(t: String) {
+        espera(t)
+        onNodeWithText(t).performScrollTo().performClick()
     }
 
     private fun abrirApp(motor: EngineGateway, seletor: SeletorFalso = SeletorFalso(), onOpenTermux: () -> Unit = {}) {
@@ -232,10 +239,10 @@ class ReformDescobertaTest {
     fun `Ajustes abre Check-up, Notificacoes, Voz e Bastidores mesmo sem motor`() {
         val abertas = mutableListOf<String>()
         rule.setContent { AuraTheme { ai.aura.app.ui.screens.settings.SettingsScreen(MotorFalso(down = true), onClose = {}, onOpenScreen = { abertas += it }) } }
-        rule.toca("Abrir check-up")
-        rule.toca("Ajustar avisos")
-        rule.toca("Escolher modo de voz")
-        rule.toca("Ver bastidores")
+        rule.tocaRolando("Abrir check-up")
+        rule.tocaRolando("Ajustar avisos")
+        rule.tocaRolando("Escolher modo de voz")
+        rule.tocaRolando("Ver bastidores")
         assertEquals(listOf("checkup", "notificacoes", "voz-modos", "bastidores"), abertas)
     }
 
