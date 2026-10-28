@@ -45,7 +45,12 @@ class Store:
             CREATE TABLE IF NOT EXISTS chat_messages(
                 id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, chat_id TEXT NOT NULL,
                 role TEXT NOT NULL, text TEXT NOT NULL, created REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS session_meta(
+                id TEXT PRIMARY KEY, title TEXT, hidden INTEGER NOT NULL DEFAULT 0);
         """)
+        with self.lock, self.db:
+            if "cwd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(conversations)")}:
+                self.db.execute("ALTER TABLE conversations ADD COLUMN cwd TEXT")
         self._upgrade_memory()
         with self.lock, self.db:
             columns = {r["name"] for r in self.db.execute("PRAGMA table_info(jobs)")}
@@ -401,7 +406,7 @@ class Store:
                 (session_id, cli_session or session_id, 1 if started else 0, title[:60], workspace, now, now))
 
     def chat_update_conversation(self, session_id, **fields):
-        allowed = {"cli_session", "started"}
+        allowed = {"cli_session", "started", "cwd"}
         sets = [(k, v) for k, v in fields.items() if k in allowed]
         with self.lock, self.db:
             for key, value in sets:
@@ -450,3 +455,40 @@ class Store:
                 " ORDER BY id ASC", (session_id, max(1, min(int(limit), 2000)))).fetchall()
             return [{"id": r["id"], "chat_id": r["chat_id"], "role": r["role"], "text": r["text"],
                      "created_at": r["created"]} for r in rows]
+
+    # ---- sessoes (registro do AURA sobre as sessoes do Claude Code) -------------
+    def chat_conversations(self):
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT c.id,c.title,c.workspace,c.updated,"
+                " (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id=c.id) AS n FROM conversations c").fetchall()
+            return [{"id": r["id"], "title": r["title"], "workspace": r["workspace"],
+                     "updated": r["updated"], "messages": r["n"]} for r in rows]
+
+    def session_hidden_ids(self):
+        with self.lock:
+            return {r["id"] for r in self.db.execute("SELECT id FROM session_meta WHERE hidden=1")}
+
+    def session_titles(self):
+        with self.lock:
+            return {r["id"]: r["title"] for r in self.db.execute(
+                "SELECT id,title FROM session_meta WHERE title IS NOT NULL")}
+
+    def session_rename(self, session_id, title):
+        with self.lock, self.db:
+            self.db.execute("INSERT INTO session_meta(id,title,hidden) VALUES(?,?,0)"
+                            " ON CONFLICT(id) DO UPDATE SET title=excluded.title", (session_id, title))
+            self.db.execute("UPDATE conversations SET title=? WHERE id=?", (title, session_id))
+
+    def session_unhide(self, session_id):
+        with self.lock, self.db:
+            self.db.execute("UPDATE session_meta SET hidden=0 WHERE id=?", (session_id,))
+
+    def session_forget(self, session_id):
+        """Apaga so o registro do AURA e esconde a sessao; o .jsonl do Claude nunca e tocado."""
+        with self.lock, self.db:
+            self.db.execute("DELETE FROM chat_messages WHERE session_id=?", (session_id,))
+            self.db.execute("DELETE FROM chat_runs WHERE session_id=?", (session_id,))
+            self.db.execute("DELETE FROM conversations WHERE id=?", (session_id,))
+            self.db.execute("INSERT INTO session_meta(id,title,hidden) VALUES(?,NULL,1)"
+                            " ON CONFLICT(id) DO UPDATE SET hidden=1,title=NULL", (session_id,))

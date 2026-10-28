@@ -186,3 +186,24 @@ GET `/v1/chat/{chat_id}` -> `{chat_id, state:"queued|running|done|error", text, 
 POST `/v1/chat/{chat_id}/stop` (sem corpo) -> `{chat_id, stopped:true}`; mata o processo (grupo inteiro) e emite `chat.error code:"stopped"`. Chat ja encerrado -> `{..., stopped:false}`.
 GET `/v1/chats?limit=50` -> `{chats:[{id, title, updated_at}]}` (id = `session_id`; mais recente primeiro; titulo = 1a linha da 1a mensagem, ate 60). GET `/v1/chats/{session_id}/messages` -> `{messages:[{id, chat_id, role:"user|assistant", text, created_at}]}` em ordem. Persistem no sqlite do motor.
 POST `/v1/intent` `{text, workspace?}` -> `{kind:"chat|command|reform|project|task", needs_approval:false|true[, request]}`. `chat` e o padrao e nunca pede aprovacao; `command` (atalhos locais deterministicos como listar dispositivos/arquivos) traz `request` pronto para `POST /v1/jobs` e `needs_approval` pela politica (`total` -> false); `reform|project|task` sao palavras-chave para o app abrir o fluxo proprio. Nao devolve `reason`.
+
+## Sessões do Claude Code, processos e melhorar prompt (motor Python)
+Todos exigem Bearer. Erros: `{error:{code, message[, action_pt]}}` (`message` em português). Sessão desconhecida: 404 `not_found`.
+
+**Sessões.** O motor lê (só leitura) `~/.claude/projects/*/<uuid>.jsonl` e mescla com os chats do motor (mesmo `session_id` = mesma sessão). Arquivo corrompido ou que não é sessão é ignorado; no máximo as 300 mais recentes; lê até 8 MB por arquivo.
+- GET `/v1/sessions?limit=100` -> `{sessions:[{id, title, project, updated_at, messages, source:"aura|terminal", running}]}`. Mais recente primeiro. `title` = renomeado ou 1ª mensagem do usuário (80 chars). `project` = últimas 2 pastas do cwd (ex.: `meu/projeto`). `updated_at` em segundos (epoch, float). `messages` conta só user/assistant. `source:"aura"` se o motor conhece a conversa, senão `terminal`. `running` = há processo do motor para essa sessão.
+- GET `/v1/sessions/{id}/messages?limit=500` -> `{messages:[{id, role:"user|assistant|tool", text, created_at}]}` em ordem. `tool` = linha curta PT-BR ("Lendo arquivos…", "Editando app.py"), nunca argumentos nem saída de ferramenta; `created_at` epoch (float) ou `null`. Sem .jsonl, usa o histórico do motor.
+- POST `/v1/chat` com `session_id` de sessão do terminal continua com `--resume <id>` no **cwd gravado na sessão** (se a pasta ainda existe; senão no workspace). Falar numa sessão apagada a traz de volta.
+- POST `/v1/sessions/{id}/rename` `{title}` -> `{id, title}` (título até 80). 400 se vazio.
+- DELETE `/v1/sessions/{id}` -> `{id, deleted:true}`. Apaga só o registro do AURA (mensagens, execuções) e esconde a sessão da lista; **o .jsonl do Claude nunca é apagado**. Para a execução se houver.
+- POST `/v1/sessions/{id}/stop` (sem corpo) -> `{id, stopped:bool}`; mata o processo (grupo) e descarta a fila; o chat termina com `chat.error code:"stopped"`.
+
+**Processos** (só os que o motor iniciou).
+- GET `/v1/processes` -> `{processes:[{pid, kind:"claude|agy|gemini|codex|engine", session_id?, started_at (epoch ou null), cmd}]}`. `cmd` = executável + só nomes de flags (nunca prompt nem valores).
+- POST `/v1/processes/{pid}/stop` -> `{pid, stopped:true}`; 404 se não é um processo do motor; 400 para `engine`.
+
+**Chave do Gemini.** PUT `/v1/settings/gemini_key` `{key}` -> `{configured:true}` (arquivo 0600 em `<home>/gemini_key`; nunca em evento, log ou resposta). GET -> `{configured:bool}` (nunca a chave). DELETE -> `{configured:false}`.
+
+**Melhorar prompt.** POST `/v1/prompt/improve` `{text (até 20000), style?:"equilibrado|curto|detalhado"}` -> `{improved}`. Usa a Gemini API (`gemini-3.1-flash-lite`, o Flash-Lite mais barato da doc oficial; `AURA_GEMINI_MODEL` troca; `AURA_GEMINI_BASE_URL` aponta para servidor de teste), timeout 30 s. É o único uso de API paga fora do `cost_lock`; só roda quando o app chama este endpoint. Erros:
+- 400 `gemini_key_missing` / `gemini_key_rejected`, `action_pt:"Colar a chave do Gemini em Conexões"`.
+- 503 `network` / `rate_limited`, `action_pt:"Tentar de novo"`; 502 `provider_failed`, `action_pt:"Tentar de novo"`.

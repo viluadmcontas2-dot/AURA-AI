@@ -9,6 +9,7 @@ import re
 import signal
 import subprocess
 import threading
+import time
 import uuid
 
 from . import adapters, routing
@@ -66,6 +67,8 @@ class _Run:
         self.chat_id, self.session_id, self.text = chat_id, session_id, text
         self.workspace, self.executor = workspace, executor
         self.proc = None
+        self.kind = None
+        self.started_at = None
         self.stopped = False
         self.timed_out = False
         self.answer = ""
@@ -92,9 +95,16 @@ class ChatManager:
         store = self.engine.store
         external = session_id is not None
         session_id = session_id or str(uuid.uuid4())
+        store.session_unhide(session_id)  # voltar a conversar traz a sessao de volta a lista
         if store.chat_conversation(session_id) is None:
             # session_id vindo de fora e desconhecido: a CLI ja tem essa conversa, so retomar.
             store.chat_open(session_id, text.strip().splitlines()[0], workspace, started=external)
+            if external:
+                # sessao criada no terminal: o --resume so acha o .jsonl no mesmo cwd em que ela nasceu
+                from . import sessions
+                cwd = sessions.session_cwd(session_id)
+                if cwd:
+                    store.chat_update_conversation(session_id, cwd=cwd)
         chat_id = str(uuid.uuid4())
         run = _Run(chat_id, session_id, text, workspace, None if executor in (None, "auto") else executor)
         with self.lock:
@@ -131,6 +141,30 @@ class ChatManager:
             else:
                 self._kill(run)
         return True
+
+    def running_sessions(self):
+        with self.lock:
+            return set(self.active)
+
+    def stop_session(self, session_id):
+        """Para a execucao ativa da sessao e descarta a fila dela. True se havia algo."""
+        with self.lock:
+            runs = ([self.active[session_id]] if session_id in self.active else []) + \
+                list(self.waiting.get(session_id, []))
+        for run in runs:
+            self.stop(run.chat_id)
+        return bool(runs)
+
+    def processes(self):
+        """Processos de chat vivos: [{pid, kind, session_id, started_at, exe}]."""
+        out = []
+        with self.lock:
+            for sid, run in self.active.items():
+                proc = run.proc
+                if proc is not None and proc.poll() is None:
+                    out.append({"pid": proc.pid, "kind": EXE.get(run.kind, "claude"), "session_id": sid,
+                                "started_at": run.started_at, "argv": list(proc.args)})
+        return out
 
     def close(self):
         with self.lock:
@@ -234,6 +268,8 @@ class ChatManager:
         store = self.engine.store
         conv = store.chat_conversation(run.session_id)
         cwd = adapters.workspace(self.engine.home, {"workspace": run.workspace})
+        if kind == "claude_cli" and conv.get("cwd") and os.path.isdir(conv["cwd"]):
+            cwd = pathlib.Path(conv["cwd"])
         argv = self._build(run, kind, conv)
         try:
             env = None
@@ -245,6 +281,7 @@ class ChatManager:
         except OSError:
             return "cli_missing"
         run.proc = proc
+        run.kind, run.started_at = kind, time.time()
         if run.stopped:
             self._kill(run)
         stderr_buf = []
