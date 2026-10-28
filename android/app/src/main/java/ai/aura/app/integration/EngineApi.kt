@@ -39,6 +39,18 @@ interface EngineApi {
     /** POST /v1/chat: 202 {chat_id, session_id}. Vazio em [sessionId] = conversa nova. */
     suspend fun chat(text: String, sessionId: String?, workspace: String): JSONObject =
         throw UnsupportedOperationException("chat")
+    /** POST /v1/chat com a chave de idempotência e o assistente pedido. O padrão cai na forma antiga. */
+    suspend fun chat(text: String, sessionId: String?, workspace: String, requestId: String?, executor: String?): JSONObject =
+        chat(text, sessionId, workspace)
+    /** GET /v1/chat/requests/{request_id}: o mesmo retrato de [chatState]; 404 request_not_found se nunca foi aceito. */
+    suspend fun chatByRequest(requestId: String): JSONObject = throw UnsupportedOperationException("chatByRequest")
+    /** GET /v1/sessions/{id}/state: {version, revision, messages, total, running, active_chat_id, external_running, ...}. */
+    suspend fun sessionState(id: String): JSONObject = throw UnsupportedOperationException("sessionState")
+    /** GET /v1/sessions/{id}/messages com limit, before (cursor) ou after (posição). */
+    suspend fun sessionPage(id: String, limit: Int, before: String?, after: Int?): JSONObject =
+        throw UnsupportedOperationException("sessionPage")
+    /** POST /v1/sessions/{id}/watch: a sessão está aberta no app (vale por 60 s). */
+    suspend fun watchSession(id: String): JSONObject = throw UnsupportedOperationException("watchSession")
     /** GET /v1/chat/{id}: {state: running|done|error, text, session_id, error?}. */
     suspend fun chatState(id: String): JSONObject = throw UnsupportedOperationException("chatState")
     /** POST /v1/chat/{id}/stop. */

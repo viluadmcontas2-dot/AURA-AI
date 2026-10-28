@@ -7,8 +7,9 @@ import signal
 import urllib.error
 import urllib.request
 
-from . import adapters, sessions
+from . import adapters, sessions, sessions_watch
 from .chat import UUID_RE
+from .chat_http import error
 
 GEMINI_MODEL = "gemini-3.1-flash-lite"   # mais barato dos Flash-Lite da doc oficial (ai.google.dev, 2026-10)
 GEMINI_BASE = "https://generativelanguage.googleapis.com"
@@ -172,17 +173,41 @@ def http(engine, method, path, body, query=""):
             raise ValueError("pid inválido")
         return stop_process(engine, int(parts[3]))
     if path == "/v1/sessions" and method == "GET":
-        limit = parse_qs(query).get("limit", [100])[0]
-        return 200, {"sessions": sessions.listing(engine, limit if str(limit).isdigit() else 100)}
+        query_map = parse_qs(query)
+        limit = query_map.get("limit", [100])[0]
+        try:
+            rows, next_cursor = sessions.listing(engine, limit if str(limit).isdigit() else 100,
+                                                 query_map.get("cursor", [None])[0])
+        except sessions.BadCursor:
+            return error(400, "invalid_request", "O cursor da lista não vale mais. Atualize a lista.", "reload_list")
+        return 200, {"sessions": rows, "next_cursor": next_cursor}
     if len(parts) >= 4 and parts[:3] == ["", "v1", "sessions"]:
         sid = parts[3]
         gone = _err("not_found", 404, "Sessão não encontrada. Talvez já tenha sido apagada.")
         if not UUID_RE.fullmatch(sid):
             return gone
+        if len(parts) == 5 and parts[4] == "state" and method == "GET":
+            info = sessions.state(engine, sid)
+            return gone if info is None else (200, info)
+        if len(parts) == 5 and parts[4] == "watch" and method == "POST":
+            if sessions.state(engine, sid) is None:
+                return gone
+            return 200, {"session_id": sid, "expires_in": sessions_watch.watcher(engine).watch(sid)}
         if len(parts) == 5 and parts[4] == "messages" and method == "GET":
-            limit = parse_qs(query).get("limit", [500])[0]
-            msgs = sessions.messages(engine, sid, limit if str(limit).isdigit() else 500)
-            return gone if msgs is None else (200, {"messages": msgs})
+            query_map = parse_qs(query)
+            limit = query_map.get("limit", [100])[0]
+            after = query_map.get("after", [None])[0]
+            if after is not None and not after.isdigit():
+                raise ValueError("after deve ser um número")
+            try:
+                result = sessions.page(engine, sid, int(limit) if str(limit).isdigit() else 100,
+                                       query_map.get("before", [None])[0], int(after) if after is not None else None)
+            except sessions.HistoryChanged:
+                return error(409, "history_changed", "A conversa mudou enquanto você lia. Vou atualizar.",
+                             "reload_history", retryable=True)
+            except sessions.BadCursor:
+                raise ValueError("cursor inválido")
+            return gone if result is None else (200, result)
         if len(parts) == 5 and parts[4] == "rename" and method == "POST":
             title = body().get("title")
             if not isinstance(title, str) or not title.strip() or len(title.strip()) > 200:

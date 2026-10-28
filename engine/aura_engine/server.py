@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import adapters, cli_setup, reform_http, sessions_http, triage
+from . import adapters, chat_http, cli_setup, reform_http, sessions_http, triage
 from .config import ConfigError, VersionConflict
 from .security import workspace_name
 
@@ -99,6 +99,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
                 if routed is not None:
                     return self.send(*routed)
                 routed = sessions_http.http(engine, method, path, self.body, parsed.query)
+                if routed is not None:
+                    return self.send(*routed)
+                routed = chat_http.http(engine, method, path, self.body, parsed.query)
                 if routed is not None:
                     return self.send(*routed)
                 if method == "DELETE":
