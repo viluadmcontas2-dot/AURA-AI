@@ -60,11 +60,20 @@ internal fun LocalStore.saveSessionId(id: String) {
     if (id.isEmpty()) delete("chat-session") else write("chat-session", JSONObject().put("session_id", id))
 }
 
-/** Mensagem que ainda não saiu porque o motor estava desligado. Sai sozinha quando ele volta. */
-internal fun LocalStore.loadPending(): String = read("chat-pending")?.optString("text").orEmpty()
+/**
+ * Mensagens que ainda não saíram porque o motor estava desligado, em ordem. Saem sozinhas quando ele volta.
+ * No disco: "items" (a fila) e "text" (as mesmas juntas; é o que versões antigas gravaram).
+ */
+internal fun LocalStore.loadPending(): List<String> {
+    val o = read("chat-pending") ?: return emptyList()
+    val items = o.optJSONArray("items")
+    if (items != null) return (0 until items.length()).map { items.optString(it) }.filter { it.isNotEmpty() }
+    return listOf(o.optString("text")).filter { it.isNotEmpty() }
+}
 
-internal fun LocalStore.savePending(text: String) {
-    if (text.isEmpty()) delete("chat-pending") else write("chat-pending", JSONObject().put("text", text))
+internal fun LocalStore.savePending(items: List<String>) {
+    if (items.isEmpty()) delete("chat-pending")
+    else write("chat-pending", JSONObject().put("text", items.joinToString("\n\n")).put("items", org.json.JSONArray(items)))
 }
 
 /** Aviso do próprio app dentro da conversa, em português, com no máximo uma ação. */
@@ -101,7 +110,18 @@ object ChatCommands {
 
     fun find(text: String): ChatCommand? = all.firstOrNull { it.name == norm(text.trim().substringBefore(' ')) }
 
-    fun isCommandText(text: String): Boolean = text.trim().startsWith("/")
+    /**
+     * Comando do app = "/" + uma palavra conhecida da lista (pode vir com argumento), ou "/" + uma palavra
+     * desconhecida curta (até 20 letras, sem outra "/"), para o app dizer "Não conheço". Caminhos como
+     * "/data/data/..." e frases que começam com "/" vão ao Claude.
+     */
+    fun isCommandText(text: String): Boolean {
+        val t = text.trim()
+        if (!t.startsWith("/")) return false
+        if (find(t) != null) return true
+        val word = t.drop(1)
+        return word.isNotEmpty() && word.length <= 20 && word.none { it.isWhitespace() || it == '/' }
+    }
 
     /** Palavra digitada, para a frase "Não conheço /x". */
     fun wordOf(text: String): String = text.trim().substringBefore(' ')
