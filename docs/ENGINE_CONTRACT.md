@@ -144,3 +144,29 @@ A recepção (regras da skill `clareza`, locais, sem modelo) lê a fala ou o tex
 - `{"action":"tools"}` (risco `read`): `{tools:[{name, risk}]}` do `tools/list` real. Ferramenta com `mutatesDevice` (no topo, em `annotations`, ou "device-mutating" na descrição) tem `risk:"write"`, nunca `read`. Sem paginação do `tools/list`.
 - `{"action":"measure","reversal_pct","rebuild_pct","fidelity_pct","real_test":{"device","flows_total","flows_passed"}}` (risco `read`): devolve `{reversalPct, rebuildPct, fidelityPct}`; `fidelityPct` é `null` sem `real_test` (aparelho e fluxos). Os números vêm de quem mediu; o motor não calcula. Emite `reform.progress {id, reversalPct, rebuildPct, fidelityPct, stage, checkpointId}`.
 - Não verificado em aparelho (fica para o T18): nomes dos pacotes do Termux, versão exata do Node aceita pelo REA (22.23.4+/24.22.1+/26.12.1+, o passo `node` não confere), onde o REA põe `mutatesDevice` e se o `tools/list` pagina.
+
+## Autonomia total dos CLIs, delegação e instalação (motor Python)
+Root/su: `kind` `root` ou `argv[0]` `su`/`tsu` NUNCA são recusados (decisão do dono, root aberto; substitui o texto antigo de recusa 400 acima). `root.enabled`/`root.via` são gravados mas não bloqueiam; o padrão de `root.enabled` agora é `true`. Só pergunta se o dono escolher um modo que pergunta.
+
+Com `autonomy:"total"` (padrão de `/v1/settings/autonomy`) os jobs de CLI rodam sem pedir permissão. Em `ask_destructive`/`ask_all` nada disso é passado (comportamento antigo, inclusive o erro `permission_required`).
+- `claude_cli`: `claude -p ... --output-format json --dangerously-skip-permissions` (igual a `--permission-mode bypassPermissions`, doc oficial; como root o motor põe `IS_SANDBOX=1`). Sem `--allowedTools` por padrão (subagentes e `Task` livres). Campos opcionais do pedido: `allowed_tools` (lista de nomes, vira `--allowedTools a,b`) e `max_turns` (inteiro 1..1000, vira `--max-turns`).
+- `gemini_cli`: `--yolo`. `agy_cli`: `agy --dangerously-skip-permissions -p ...` (a flag vem antes do `-p`); antes de rodar, o motor junta `command(*) read_file(*) write_file(*) mcp(*)` a `permissions.allow` de `~/.gemini/antigravity-cli/settings.json` (G5; nada que o dono já tenha lá é apagado; JSON inválido não é tocado).
+- `codex_cli` (novo): `codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check [-m modelo] <prompt>`. `result.response = {text}` (texto, não JSON).
+- Tempo: padrão 3600 s (`AURA_CLI_TIMEOUT`, em segundos; o job pode mandar `timeout`; teto 7200 s).
+- Delegação: o Claude orquestra com as próprias ferramentas (Bash chama `agy -p`, `gemini -p`, `codex exec` já instalados e logados) ou o app envia jobs `agy_cli`/`gemini_cli`/`codex_cli`. `routing.choose_executor` segue: tool > agy > gemini_api > claude_min.
+
+### Instalar CLIs no Termux
+`POST /v1/tools/install {"provider":"claude|codex|gemini|agy|gh|rclone","request_id"?}` -> 202 + job (`kind:"tools", action:"install"`, risco `write`). Resultado: `{provider, state:"ready"|"waiting_wifi", already_installed, via:"npm"|"glibc-runner"|"installer"|"pkg"|null, download_notices}`. Eventos `tool.install {id,name,state,pct}` e `download.notice {id,step,mb}` (>100 MB, nunca bloqueia). Dados móveis (`/v1/network metered:true`): não baixa, devolve `waiting_wifi`; rodar de novo retoma. Já instalado e `--version` ok: `ready` sem baixar. Ligue o botão "Instalar" do `/v1/auth/status` (`installable:true`) a este endpoint.
+- npm: `pkg install -y nodejs-lts git` (só se faltar) e `npm install -g @anthropic-ai/claude-code | @openai/codex | @google/gemini-cli`, validado com `<cli> --version`.
+- claude: se o npm falhar ou o binário não rodar (a Anthropic só publica binário glibc), cai no caminho A do projeto MIT `ferrumclaudepilgrim/claude-code-android` (glibc-runner + binário linux-arm64 remendado): baixa o `install.sh` dele e responde "n/n" às 2 perguntas. Erro final `setup_failed`.
+- codex: sem fonte confirmada para Termux; se o `npm`/`--version` falhar, erro `indisponivel_no_termux`.
+- agy: `curl -fsSL https://antigravity.google/cli/install.sh` e `bash`. gh e rclone: `pkg install -y`.
+
+### Login do Claude: código colado e token
+`claude auth login` imprime uma URL de OAuth e espera o CÓDIGO de volta. Fluxo: `POST /v1/auth/start {"provider":"claude"}` -> evento `auth.prompt {url}` -> o app abre a URL no navegador -> o dono cola o código no app -> `POST /v1/auth/code {"provider":"claude","code":"..."}` -> `{provider,state:"em_andamento"}` (400 se não há login em andamento; o código nunca volta em resposta, evento ou log) -> `auth.done`. Alternativa: `claude setup-token` e `POST /v1/auth/token {"provider":"claude","token":"..."}` -> `{state:"conectado"}`; o token fica em `~/.aura/engine/claude_oauth_token` (0600), vira `CLAUDE_CODE_OAUTH_TOKEN` e é redigido das saídas. Codex: `codex login --device-auth` (já em `/v1/auth/start`; o código vale 15 min).
+
+### Reverse engineering de ponta a ponta
+Job `{"kind":"rea","action":"reverse_engineer","apk_path":"...","goal"?:100,"mode"?,"executor"?,"reform_id"?,"idempotency_key"?}` (risco `write`). Cria a reforma (ou retoma `reform_id`) e encadeia no MCP do REA: `binary_session` -> `inventory_artifact` -> `extract_artifact` -> `build_reconstruction_obligation_ledger` -> reconstrução pelo executor (`agy_cli` > `gemini_api` > `claude_cli`, ou o `executor` pedido; texto do APK sempre cercado como dado não confiável) -> `evaluate_reconstruction_coverage`. Cada passo vira `tool_call`/`evidence`/`step_done` no ledger (`GET /v1/reform/{id}/ledger`). Resultado: `{reform_id, steps_run, chain_ok, reversal, rebuild, fidelity}`. Argumentos reais das ferramentas (`path`, `session_id`) não verificados com o REA de verdade.
+
+### Motor vivo
+Ao iniciar, o motor chama `termux-wake-lock` se existir (best effort, sem falhar).

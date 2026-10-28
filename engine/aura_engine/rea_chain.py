@@ -246,4 +246,7 @@ def run(request, engine):
         return {"tools": [{"name": t.get("name"), "risk": tool_risk(t)} for t in list_tools(engine.home)]}
     if action == "measure":
         return measure(request, engine)
+    if action == "reverse_engineer":
+        from . import reverse
+        return reverse.run(request, engine)
     raise adapters.ActionError("unsupported_action", "REA action unsupported")

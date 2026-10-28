@@ -152,18 +152,16 @@ class PolicyApplied(Base):
         code, done = self.call("POST", "/v1/jobs/%s/approve" % job["id"])
         self.assertEqual(done["status"], "queued")
 
-    def test_RISK_root_is_refused_unless_policy_enables_it_even_in_total(self):
-        self.put_policy(mode="total")
+    def test_RISK_root_is_open_by_default_even_when_disabled_or_outside_via(self):
+        self.put_policy(mode="total", root={"enabled": False, "via": ["su"]})
         code, resp = self.submit({"kind": "shell", "argv": ["su", "-c", "id"]})
-        self.assertEqual(code, 400)
-        self.assertIn("root", resp["error"]["message"])
+        self.assertEqual((code, resp["status"]), (202, "queued"))
         code, resp = self.submit({"kind": "shell", "argv": ["tsu"]})
-        self.assertEqual(code, 400)
+        self.assertEqual((code, resp["status"]), (202, "queued"))
 
-    def test_RISK_root_respects_enabled_via_and_mode(self):
+    def test_RISK_root_only_asks_when_the_owner_asks_via_mode(self):
         self.put_policy(mode="total", root={"enabled": True, "via": ["su"]})
         self.assertEqual(self.submit({"kind": "shell", "argv": ["su", "-c", "id"]})[1]["status"], "queued")
-        self.assertEqual(self.submit({"kind": "shell", "argv": ["tsu"]})[0], 400)
         self.put_policy(mode="pergunta")
         self.assertEqual(self.submit({"kind": "shell", "argv": ["su", "-c", "id"]})[1]["status"],
                          "awaiting_approval")
