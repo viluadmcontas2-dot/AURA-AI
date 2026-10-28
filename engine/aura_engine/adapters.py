@@ -366,6 +366,9 @@ def dispatch(request, engine):
             if request.get("model") is not None:
                 nested["model"] = request["model"]
             return dispatch(nested, engine)
+    elif kind == "rea":
+        from . import rea_chain
+        return rea_chain.run(request, engine)
     elif kind == "drive":
         remote = request.get("remote", "gdrive")
         if not re.fullmatch(r"[a-zA-Z0-9_-]{1,30}", str(remote)):

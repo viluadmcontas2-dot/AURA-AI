@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import adapters
+from . import adapters, triage
 from .config import ConfigError, VersionConflict
 from .security import workspace_name
 
@@ -68,6 +68,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
             parts = path.split("/")
             params = parse_qs(parsed.query, keep_blank_values=False)
             try:
+                routed = triage.http(engine, method, path, self.body)
+                if routed is not None:
+                    return self.send(*routed)
                 if method == "DELETE":
                     # So o caminho CRU "/v1/memory" apaga tudo: "/v1/memory/" (id vazio de um cliente com
                     # defeito) e "/v1/memory;x" (urlparse separa ";params") caem no 404.

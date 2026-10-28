@@ -8,7 +8,7 @@ Body: `{"text":"...","workspace":"default","preferred_provider":"auto"}`. Respon
 
 POST /v1/jobs
 Body: `{"request_id":"unique-uuid","request":{"kind":"claude_cli","prompt":"...","workspace":"default"}}`.
-Kind enum: `system`, `shell`, `adb`, `files`, `github`, `claude_cli`, `gemini_cli`, `agy_cli`, `claude_api`, `gemini_api`, `skills`.
+Kind enum: `system`, `shell`, `adb`, `files`, `github`, `claude_cli`, `gemini_cli`, `agy_cli`, `claude_api`, `gemini_api`, `skills`, `rea`.
 Response: `{"id":"...","status":"queued|awaiting_approval|running|completed|failed|cancelled|interrupted","risk":"read|write|spend|critical",...}`.
 Identical `request_id` returns same job. Different payload for the same id -> conflict.
 
@@ -129,3 +129,18 @@ Formato: `{"error":{"code":"...","message":"..."}}`. A mensagem nunca repete o v
 - Kind `root`: a politica ja o trata (liga/desliga, `by_kind.root`), mas NAO ha adaptador. Um job `root` aprovado termina `failed` com `error.code:"unsupported_action"`. `su`/`tsu` via `shell`/`adb` passam pela mesma regra de politica.
 - Historico e desfazer existem so para a politica. `models.json` nao tem historico nem undo (cada PUT apenas incrementa `version` e emite `models.changed`).
 - `by_kind` so afeta jobs com risco diferente de `read`, e so nos modos `autonomo` e `equilibrado`.
+
+## Entradas, triagem e fila (T20)
+A recepção (regras da skill `clareza`, locais, sem modelo) lê a fala ou o texto ANTES da triagem. Nada executa: só gera eventos e anota `queue.json`.
+- `POST /v1/inputs` `{"text","source":"voice|text"}` -> `{id, kind: question|adjust|new_task|stop, confidence, clean, ambiguities}`. Se a limpeza falhar, `clean` é o texto original. `question`: devolve `answer` (status do job em curso) ou `request` (proposta de `/v1/route`, nada roda). `stop`: interrompe o job em curso na hora e devolve `applied` (false se nada rodava). `adjust` e `new_task`: ficam pendentes e trazem `recommended` (`merge` ou `later`). `adjust` só existe com job rodando; sem job vira `new_task`. Confiança é a da regra, não probabilidade medida.
+- `POST /v1/inputs/{id}/apply` `{"mode":"later|merge|now","confirm":true}` -> fila atual + `applied`. `later` (padrão do `new_task`): vai para o fim da fila. `merge` (padrão do `adjust`, "Juntar no trabalho atual"): cancela o atual e cria um job novo com o mesmo pedido mais `adjustments` (e o texto no `prompt`, se houver). `now`: exige `confirm:true` (senão 400); o atual fica salvo e o novo começa. A contagem de 5 s e o botão Mudar são do app.
+- `GET /v1/queue` e `queue.updated`: `{running:{jobId,title}|null, queued:[{taskId,text}], saved:[{taskId,jobId,title,checkpointId,resumable}]}`. A fila é em série: o próximo vira job só quando nada roda nem espera worker (ao fim de cada job e a cada volta do worker). Persistida em `queue.json`.
+- `POST /v1/queue/{taskId}/resume`: tira de "salvo" e põe à frente da fila. Só o tipo `rea` tem checkpoint; os outros recomeçam do início.
+- Eventos: `input.interpreted {taskId, raw, clean, intent, ambiguities[], skill}` (sempre antes de `input.received`), `input.received {taskId, kind, confidence, source}`, `queue.updated`, `task.interrupted {taskId, jobId, checkpointId, resumable}`.
+- Limites: depois de reiniciar o motor, o job que estava rodando fica `interrupted` e não vai para "salvo" (a fila segue sozinha); a skill original de clareza não foi recebida, as regras vêm de `voz-e-fila.md`.
+
+## Cadeia REA no Termux (T20, job `kind: rea`)
+- `{"action":"setup"}` (risco `write`, pede aprovação): passos `node`, `jdk`, `jadx`, `apktool`, `adb`, `rea`, `mcp`, nesta ordem, por `pkg install -y` (`nodejs-lts` com `npm`, que desde o Node 24.13 é pacote à parte, `openjdk-21`, `apktool`, `android-tools`), `curl` do jar JADX headless 0.7.1 com SHA-256 conferido por `sha256sum -c`, `npm install -g rea-agents@6.8.0` e, no fim, `tools/list` real do servidor MCP (`rea-agents mcp`, JSON-RPC por stdio). Checkpoint por passo em `<home>/rea/checkpoint.json`; rodar de novo pula o que já tem checkpoint (vale também depois de o Android matar o motor). Falha: job `failed`, `error.code:"rea_step_failed"` com o nome do passo. Eventos `tool.install {id, name, state: installing|ready|failed, pct 0|100}`.
+- `{"action":"tools"}` (risco `read`): `{tools:[{name, risk}]}` do `tools/list` real. Ferramenta com `mutatesDevice` (no topo, em `annotations`, ou "device-mutating" na descrição) tem `risk:"write"`, nunca `read`. Sem paginação do `tools/list`.
+- `{"action":"measure","reversal_pct","rebuild_pct","fidelity_pct","real_test":{"device","flows_total","flows_passed"}}` (risco `read`): devolve `{reversalPct, rebuildPct, fidelityPct}`; `fidelityPct` é `null` sem `real_test` (aparelho e fluxos). Os números vêm de quem mediu; o motor não calcula. Emite `reform.progress {id, reversalPct, rebuildPct, fidelityPct, stage, checkpointId}`.
+- Não verificado em aparelho (fica para o T18): nomes dos pacotes do Termux, versão exata do Node aceita pelo REA (22.23.4+/24.22.1+/26.12.1+, o passo `node` não confere), onde o REA põe `mutatesDevice` e se o `tools/list` pagina.
