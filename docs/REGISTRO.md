@@ -140,3 +140,9 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Testes escritos: ConnectionsLoginTest, FirstUsePermissionsTest, ConnectionsReachabilityTest. RED/GREEN real fica para a CI (sem SDK nem gradlew aqui).
 - Bloqueio: não há endpoint de instalação de CLI no motor; "Instalar" cria o job `system` "Instalar o programa de X" (aprovação em Atividade). Mensagens de erro do chat e da Reforma ainda dizem "Conexões" em texto; o atalho em botão existe no aviso global, em Ajustes e em Dispositivos.
 - Próximo item: CI compilar e rodar; conferir no aparelho o diálogo do Termux e o login real de cada conta.
+
+## 2026-10-28 — Conexões: instalar CLI, código e token do Claude pelo contrato novo do motor
+- Objetivo: ligar Instalar a POST /v1/tools/install (ids gh/rclone mapeados), Claude com campo para colar o código (POST /v1/auth/code) e alternativa de token (POST /v1/auth/token), erro `indisponivel_no_termux` com ação, avisos download.notice sem bloquear e "Aguardando Wi-Fi".
+- Estado (leitura estática, sem SDK): `EngineApi`/`AuraEngineClient`/`RealEngineGateway` ganharam installTool, submitAuthCode, submitAuthToken; `AccountsAuth.kt` mostra o campo e os botões Enviar código/Enviar token; token vai direto ao motor e nunca é exibido.
+- Suposição não verificada: o formato dos payloads dos eventos tool.install e download.notice (usei `state`=aguardando_wifi e `waiting_wifi`); ajustar quando o contrato do motor estiver na branch.
+- Testes: ConnectionsLoginTest (Instalar, não instala no Termux, código colado, token) e RealEngineGatewayTest. Não rodados (sem SDK).

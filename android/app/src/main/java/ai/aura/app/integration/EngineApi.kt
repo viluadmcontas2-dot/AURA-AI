@@ -14,6 +14,12 @@ interface EngineApi {
     suspend fun cancel(id: String): JSONObject
     suspend fun authStatus(): JSONObject
     suspend fun startAuth(provider: String): JSONObject
+    /** POST /v1/tools/install: instala a CLI no Termux (202 + job). */
+    suspend fun installTool(provider: String): JSONObject = throw UnsupportedOperationException("installTool")
+    /** POST /v1/auth/code: o código que o dono copiou da página de login do Claude. */
+    suspend fun authCode(provider: String, code: String): JSONObject = throw UnsupportedOperationException("authCode")
+    /** POST /v1/auth/token: token colado pelo dono. Nunca é registrado nem mostrado depois. */
+    suspend fun authToken(provider: String, token: String): JSONObject = throw UnsupportedOperationException("authToken")
     suspend fun policy(): JSONObject
     suspend fun putPolicy(doc: JSONObject): JSONObject
     suspend fun models(): JSONObject

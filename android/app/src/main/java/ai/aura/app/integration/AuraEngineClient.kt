@@ -97,6 +97,12 @@ class AuraEngineClient(
     override suspend fun cancel(id: String) = request("/v1/jobs/" + segment(id) + "/cancel", "POST")
     /** Login contract: state only; tokens/cookies never cross this boundary. */
     override suspend fun authStatus() = request("/v1/auth/status")
+    override suspend fun installTool(provider: String) =
+        request("/v1/tools/install", "POST", JSONObject().put("provider", segment(provider)), readTimeoutMs = 8000)
+    override suspend fun authCode(provider: String, code: String) =
+        request("/v1/auth/code", "POST", JSONObject().put("provider", segment(provider)).put("code", code), readTimeoutMs = 15000)
+    override suspend fun authToken(provider: String, token: String) =
+        request("/v1/auth/token", "POST", JSONObject().put("provider", segment(provider)).put("token", token), readTimeoutMs = 15000)
     override suspend fun startAuth(provider: String) =
         request("/v1/auth/start", "POST", JSONObject().put("provider", segment(provider)),
             readTimeoutMs = 8000)

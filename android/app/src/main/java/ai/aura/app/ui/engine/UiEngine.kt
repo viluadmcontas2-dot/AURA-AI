@@ -190,6 +190,12 @@ sealed interface AuthStartResult {
     data class Failed(val reason: String, val fix: String) : AuthStartResult
 }
 
+/** Resultado de instalar uma CLI ou enviar código/token de login: [message] pronta para a tela, nunca com segredo. */
+sealed interface ToolActionResult {
+    data class Ok(val message: String) : ToolActionResult
+    data class Failed(val reason: String, val fix: String) : ToolActionResult
+}
+
 /** Resultado das leituras e ações de memória, skills, saúde e uso: nunca lança por falta de motor. */
 sealed interface EngineResult<out T> {
     data class Ok<T>(val value: T) : EngineResult<T>
@@ -250,4 +256,12 @@ interface EngineGateway {
     suspend fun authStatus(): List<AuthStatus> = AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) }
     suspend fun startAuth(provider: String): AuthStartResult =
         AuthStartResult.Failed("O motor ainda não sabe conectar contas.", "Atualize o AURA no Termux e tente de novo.")
+
+    // POST /v1/tools/install, /v1/auth/code e /v1/auth/token. Padrão = o motor ainda não sabe.
+    suspend fun installTool(provider: String): ToolActionResult =
+        ToolActionResult.Failed("O motor ainda não sabe instalar programas.", "Atualize o AURA no Termux e tente de novo.")
+    suspend fun submitAuthCode(provider: String, code: String): ToolActionResult =
+        ToolActionResult.Failed("O motor ainda não recebe o código de login.", "Atualize o AURA no Termux e tente de novo.")
+    suspend fun submitAuthToken(provider: String, token: String): ToolActionResult =
+        ToolActionResult.Failed("O motor ainda não recebe token.", "Atualize o AURA no Termux e tente de novo.")
 }

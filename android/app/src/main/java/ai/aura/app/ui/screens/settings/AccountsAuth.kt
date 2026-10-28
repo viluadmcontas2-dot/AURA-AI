@@ -12,7 +12,7 @@ import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.JobRequest
+import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraType
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,7 +45,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 /** Nome para a tela de cada provedor (ids do contrato em AUTH_PROVIDER_IDS). */
 internal fun providerLabel(id: String): String = when (id) {
@@ -99,6 +101,22 @@ internal class AccountsAuthState(
     }
 
     suspend fun onEvent(e: EngineEvent) {
+        if (e.type == "download.notice") {
+            // Aviso, nunca bloqueio: o dono decide se espera o Wi-Fi.
+            val wifi = e.payload["waiting_wifi"] == "true" || e.payload["state"] == "aguardando_wifi"
+            notice = SettingsNotice(
+                true,
+                if (wifi) "Aguardando Wi-Fi. Conecte ao Wi-Fi e eu continuo de onde parei."
+                else "Download grande (mais de 100 MB). Prefira o Wi-Fi; nada foi bloqueado.",
+            )
+            return
+        }
+        if (e.type == "tool.install") {
+            val state = e.payload["state"]
+            if (state == "aguardando_wifi") notice = SettingsNotice(true, "Aguardando Wi-Fi. Conecte ao Wi-Fi e eu continuo de onde parei.")
+            else if (state == "concluido" || state == "instalado" || state == "failed" || state == "falhou") refresh()
+            return
+        }
         val p = e.payload["provider"]?.let { if (it == "google") "gdrive" else it } ?: return
         val mine = p == starting || p == prompt?.provider
         if (!mine) return
@@ -164,17 +182,47 @@ internal class AccountsAuthState(
         notice = null
         scope.launch {
             val label = providerLabel(provider)
-            val job = try {
-                // Um id novo a cada toque: com id fixo o motor devolveria o mesmo job (já falho).
-                gateway.submit("install_cli_${provider}_${UUID.randomUUID()}", JobRequest("system", "Instalar o programa de $label"))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                null
+            notice = when (val r = runCatchingNotCancelled { gateway.installTool(provider) }) {
+                is ToolActionResult.Ok -> SettingsNotice(true, "$label: ${r.message}")
+                is ToolActionResult.Failed -> SettingsNotice(false, "${r.reason} ${r.fix}")
+                null -> SettingsNotice(false, ENGINE_DOWN_HINT)
             }
-            notice = if (job != null) SettingsNotice(true, "Pedido para instalar $label criado. Aprove em Atividade.")
-            else SettingsNotice(false, ENGINE_DOWN_HINT)
+            refresh()
         }
+    }
+
+    /** O dono colou o código que a página do Claude mostrou. O resultado final vem por auth.done ou pela conferência. */
+    fun sendCode(code: String) {
+        val p = prompt?.provider ?: return
+        if (code.isBlank()) { notice = SettingsNotice(false, "Cole o código que apareceu na página e toque em Enviar código."); return }
+        scope.launch {
+            when (val r = runCatchingNotCancelled { gateway.submitAuthCode(p, code) }) {
+                is ToolActionResult.Failed -> notice = SettingsNotice(false, "${r.reason} ${r.fix}")
+                is ToolActionResult.Ok -> notice = SettingsNotice(true, r.message)
+                null -> notice = SettingsNotice(false, "O motor não respondeu. $ENGINE_DOWN_HINT")
+            }
+        }
+    }
+
+    /** Alternativa: token colado. Vai direto ao motor; não é guardado nem mostrado aqui. */
+    fun sendToken(token: String) {
+        val p = prompt?.provider ?: starting ?: return
+        if (token.isBlank()) { notice = SettingsNotice(false, "Cole o token e toque em Enviar token."); return }
+        scope.launch {
+            when (val r = runCatchingNotCancelled { gateway.submitAuthToken(p, token) }) {
+                is ToolActionResult.Failed -> notice = SettingsNotice(false, "${r.reason} ${r.fix}")
+                is ToolActionResult.Ok -> { refresh(); finish(true, "${providerLabel(p)} conectado.") }
+                null -> notice = SettingsNotice(false, "O motor não respondeu. $ENGINE_DOWN_HINT")
+            }
+        }
+    }
+
+    private suspend fun <T> runCatchingNotCancelled(block: suspend () -> T): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     fun cancel() = finish(false, "Conexão cancelada.")
@@ -225,6 +273,7 @@ internal fun AccountsPromptSlot(auth: AccountsAuthState, onOpenUrl: (String) -> 
                 onCopy = { prompt.code?.let { clipboard.setText(AnnotatedString(it)); auth.copied = true } },
                 onOpen = { prompt.url?.let(onOpenUrl) },
                 onCancel = auth::cancel,
+                onSendCode = auth::sendCode, onSendToken = auth::sendToken,
             )
         } else if (busy != null) {
             Text(
@@ -280,12 +329,23 @@ private fun AccountRow(st: AuthStatus, busy: Boolean, onConnect: () -> Unit, onI
 
 /** Passo único: o botão principal é Abrir link; o código vem com Copiar código. */
 @Composable
-private fun AuthPromptCard(step: AuthPrompt, copied: Boolean, onCopy: () -> Unit, onOpen: () -> Unit, onCancel: () -> Unit) {
+private fun AuthPromptCard(
+    step: AuthPrompt, copied: Boolean, onCopy: () -> Unit, onOpen: () -> Unit, onCancel: () -> Unit,
+    onSendCode: (String) -> Unit, onSendToken: (String) -> Unit,
+) {
+    // Claude: o link abre no navegador do celular e a página mostra um código para colar aqui.
+    val pasteCode = step.provider == "claude" && step.code == null
+    var pasted by remember { mutableStateOf("") }
+    var tokenMode by remember { mutableStateOf(false) }
     AuraCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Conectar ${providerLabel(step.provider)}", style = AuraType.Section, modifier = Modifier.semantics { heading() })
             Text(
-                if (step.code != null) "Abra o link e digite o código." else "Abra o link e entre com a sua conta.",
+                when {
+                    step.code != null -> "Abra o link e digite o código."
+                    pasteCode -> "Abra o link, entre com a sua conta e cole aqui o código que aparecer."
+                    else -> "Abra o link e entre com a sua conta."
+                },
                 style = AuraType.Body,
             )
             if (step.code != null) {
@@ -293,6 +353,23 @@ private fun AuthPromptCard(step: AuthPrompt, copied: Boolean, onCopy: () -> Unit
                 AuraButtonSecondary(if (copied) "Código copiado" else "Copiar código", onCopy, Modifier.fillMaxWidth())
             }
             AuraButtonPrimary("Abrir link", onOpen, Modifier.fillMaxWidth(), enabled = step.url != null, large = true)
+            if (pasteCode) {
+                OutlinedTextField(
+                    value = pasted, onValueChange = { pasted = it }, singleLine = true,
+                    label = { Text(if (tokenMode) "Token do Claude" else "Código do Claude") },
+                    visualTransformation = if (tokenMode) PasswordVisualTransformation() else VisualTransformation.None,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                AuraButtonSecondary(
+                    if (tokenMode) "Enviar token" else "Enviar código",
+                    { val v = pasted; pasted = ""; if (tokenMode) onSendToken(v) else onSendCode(v) },
+                    Modifier.fillMaxWidth(),
+                )
+                AuraButtonText(
+                    if (tokenMode) "Prefiro colar o código" else "Prefiro colar um token",
+                    { tokenMode = !tokenMode; pasted = "" }, Modifier.fillMaxWidth(),
+                )
+            }
             Text("Quando terminar, volte aqui. Eu aviso sozinho.", style = AuraType.SecondarySmall)
             AuraButtonText("Cancelar", onCancel, Modifier.fillMaxWidth())
         }

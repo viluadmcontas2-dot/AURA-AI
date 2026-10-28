@@ -5,6 +5,7 @@ import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.EngineEvent
+import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.engine.EngineHealth
 import ai.aura.app.ui.engine.EngineResult
 import ai.aura.app.ui.engine.EngineUsage
@@ -42,6 +43,9 @@ private class FakeApi(val handler: (String, List<Any?>) -> JSONObject = { _, _ -
     override suspend fun cancel(id: String) = call("cancel", id)
     override suspend fun authStatus() = call("authStatus")
     override suspend fun startAuth(provider: String) = call("startAuth", provider)
+    override suspend fun installTool(provider: String) = call("installTool", provider)
+    override suspend fun authCode(provider: String, code: String) = call("authCode", provider, code)
+    override suspend fun authToken(provider: String, token: String) = call("authToken", provider, token)
     override suspend fun policy() = call("policy")
     override suspend fun putPolicy(doc: JSONObject) = call("putPolicy", doc)
     override suspend fun models() = call("models")
@@ -270,5 +274,32 @@ class RealEngineGatewayTest {
         assertEquals(AuthStartResult.Prompted("https://example.com/device", "AB-12"), gateway.startAuth("codex"))
         assertEquals(AuthStartResult.Started, gateway.startAuth("claude"))
         assertTrue(gateway.startAuth("agy") is AuthStartResult.Failed)
+    }
+
+    @Test fun `instalar usa o id do contrato e erro do Termux vira acao`() = runTest {
+        val api = FakeApi { name, args ->
+            when {
+                name != "installTool" -> JSONObject()
+                args[0] == "codex" -> throw AuraEngineException(409, "x", "indisponivel_no_termux")
+                else -> JSONObject().put("state", "em_andamento").put("already_installed", false)
+                    .put("download_notices", JSONArray(listOf("grande")))
+            }
+        }
+        val gateway = RealEngineGateway(api, backgroundScope)
+
+        val ok = gateway.installTool("github") as ToolActionResult.Ok
+        assertTrue("100 MB" in ok.message)
+        assertEquals(listOf<Any?>("gh"), api.calls.last { it.first == "installTool" }.second)
+        gateway.installTool("gdrive")
+        assertEquals(listOf<Any?>("rclone"), api.calls.last { it.first == "installTool" }.second)
+        val no = gateway.installTool("codex") as ToolActionResult.Failed
+        assertTrue("Termux" in no.reason)
+    }
+
+    @Test fun `token so conecta quando o motor confirma conectado`() = runTest {
+        val api = FakeApi { name, _ -> if (name == "authToken") JSONObject().put("state", "conectado") else JSONObject() }
+        val gateway = RealEngineGateway(api, backgroundScope)
+        assertEquals(ToolActionResult.Ok("Conectado."), gateway.submitAuthToken("claude", " abc "))
+        assertEquals(listOf<Any?>("claude", "abc"), api.calls.last { it.first == "authToken" }.second)
     }
 }
