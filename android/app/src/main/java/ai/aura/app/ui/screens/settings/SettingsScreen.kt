@@ -21,12 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -72,7 +67,7 @@ fun SettingsScreen(
     gateway: EngineGateway,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    onOpenUrl: (String) -> Unit = {},
+    onOpenConnections: (() -> Unit)? = null,
     settings: SettingsGateway = NoEngineSettingsGateway,
 ) {
     val scope = rememberCoroutineScope()
@@ -88,14 +83,6 @@ fun SettingsScreen(
         catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) { /* sem eventos; o botão Tentar de novo recarrega */ }
     }
-    var showAccounts by rememberSaveable { mutableStateOf(false) }
-    // Voltar em Contas volta aos Ajustes (não fecha os Ajustes inteiros).
-    BackHandler(enabled = showAccounts) { showAccounts = false }
-    if (showAccounts) {
-        ConnectAccountsScreen(gateway, onClose = { showAccounts = false }, onOpenUrl = onOpenUrl, modifier = modifier)
-        return
-    }
-
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         SettingsHeader(onClose = onClose, onStopAll = state::stopAll)
         when (state.load) {
@@ -104,6 +91,7 @@ fun SettingsScreen(
                     .padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                ConnectionsEntry(onOpenConnections)
                 AutonomySection(autonomy)
                 Text("Carregando ajustes…", style = AuraType.Secondary)
             }
@@ -112,10 +100,11 @@ fun SettingsScreen(
                     .padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                ConnectionsEntry(onOpenConnections)
                 AutonomySection(autonomy)
                 EmptyState("Motor indisponível", state.unavailableHint, "Tentar de novo", { state.reload(); autonomy.reload() }, glyph = "!")
             }
-            SettingsLoad.Ready -> SettingsBody(state, autonomy, { showAccounts = true }, Modifier.weight(1f))
+            SettingsLoad.Ready -> SettingsBody(state, autonomy, onOpenConnections, Modifier.weight(1f))
         }
         if (state.load == SettingsLoad.Ready) SaveBar(state)
         // "Parar tudo" responde em qualquer estado: a barra de salvar só existe com o motor no ar.
@@ -144,7 +133,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenAccounts: () -> Unit, modifier: Modifier) {
+private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenConnections: (() -> Unit)?, modifier: Modifier) {
     val policy = state.policy ?: return
     val models = state.models ?: return
     val key = state.savedPolicy?.version to state.savedModels?.version
@@ -152,12 +141,7 @@ private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenAc
         modifier.verticalScroll(rememberScrollState()).padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SettingsGroup {
-            SettingRow(
-                "Contas", subtitle = "Claude, Gemini, Codex, GitHub e Drive, sem chave de API.",
-                trailing = { AuraButtonSecondary("Conectar contas", onOpenAccounts) },
-            )
-        }
+        ConnectionsEntry(onOpenConnections)
         AutonomySection(autonomy)
         AuthorizationSection(policy, state::editPolicy)
         NoLimitsSection(
@@ -174,6 +158,18 @@ private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenAc
             "Tudo que roda sozinho fica em Atividade.",
             style = AuraType.SecondarySmall,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** Atalho para Conexões (Termux e motor, contas e permissões). Fica fora do bloco que depende do motor: abre sempre. */
+@Composable
+private fun ConnectionsEntry(onOpen: (() -> Unit)?) {
+    if (onOpen == null) return
+    SettingsGroup {
+        SettingRow(
+            "Conexões", subtitle = "Termux e motor, contas (Claude, Codex, Gemini, GitHub) e permissões do Android.",
+            trailing = { AuraButtonSecondary("Abrir Conexões", onOpen) },
         )
     }
 }

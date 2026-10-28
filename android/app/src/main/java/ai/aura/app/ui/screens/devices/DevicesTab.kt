@@ -63,14 +63,14 @@ private data class Notice(val level: IncidentLevel, val title: String, val body:
 /**
  * Aba Dispositivos: lista -> detalhe -> conexões, por estado local (sem navigation-compose).
  * Estados vêm de [EngineGateway.capabilities]; ações viram pedidos ao engine (que decide risco e
- * aprovação na aba Atividade). [onSignIn] é o gancho do login pelo navegador (integração fora da UI);
- * sem ele, a UI diz que o login ainda não está disponível em vez de fingir.
+ * aprovação na aba Atividade). [onOpenConnections] leva à tela Conexões (Termux, contas e permissões),
+ * onde o login das contas acontece pelo motor; sem ele, a UI diz isso em vez de fingir.
  */
 @Composable
 fun DevicesTab(
     gateway: EngineGateway,
     modifier: Modifier = Modifier,
-    onSignIn: ((DeviceEntry) -> Unit)? = null,
+    onOpenConnections: (() -> Unit)? = null,
 ) {
     var route by rememberSaveable { mutableStateOf(ROUTE_LIST) }
     var caps by remember { mutableStateOf<List<Capability>?>(null) }
@@ -97,9 +97,9 @@ fun DevicesTab(
         // Sem motor, "Reconectar" é tentar falar com ele de novo (não há pedido para enviar).
         if (caps == null && loadFailed && action == DeviceActionKind.Reconnect) { reload++; return }
         if (action == DeviceActionKind.SignIn) {
-            if (onSignIn != null) onSignIn(entry) else notice = Notice(
-                IncidentLevel.Info, "Login pelo navegador indisponível",
-                "Esta versão ainda não abre o login. Nada foi alterado.",
+            if (onOpenConnections != null) onOpenConnections() else notice = Notice(
+                IncidentLevel.Info, "Conexões indisponível aqui",
+                "Abra Ajustes e toque em Abrir Conexões. Nada foi alterado.",
             )
             return
         }
@@ -151,6 +151,7 @@ fun DevicesTab(
                 onOpen = { route = ROUTE_DETAIL + it.id; notice = null },
                 onAction = ::perform,
                 onAdd = { route = ROUTE_CONNECTIONS; notice = null },
+                onOpenConnections = onOpenConnections,
             )
         }
     }
@@ -178,6 +179,7 @@ fun DevicesListContent(
     onAction: (DeviceEntry, DeviceActionKind) -> Unit,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenConnections: (() -> Unit)? = null,
 ) {
     Column(modifier.fillMaxSize()) {
         TabHeader("Dispositivos", trailing = { AddButton(onAdd) })
@@ -198,6 +200,14 @@ fun DevicesListContent(
                     actionText = "Adicionar dispositivo",
                     onAction = onAdd,
                 )
+            }
+            if (onOpenConnections != null) {
+                AuraCard(Modifier.fillMaxWidth()) {
+                    Text("Conexões", style = AuraType.BodyStrong)
+                    Text("Termux e motor, contas (Claude, Codex, Gemini, GitHub) e permissões do Android.", style = AuraType.SecondarySmall)
+                    Spacer(Modifier.height(8.dp))
+                    AuraButtonSecondary("Abrir Conexões", onOpenConnections, Modifier.fillMaxWidth())
+                }
             }
             Spacer(Modifier.height(AuraSpacing.S4))
         }

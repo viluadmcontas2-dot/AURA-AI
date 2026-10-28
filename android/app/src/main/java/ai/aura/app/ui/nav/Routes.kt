@@ -61,6 +61,11 @@ class ScreenEnv(
     /** Cria o pedido no chat (mesmo caminho do envio do composer). */
     val sendPrompt: (String) -> Unit = {},
     val queue: ai.aura.app.integration.QueueGateway = ai.aura.app.integration.NoEngineQueueGateway,
+    /** Estado do motor e a ação por motivo (mesmas do banner "Motor desligado"): Conexões mostra e usa os dois. */
+    val link: ai.aura.app.offline.LinkState = ai.aura.app.offline.LinkState.Unknown,
+    val onEngineAction: (ai.aura.app.offline.OfflineReason) -> Unit = {},
+    /** Pede o aviso fora do app (Android 13+) quando o dono chega ao passo Contas da abertura. */
+    val onRequestNotifications: () -> Unit = {},
 )
 
 // id, arquivo do design, aba, needsEngine, arestas. Arestas = Fluxo-do-usuario + grafo do plano; as que
@@ -71,6 +76,7 @@ val ROUTES: List<Route> = listOf(
         OnboardingHost(
             env.gateway, env.onOpenUrl, env.onRequestTermuxPermission, env.onOpenTermux,
             env.termuxInstalled, env.termuxPermissionGranted, env.onOnboardingFinished, Modifier.fillMaxSize(),
+            onRequestNotifications = env.onRequestNotifications,
         )
     },
     Route("onb-termux", "Onb-2-Termux", null, false, listOf("onb-contas")),
@@ -121,7 +127,7 @@ val ROUTES: List<Route> = listOf(
     Route("artefato-detalhe", "Artefato-Detalhe", AuraTab.Projects, true, emptyList()),
 
     Route("dispositivos", "Dispositivos", AuraTab.Devices, true, listOf("dispositivo-detalhe", "conexoes", "vazios")) { env ->
-        DevicesScreen(env.gateway, Modifier.fillMaxSize())
+        DevicesScreen(env.gateway, Modifier.fillMaxSize(), onOpenConnections = { env.open("conexoes") })
     },
     Route("dispositivo-detalhe", "Dispositivo-Detalhe", AuraTab.Devices, true, listOf("reformar-apps")),
     Route("reformar-apps", "Reformar-1-Apps", AuraTab.Devices, true, listOf("reformar-escopo", "reformar-ferramentas")) { env ->
@@ -218,7 +224,10 @@ val ROUTES: List<Route> = listOf(
 
     // Ajustes abre pelo avatar do Início; nada aqui exige o motor para abrir.
     Route("ajustes", "Ajustes", null, false, listOf("capacidades", "memoria", "checkup", "notificacoes", "voz-modos", "conexoes", "permissoes")) { env ->
-        SettingsScreen(env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(), onOpenUrl = env.onOpenUrl, settings = env.settings)
+        SettingsScreen(
+            env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(),
+            onOpenConnections = { env.open("conexoes") }, settings = env.settings,
+        )
     },
     Route("capacidades", "Capacidades", null, true, listOf("capacidade-detalhe")),
     Route("capacidade-detalhe", "Capacidade-Detalhe", null, true, emptyList()),
@@ -232,7 +241,12 @@ val ROUTES: List<Route> = listOf(
     Route("notificacoes", "Notificacoes", null, false, emptyList()) { env ->
         ai.aura.app.ui.screens.settings.NotificationsScreen(onBack = env.back, modifier = Modifier.fillMaxSize())
     },
-    Route("conexoes", "Conexoes", null, true, emptyList()),
+    // Termux e motor, contas e permissões do Android numa tela só. Abre sempre, com ou sem motor.
+    Route("conexoes", "Conexoes", null, false, emptyList()) { env ->
+        ai.aura.app.ui.screens.connections.ConnectionsScreen(
+            env.gateway, env.link, env.onEngineAction, env.onOpenUrl, env.back, Modifier.fillMaxSize(),
+        )
+    },
     Route("permissoes", null, null, false, emptyList()),
 
     Route("intercorrencias", "Intercorrencias", null, false, emptyList()),

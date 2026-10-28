@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,7 @@ import ai.aura.app.ui.components.AuraButtonText
 import ai.aura.app.ui.components.AuraCard
 import ai.aura.app.ui.components.StatusChip
 import ai.aura.app.ui.components.StatusKind
+import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.screens.devices.GlyphTile
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
@@ -88,20 +90,26 @@ enum class AccountId(val label: String, val subtitle: String, val isBrain: Boole
     GitHub("GitHub", "Guardar e publicar código", false),
 }
 
-/** [connected] só vem de verificação real; [connecting] = navegador aberto, aguardando. */
+/**
+ * [connected] só vem de verificação real do motor; [connecting] = login em andamento no Termux, aguardando.
+ * [state] é o estado que o motor informou (null = ainda não informou); [installable] = o programa falta e o motor sabe instalar.
+ */
 data class AccountState(
     val id: AccountId,
     val connected: Boolean = false,
     val detail: String? = null,
     val connecting: Boolean = false,
+    val state: AuthState? = null,
+    val installable: Boolean = false,
 )
 
 fun defaultAccounts(): List<AccountState> = AccountId.entries.map { AccountState(it) }
 
 /**
  * Onboarding em 3 telas por estado local: Boas-vindas, Conectar o Termux, Conectar contas.
- * Só UI + callbacks: a permissão RUN_COMMAND do Termux é pedida apenas por [onRequestTermuxPermission]
- * (toque explícito); login por navegador via [onSignIn]; nunca se pede token.
+ * Só UI + callbacks. Os pedidos do Android saem no passo certo: RUN_COMMAND do Termux ao chegar no passo do
+ * Termux (e de novo pelo botão), avisos ao chegar em Contas; negar não trava nada. Login das contas pelo motor,
+ * dentro do Termux: [onSignIn] pede o código e o link, mostrados em [promptSlot]; nunca se pede token.
  */
 @Composable
 fun OnboardingFlow(
@@ -110,14 +118,19 @@ fun OnboardingFlow(
     onRequestTermuxPermission: () -> Unit,
     onOpenTermux: () -> Unit,
     onSignIn: (AccountId) -> Unit,
+    onInstallAccount: (AccountId) -> Unit,
+    onRequestNotifications: () -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
     onHelp: () -> Unit = {},
     onCheckTermux: () -> Unit = onOpenTermux,
     onInstallTermux: () -> Unit = onOpenTermux,
+    promptSlot: @Composable () -> Unit = {},
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
     BackHandler(enabled = step > 0) { step -= 1 }
+    // Avisos: pedidos uma vez, quando o dono chega em Contas. Negar não muda nada além de "sem aviso fora do app".
+    LaunchedEffect(step) { if (step == 2) onRequestNotifications() }
     when (step.coerceIn(0, 2)) {
         0 -> OnboardingWelcomeScreen(onStart = { step = 1 }, modifier = modifier)
         1 -> OnboardingTermuxScreen(
@@ -126,7 +139,8 @@ fun OnboardingFlow(
             onCheckTermux = onCheckTermux, onInstallTermux = onInstallTermux,
         )
         else -> OnboardingAccountsScreen(
-            accounts = accounts, onSignIn = onSignIn, onFinish = onFinish, modifier = modifier,
+            accounts = accounts, onSignIn = onSignIn, onInstall = onInstallAccount, onFinish = onFinish,
+            modifier = modifier, promptSlot = promptSlot,
         )
     }
 }
@@ -207,6 +221,14 @@ fun OnboardingTermuxScreen(
 ) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    // Termux encontrado e permissão pendente: o diálogo do Android abre sozinho, uma vez. Depois disso só pelo botão.
+    var askedOnce by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(state.termuxFound, state.permissionGranted) {
+        if (state.termuxFound && !state.permissionGranted && !askedOnce) {
+            askedOnce = true
+            onRequestPermission()
+        }
+    }
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding().navigationBarsPadding()) {
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState())
@@ -225,7 +247,7 @@ fun OnboardingTermuxScreen(
 
             SetupStep(
                 "Permitir que o AURA use o Termux", done = state.permissionGranted, doneLabel = "Permitido",
-                hint = if (state.permissionGranted) null else "O Android vai pedir a sua permissão. Nada é liberado sem o seu toque.",
+                hint = if (state.permissionGranted) null else "O Android vai pedir a sua permissão agora. Se não aparecer, toque em Permitir acesso ao Termux.",
             ) {
                 if (!state.permissionGranted) {
                     AuraButtonSecondary("Permitir acesso ao Termux", onRequestPermission, enabled = state.termuxFound)
@@ -322,8 +344,10 @@ private fun SetupStep(
 fun OnboardingAccountsScreen(
     accounts: List<AccountState>,
     onSignIn: (AccountId) -> Unit,
+    onInstall: (AccountId) -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
+    promptSlot: @Composable () -> Unit = {},
 ) {
     val hasBrain = accounts.any { it.connected && it.id.isBrain }
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding().navigationBarsPadding()) {
@@ -334,10 +358,11 @@ fun OnboardingAccountsScreen(
         ) {
             Text("PASSO 3 DE 3", style = AuraType.Caption)
             Text("Conectar suas contas", style = AuraType.TabTitle, modifier = Modifier.semantics { heading() })
-            Text("O login acontece no navegador. O AURA nunca vê sua senha.", style = AuraType.Secondary)
+            Text("O login roda dentro do Termux. Você só copia um código e abre um link. O AURA nunca vê sua senha.", style = AuraType.Secondary)
             Spacer(Modifier.height(4.dp))
+            promptSlot()
             AccountId.entries.forEach { id ->
-                AccountRow(accounts.firstOrNull { it.id == id } ?: AccountState(id), onSignIn)
+                AccountRow(accounts.firstOrNull { it.id == id } ?: AccountState(id), onSignIn, onInstall)
             }
             Text(
                 if (hasBrain) "Sem API paga: o AURA usa só as suas assinaturas."
@@ -357,9 +382,14 @@ fun OnboardingAccountsScreen(
 }
 
 @Composable
-private fun AccountRow(account: AccountState, onSignIn: (AccountId) -> Unit) {
+private fun AccountRow(account: AccountState, onSignIn: (AccountId) -> Unit, onInstall: (AccountId) -> Unit) {
     val id = account.id
-    val subtitle = if (account.connected) (account.detail?.let { "Conectado · $it" } ?: "Conectado") else id.subtitle
+    val unavailable = account.state == AuthState.Unavailable
+    val subtitle = when {
+        account.connected -> account.detail?.let { "Conectado · $it" } ?: "Conectado"
+        unavailable && !account.detail.isNullOrBlank() -> account.detail.orEmpty()
+        else -> id.subtitle
+    }
     AuraCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             GlyphTile(id.label.take(1), when (id) {
@@ -375,12 +405,15 @@ private fun AccountRow(account: AccountState, onSignIn: (AccountId) -> Unit) {
             when {
                 account.connected -> StatusChip(StatusKind.Ready, "Conectado")
                 account.connecting -> StatusChip(StatusKind.Info, "Aguardando")
-                else -> AuraButtonSecondary("Entrar", { onSignIn(id) },
-                    contentDescription = "Entrar no ${id.label} pelo navegador")
+                unavailable && account.installable -> AuraButtonSecondary("Instalar", { onInstall(id) },
+                    contentDescription = "Instalar o programa de ${id.label}")
+                unavailable -> StatusChip(StatusKind.Neutral, "Indisponível")
+                else -> AuraButtonSecondary(if (account.state == AuthState.Expired) "Reconectar" else "Conectar", { onSignIn(id) },
+                    contentDescription = "Conectar ${id.label}")
             }
         }
         if (account.connecting) {
-            Text("Conclua o login no navegador e volte ao AURA.", style = AuraType.SecondarySmall)
+            Text("Siga os passos no cartão acima e volte ao AURA.", style = AuraType.SecondarySmall)
         }
     }
 }
@@ -416,7 +449,7 @@ private fun AccountsPreview() {
                 AccountState(AccountId.Claude, connected = true, detail = "assinatura Max"),
                 AccountState(AccountId.Codex), AccountState(AccountId.Google, connecting = true),
                 AccountState(AccountId.GitHub),
-            ), {}, {},
+            ), {}, {}, {},
         )
     }
 }

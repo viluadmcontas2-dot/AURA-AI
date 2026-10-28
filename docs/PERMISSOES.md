@@ -3,7 +3,7 @@
 O app declara só 5 permissões. Cada uma está aqui com o motivo, o momento em que o app pede e o que acontece se você negar.
 O teste `ManifestTest` compara esta tabela com o `AndroidManifest.xml` e com o manifesto final do APK: permissão nova só entra se for escrita aqui primeiro.
 
-Regra de pedido (Tarefa 7 do plano): o Android não pergunta nada antes da sua primeira ação. Antes de cada pedido do sistema, o app mostra uma folha própria com o que é, por que precisa, e os botões "Permitir" e "Agora não". Negou duas vezes? O app não insiste e leva você às configurações do app.
+Regra de pedido: o Android pergunta no primeiro uso, no passo certo e em sequência. Na abertura: o Termux ao chegar no passo "Conectar o Termux" (o diálogo abre sozinho, uma vez, se o Termux estiver instalado) e os avisos ao chegar em "Conectar suas contas". O microfone só ao tocar na voz. Depois, tudo fica em Conexões > Permissões do Android, com a folha própria (o que é, por que, o que acontece se negar) antes do pedido do sistema. Negar nunca trava o app. Negou duas vezes? O app não insiste e leva você às configurações do app.
 
 ## Permissões que o app declara
 
@@ -12,8 +12,8 @@ Regra de pedido (Tarefa 7 do plano): o Android não pergunta nada antes da sua p
 | `android.permission.INTERNET` | Falar com o motor do AURA, que roda no seu próprio celular (endereço `127.0.0.1`). O app não conversa com nenhum outro endereço. | Nunca: é uma permissão "normal", o Android concede sozinho na instalação e não mostra pedido. | Não dá para negar. |
 | `android.permission.ACCESS_NETWORK_STATE` | Saber se a rede é Wi-Fi ou dados móveis (medida) e avisar o motor local, para o Termux nunca baixar pacote grande no seu plano de dados. Só lê o tipo de rede; não vê o que passa por ela. | Nunca: é uma permissão "normal", o Android concede sozinho na instalação e não mostra pedido. | Não dá para negar. |
 | `android.permission.RECORD_AUDIO` | Microfone, para falar com o AURA (telas de Voz). | Só na primeira vez que você toca no microfone, depois da folha do app. | A voz fica desligada e o app diz isso com uma ação ("Abrir configurações"). Digitar continua igual. |
-| `android.permission.POST_NOTIFICATIONS` | Avisar quando o AURA terminar, precisar de uma aprovação sua ou estiver trabalhando. Só existe no Android 13 ou mais novo. | Só quando você liga os avisos (Ajustes, Notificações), depois da folha do app. | Nenhum aviso fora do app. Tudo continua na aba Atividade. |
-| `com.termux.permission.RUN_COMMAND` | Permissão criada pelo Termux (nível "perigosa"). Deixa o AURA pedir ao Termux que ligue o motor e faça o pareamento. O Termux também precisa de `allow-external-apps=true`. | No passo do Termux da abertura (Onb-2) e ao tocar em "Iniciar o motor". | O app abre e toda tela funciona. O que depende do motor mostra "Iniciar o motor" e explica o que falta. |
+| `android.permission.POST_NOTIFICATIONS` | Avisar quando o AURA terminar, precisar de uma aprovação sua ou estiver trabalhando. Só existe no Android 13 ou mais novo. | Ao chegar no passo "Conectar suas contas" da abertura (uma vez) e depois em Conexões, com a folha do app. | Nenhum aviso fora do app. Tudo continua na aba Atividade. |
+| `com.termux.permission.RUN_COMMAND` | Permissão criada pelo Termux (nível "perigosa"). Deixa o AURA pedir ao Termux que ligue o motor e faça o pareamento. O Termux também precisa de `allow-external-apps=true`. | No passo do Termux da abertura (Onb-2), sozinho uma vez com o Termux instalado, e depois em "Permitir" (Onb-2 ou Conexões). | O app abre e toda tela funciona. O que depende do motor mostra "Iniciar o motor" e explica o que falta. |
 
 ## Permissões que o app NÃO pede
 

@@ -9,6 +9,6 @@ import ai.aura.app.ui.theme.AuraTheme
 
 /** Aba Dispositivos (lista, detalhe e conexões em ui/screens/devices). Assinatura fixa (gateway, modifier). */
 @Composable
-fun DevicesScreen(gateway: EngineGateway, modifier: Modifier = Modifier) {
-    DevicesTab(gateway, modifier)
+fun DevicesScreen(gateway: EngineGateway, modifier: Modifier = Modifier, onOpenConnections: (() -> Unit)? = null) {
+    DevicesTab(gateway, modifier, onOpenConnections = onOpenConnections)
 }

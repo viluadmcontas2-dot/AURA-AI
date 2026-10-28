@@ -80,11 +80,11 @@ import ai.aura.app.ui.screens.ProjectsScreen
 import ai.aura.app.ui.screens.onboarding.AccountId
 import ai.aura.app.ui.screens.onboarding.AccountState
 import ai.aura.app.ui.screens.onboarding.OnboardingFlow
-import ai.aura.app.ui.screens.settings.officialAccountLoginUrl
+import ai.aura.app.ui.screens.settings.AccountsPromptSlot
+import ai.aura.app.ui.screens.settings.rememberAccountsAuth
 import ai.aura.app.ui.screens.onboarding.LocalTermuxFlow
 import ai.aura.app.ui.screens.onboarding.TermuxSetupState
 import ai.aura.app.ui.screens.onboarding.termuxSetupFrom
-import ai.aura.app.ui.screens.onboarding.defaultAccounts
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraSpacing
@@ -112,6 +112,7 @@ fun AuraApp(
     gateway: EngineGateway,
     onOpenUrl: (String) -> Unit = {},
     onRequestTermuxPermission: () -> Unit = {},
+    onRequestNotifications: () -> Unit = {},
     onOpenTermux: () -> Unit = {},
     termuxInstalled: () -> Boolean = { false },
     termuxPermissionGranted: () -> Boolean = { false },
@@ -160,7 +161,10 @@ fun AuraApp(
             draft = draft,
             onDraftChange = { draft = it; onSaveDraft(it) },
             onRequestTermuxPermission = onRequestTermuxPermission,
+            onRequestNotifications = onRequestNotifications,
             onOpenTermux = onOpenTermux,
+            link = link,
+            onEngineAction = onEngineAction,
             termuxInstalled = termuxInstalled,
             termuxPermissionGranted = termuxPermissionGranted,
             onOnboardingFinished = { onboardingDoneState = true; onOnboardingFinished() },
@@ -177,7 +181,13 @@ fun AuraApp(
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
             // O banner vale para o app inteiro; o onboarding tem o próprio passo do Termux e não leva banner.
-            if (onboardingDoneState) EngineBanner(link, onEngineAction)
+            // O banner também leva à tela Conexões (Termux, contas e permissões), exceto quando ela já está aberta.
+            if (onboardingDoneState) {
+                EngineBanner(
+                    link, onEngineAction,
+                    onOpenConnections = if (route.id == "conexoes") null else ({ env.open("conexoes") }),
+                )
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 // Sem pilha no onboarding: enquanto não termina, ele é a única tela.
                 (if (onboardingDoneState) route else ROUTES.first { it.id == "onb-boas-vindas" }).screen?.invoke(env)
@@ -191,7 +201,7 @@ fun AuraApp(
 
 /**
  * Cola do onboarding com o motor: Termux pelo estado real (capabilities) e contas por authStatus.
- * Login abre a página oficial por [onOpenUrl], inclusive com o motor desligado; nunca pede token.
+ * O login roda no Termux pelo motor (código e link na tela, [onOpenUrl] só abre o link); nunca pede token.
  * Os ganchos onRequestTermuxPermission / onOpenTermux vêm da MainActivity (RUN_COMMAND, intent do Termux).
  */
 @Composable
@@ -204,13 +214,15 @@ internal fun OnboardingHost(
     termuxPermissionGranted: () -> Boolean,
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
+    onRequestNotifications: () -> Unit = {},
 ) {
     val flow = LocalTermuxFlow.current
     var termux by remember { mutableStateOf(TermuxSetupState()) }
     LaunchedEffect(flow) { flow?.state?.collect { termux = it } }
     DisposableEffect(flow) { onDispose { flow?.cancel() } }
-    var accounts by remember { mutableStateOf(defaultAccounts()) }
     var tick by remember { mutableIntStateOf(0) }
+    // Contas pelo motor: o login roda no Termux; o app mostra link e código e confere o estado até "Conectado".
+    val auth = rememberAccountsAuth(gateway)
 
     fun providerOf(id: AccountId) = when (id) {
         AccountId.Claude -> "claude"
@@ -234,41 +246,28 @@ internal fun OnboardingHost(
             val engineUp = caps?.any { it.id == "termux" && it.available } == true
             termux = termuxSetupFrom(termuxInstalled(), termuxPermissionGranted(), engineUp)
         }
-        val statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList())
-        accounts = AccountId.entries.map { id ->
-            val st = statuses.firstOrNull { it.provider == providerOf(id) }
-            AccountState(id, connected = st?.state == AuthState.Connected, detail = st?.detail)
-        }
-    }
-    LaunchedEffect(gateway) {
-        try {
-            gateway.events.collect { e ->
-                when (e.type) {
-                    "auth.prompt" -> e.payload["url"]?.let(onOpenUrl)
-                    "auth.done", "auth.failed" -> tick++
-                }
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // Motor fora do ar: sem eventos; o usuário reconfere pelos botões.
-        }
+        auth.refresh()
     }
 
     OnboardingFlow(
         termux = termux,
-        accounts = accounts,
+        accounts = AccountId.entries.map { id ->
+            val st = auth.statusOf(providerOf(id))
+            AccountState(
+                id, connected = st?.state == AuthState.Connected, detail = st?.detail,
+                connecting = auth.starting == providerOf(id),
+                state = st?.state, installable = st?.installable == true,
+            )
+        },
         // Depois do callback da Activity, reconfere capabilities (tick).
         onRequestTermuxPermission = { onRequestTermuxPermission(); tick++ },
         onOpenTermux = onOpenTermux,
         onCheckTermux = { flow?.confirmPasted() ?: onOpenTermux() },
         onInstallTermux = { onOpenUrl("https://f-droid.org/packages/com.termux/") },
-        onSignIn = { id ->
-            officialAccountLoginUrl(providerOf(id))?.let(onOpenUrl)
-            accounts = accounts.map {
-                if (it.id == id) it.copy(connecting = false, detail = "Entre no navegador e volte ao AURA") else it
-            }
-        },
+        onSignIn = { id -> auth.connect(providerOf(id)) },
+        onInstallAccount = { id -> auth.install(providerOf(id)) },
+        onRequestNotifications = onRequestNotifications,
+        promptSlot = { AccountsPromptSlot(auth, onOpenUrl) },
         onFinish = onFinished,
         modifier = modifier,
     )
