@@ -8,6 +8,7 @@ import ai.aura.app.ui.screens.chat.ChatEntry
 import ai.aura.app.ui.screens.chat.ChatScreen
 import ai.aura.app.ui.theme.AuraTheme
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
@@ -125,6 +126,15 @@ out({"type": "result", "subtype": "success", "is_error": False, "session_id": si
         }
     }
 
+    /** Uma pessoa só manda a próxima mensagem quando a resposta termina (o botão deixa de ser "Parar resposta"). */
+    private fun waitAnswerFinished() {
+        val end = System.currentTimeMillis() + 30_000
+        while (rule.onAllNodesWithContentDescription("Parar resposta").fetchSemanticsNodes().isNotEmpty()) {
+            check(System.currentTimeMillis() < end) { "a resposta não terminou" }
+            rule.waitForIdle(); Thread.sleep(30)
+        }
+    }
+
     private fun send(text: String) {
         rule.onNodeWithContentDescription("Mensagem para o AURA").performTextInput(text)
         rule.onNodeWithContentDescription("Enviar mensagem").performClick()
@@ -146,6 +156,7 @@ out({"type": "result", "subtype": "success", "is_error": False, "session_id": si
             assertFalse("não deveria aparecer: $lixo", has(lixo))
         }
 
+        waitAnswerFinished()
         send("e agora")
         waitText("Ola! Recebi: e agora (continuando a conversa)")
         assertTrue(has("Ola! Recebi: Ola (conversa nova)")) // a primeira resposta continua no histórico
