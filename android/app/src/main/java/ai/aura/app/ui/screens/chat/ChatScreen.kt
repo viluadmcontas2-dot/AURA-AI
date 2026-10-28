@@ -86,6 +86,7 @@ fun ChatScreen(
             ChatHeader(
                 title = title, onBack = close,
                 onNew = if (messages.isNotEmpty() && !controller.responding) ({ controller.newConversation() }) else null,
+                onSessions = { onNavigate(AppTarget.Sessions, "") },
             )
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 ChatBody(controller = controller, onFillComposer = { text = it })
@@ -93,6 +94,10 @@ fun ChatScreen(
             if (commands.isNotEmpty()) {
                 CommandsPanel(commands, onPick = { text = it.name + " " })
             }
+            ImprovePromptBar(
+                gateway = gateway, text = text, onTextChange = { text = it },
+                onOpenConnections = { onNavigate(AppTarget.Connections, "") },
+            )
             AuraComposerField(
                 value = text,
                 onValueChange = { text = it },
@@ -130,7 +135,7 @@ private fun ChatBody(controller: ChatController, onFillComposer: (String) -> Uni
         }
         messages.forEach { MessageBubble(it) }
         if (live != null) {
-            if (live.text.isBlank() && live.tools.isEmpty()) TypingBubble() else LiveBubble(live)
+            LiveBubble(live)
         } else if (notice != null) {
             NoticeBubble(notice, onAction = controller::act)
         } else if (lastIsAnswer(messages)) {
@@ -143,7 +148,8 @@ private fun ChatBody(controller: ChatController, onFillComposer: (String) -> Uni
 }
 
 /** A última bolha é resposta da IA a uma mensagem comum (não a um comando do app). */
-internal fun lastIsAnswer(messages: List<ChatMessage>): Boolean {
+internal fun lastIsAnswer(all: List<ChatMessage>): Boolean {
+    val messages = all.filterNot { it.tool } // linhas de ferramenta do histórico não contam
     val last = messages.lastOrNull() ?: return false
     val before = messages.getOrNull(messages.size - 2) ?: return false
     return !last.fromUser && before.fromUser && !ChatCommands.isCommandText(before.text)

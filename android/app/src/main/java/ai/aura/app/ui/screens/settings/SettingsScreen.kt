@@ -180,6 +180,11 @@ private fun MoreScreensGroup(onOpen: ((String) -> Unit)?) {
     SectionLabel("Mais do AURA")
     SettingsGroup {
         SettingRow(
+            "Sessões", subtitle = "As conversas do Claude Code neste celular.",
+            trailing = { AuraButtonSecondary("Ver sessões", { onOpen("sessoes") }) },
+        )
+        RowDivider()
+        SettingRow(
             "Check-up do aparelho", subtitle = "Vê o que falta para o AURA funcionar bem.",
             trailing = { AuraButtonSecondary("Abrir check-up", { onOpen("checkup") }) },
         )

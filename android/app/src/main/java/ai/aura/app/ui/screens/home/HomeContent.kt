@@ -14,6 +14,7 @@ import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.screens.chat.ChatEntry
+import ai.aura.app.ui.screens.chat.ImprovePromptBar
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraTheme
@@ -116,6 +117,10 @@ fun HomeContent(
     onOpenReform: (() -> Unit)? = null,
     /** Nulo = os cartões de sugestão abrem o chat, como antes. */
     onOpenActivity: (() -> Unit)? = null,
+    /** Abre a tela Sessões (cabeçalho). Nulo = sem o botão. */
+    onOpenSessions: (() -> Unit)? = null,
+    /** "Abrir Conexões" do aviso de Melhorar pedido (falta a chave do Gemini). */
+    onOpenConnections: (() -> Unit)? = null,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
@@ -141,6 +146,10 @@ fun HomeContent(
         onOpenVoice = onOpenVoice,
         onOpenReform = onOpenReform,
         onOpenActivity = onOpenActivity,
+        onOpenSessions = onOpenSessions,
+        aboveComposer = {
+            ImprovePromptBar(gateway, draft, { draft = it; onDraftChange(it) }, onOpenConnections)
+        },
     )
 }
 
@@ -159,12 +168,15 @@ internal fun HomeView(
     onOpenVoice: (() -> Unit)? = null,
     onOpenReform: (() -> Unit)? = null,
     onOpenActivity: (() -> Unit)? = null,
+    onOpenSessions: (() -> Unit)? = null,
+    /** Entre o conteúdo e o campo de mensagem (ex.: "Melhorar pedido"). */
+    aboveComposer: @Composable () -> Unit = {},
 ) {
     // Sem motor, o aviso nasce do motivo do elo (ou de a consulta ter falhado) e traz UMA ação.
     val offlineReason = (link as? LinkState.Offline)?.reason
         ?: if (data == HomeData.Offline) OfflineReason.EngineStopped else null
     Column(modifier.fillMaxSize().background(AuraColors.Bg)) {
-        HomeHeader(data, offlineReason != null, onOpenSettings)
+        HomeHeader(data, offlineReason != null, onOpenSettings, onOpenSessions)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
@@ -219,12 +231,13 @@ internal fun HomeView(
         // O microfone é um jeito de digitar: o texto falado cai no campo e a pessoa confirma em enviar.
         val listen = ai.aura.app.voice.LocalVoiceInput.current
         val mic: (() -> Unit)? = if (listen != null) ({ listen { spoken -> onDraftChange((draft.trim() + " " + spoken.trim()).trim()) } }) else onOpenVoice
+        aboveComposer()
         AuraComposerField(value = draft, onValueChange = onDraftChange, onSend = onSend, onMic = mic)
     }
 }
 
 @Composable
-private fun HomeHeader(data: HomeData, offline: Boolean, onOpenSettings: () -> Unit) {
+private fun HomeHeader(data: HomeData, offline: Boolean, onOpenSettings: () -> Unit, onOpenSessions: (() -> Unit)?) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -243,7 +256,29 @@ private fun HomeHeader(data: HomeData, offline: Boolean, onOpenSettings: () -> U
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             StatusChip(kind, label)
+            if (onOpenSessions != null) SessionsButton(onOpenSessions)
             SettingsButton(onOpenSettings)
+        }
+    }
+}
+
+/** Dois balões de conversa, 48 dp: abre as sessões do Claude Code. Desenhado em Canvas como a engrenagem. */
+@Composable
+private fun SessionsButton(onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(48.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Abrir sessões" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(24.dp)) {
+            val u = size.width / 24f
+            val stroke = Stroke(width = 1.75f * u, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+            drawRoundRect(AuraColors.Ink, Offset(3 * u, 4 * u), Size(14 * u, 10 * u), CornerRadius(3 * u), style = stroke)
+            drawLine(AuraColors.Ink, Offset(7 * u, 14 * u), Offset(7 * u, 18 * u), 1.75f * u, androidx.compose.ui.graphics.StrokeCap.Round)
+            drawLine(AuraColors.Ink, Offset(7 * u, 18 * u), Offset(10 * u, 14 * u), 1.75f * u, androidx.compose.ui.graphics.StrokeCap.Round)
+            drawRoundRect(AuraColors.Ink, Offset(10 * u, 9 * u), Size(11 * u, 8 * u), CornerRadius(3 * u), style = stroke)
         }
     }
 }

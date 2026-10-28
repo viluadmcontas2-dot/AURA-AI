@@ -70,6 +70,10 @@ class ScreenEnv(
     val onEngineAction: (ai.aura.app.offline.OfflineReason) -> Unit = {},
     /** Pede o aviso fora do app (Android 13+) quando o dono chega ao passo Contas da abertura. */
     val onRequestNotifications: () -> Unit = {},
+    /** Sessões: continuar uma conversa do Claude Code no chat do Início (o chat carrega o histórico dela). */
+    val openSession: (String) -> Unit = {},
+    val openSessionId: String? = null,
+    val onOpenSessionHandled: () -> Unit = {},
 )
 
 // id, arquivo do design, aba, needsEngine, arestas. Arestas = Fluxo-do-usuario + grafo do plano; as que
@@ -86,7 +90,7 @@ val ROUTES: List<Route> = listOf(
     Route("onb-termux", "Onb-2-Termux", null, false, listOf("onb-contas")),
     Route("onb-contas", "Onb-3-Contas", null, true, listOf("inicio")),
 
-    Route("inicio", "Main", AuraTab.Home, true, listOf("chat-entendi", "chat-teclado", "voz-ouvindo", "projetos", "dispositivos", "atividade", "ajustes", "conexoes", "reformar-apps")) { env ->
+    Route("inicio", "Main", AuraTab.Home, true, listOf("chat-entendi", "chat-teclado", "voz-ouvindo", "projetos", "dispositivos", "atividade", "ajustes", "conexoes", "reformar-apps", "sessoes")) { env ->
         HomeScreen(
             env.gateway, Modifier.fillMaxSize(),
             onChatOpenChange = env.onChatOpenChange,
@@ -102,6 +106,8 @@ val ROUTES: List<Route> = listOf(
             link = env.link,
             onEngineAction = env.onEngineAction,
             onNavigate = { target, rest -> openChatTarget(env, target, rest) },
+            openSessionId = env.openSessionId,
+            onOpenSessionHandled = env.onOpenSessionHandled,
         )
     },
     Route("chat-entendi", "Chat-1-Entendi", AuraTab.Home, true, listOf("chat-executando")),
@@ -173,7 +179,7 @@ val ROUTES: List<Route> = listOf(
     },
 
     // Ajustes abre pelo avatar do Início; nada aqui exige o motor para abrir.
-    Route("ajustes", "Ajustes", null, false, listOf("capacidades", "memoria", "checkup", "notificacoes", "voz-modos", "conexoes", "permissoes", "bastidores")) { env ->
+    Route("ajustes", "Ajustes", null, false, listOf("capacidades", "memoria", "checkup", "notificacoes", "voz-modos", "conexoes", "permissoes", "bastidores", "sessoes")) { env ->
         SettingsScreen(env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(), settings = env.settings, onOpenScreen = { env.open(it) },
             onOpenConnections = { env.open("conexoes") })
     },
@@ -196,6 +202,15 @@ val ROUTES: List<Route> = listOf(
         )
     },
     Route("permissoes", null, null, false, emptyList()),
+    // Sessões do Claude Code no Termux: tela cheia, abre sempre (sem motor mostra o aviso e as conversas já vistas).
+    // Sem arquivo de design: nasceu depois das 45 telas.
+    Route("sessoes", null, null, false, emptyList()) { env ->
+        ai.aura.app.ui.screens.sessions.SessionsScreen(
+            env.gateway, env.link, env.onEngineAction,
+            onOpenSession = env.openSession, onNewChat = { env.openTab(AuraTab.Home) }, onBack = env.back,
+            modifier = Modifier.fillMaxSize(),
+        )
+    },
 
     Route("intercorrencias", "Intercorrencias", null, false, emptyList()),
     Route("vazios", "Vazios", null, false, emptyList()),
@@ -216,6 +231,7 @@ internal fun openChatTarget(env: ScreenEnv, target: ai.aura.app.ui.screens.chat.
         ai.aura.app.ui.screens.chat.AppTarget.Activity -> env.openTab(AuraTab.Activity)
         ai.aura.app.ui.screens.chat.AppTarget.Voice -> env.open("voz-ouvindo")
         ai.aura.app.ui.screens.chat.AppTarget.Devices -> env.openTab(AuraTab.Devices)
+        ai.aura.app.ui.screens.chat.AppTarget.Sessions -> env.open("sessoes")
     }
 }
 

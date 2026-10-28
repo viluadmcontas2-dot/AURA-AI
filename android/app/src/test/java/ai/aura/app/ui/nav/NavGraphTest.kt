@@ -82,6 +82,20 @@ class NavGraphTest {
         for (id in fluxo) assertNull(id, porId.getValue(id).tab)
     }
 
+    @Test
+    fun sessoesTemTelaAbreSemMotorEAlcancaDoInicioEDeAjustes() {
+        val porId = ROUTES.associateBy { it.id }
+        val sessoes = porId.getValue("sessoes")
+        assertTrue("sessoes sem tela", sessoes.screen != null)
+        assertNull("tela cheia, sem barra de abas", sessoes.tab)
+        assertEquals("abre sempre: sem motor mostra o aviso e o que ficou guardado", false, sessoes.needsEngine)
+        for (origem in listOf("inicio", "ajustes")) {
+            assertTrue("$origem não leva a sessoes", "sessoes" in porId.getValue(origem).edges)
+        }
+        assertEquals(listOf("inicio", "sessoes"), pushRoute(listOf("inicio"), "sessoes"))
+        assertEquals(listOf("inicio", "ajustes", "sessoes"), pushRoute(listOf("inicio", "ajustes"), "sessoes"))
+    }
+
     /** Informativo até a T17, que troca o corpo por `assertEquals(emptyList<String>(), pending)` (portão de entrega). */
     @Test
     fun pendingEOQueAindaNaoTemTela() {
