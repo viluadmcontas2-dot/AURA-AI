@@ -3,7 +3,7 @@
 
 Modo normal: exige cobertura estrutural de todos os IDs e arquivos.
 Modo --release: também exige status feito e evidência para TODOS os 66 IDs.
-Não atesta a autenticidade da evidência nem substitui o teste no aparelho.
+Apenas valida a estrutura da referência, não a autenticidade do resultado.\nNão substitui revisão humana e teste real no aparelho.
 """
 import os
 import re
@@ -43,17 +43,44 @@ for screen in screens:
     if len(matches) != 1:
         errors.append(f"tela sem vínculo UI único: {screen}")
 
+# O gate não aceita uma afirmação textual ('OK', 'testado', etc.) como prova.
+# Provas de CI apontam para um job identificável; provas físicas devem ter
+# relatório auditável, com aparelho, procedimento, resultado e registro.
+CI_JOB = re.compile(
+    r"^https://github\.com/viluadmcontas2-dot/AURA-AI/actions/runs/[1-9][0-9]*/job/[1-9][0-9]*$"
+)
+
+
+def evidence_reference(ident, raw):
+    if CI_JOB.fullmatch(raw):
+        return True
+    relative = f"docs/design/evidence/{ident}.md"
+    if raw != relative:
+        return False
+    report = os.path.join(ROOT, *relative.split("/"))
+    try:
+        body = open(report, encoding="utf-8").read()
+    except OSError:
+        return False
+    return all(re.search(rf"(?m)^{field}:\\s*\\S", body)
+               for field in ("Dispositivo", "Procedimento", "Resultado", "Registro"))
+
+
 complete = 0
 for ident, cells in rows.items():
     if len(cells) != 3:
         continue
     status = cells[1].lower()
     evidence = cells[2]
-    verified_cell = status == "feito" and bool(evidence) and evidence != "-"
+    referenced = evidence_reference(ident, evidence)
+    verified_cell = status == "feito" and referenced
     if verified_cell:
         complete += 1
     if "--release" in sys.argv and not verified_cell:
-        errors.append(f"{ident} não está feito com evidência ({status or 'sem status'})")
+        errors.append(
+            f"{ident}: sem prova rastreável (status={status or 'sem status'}; "
+            "exigido job Actions completo ou relatório físico auditável)"
+        )
 
 print(f"{complete}/{len(EXPECTED)} itens marcados feitos com evidência; {len(screens)} telas no design")
 for error in errors:
