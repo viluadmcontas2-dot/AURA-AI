@@ -62,7 +62,7 @@ def evidence_reference(ident, raw):
         body = open(report, encoding="utf-8").read()
     except OSError:
         return False
-    return all(re.search(rf"(?m)^{field}:\\s*\\S", body)
+    return all(re.search(rf"(?m)^{field}:\s*\S", body)
                for field in ("Dispositivo", "Procedimento", "Resultado", "Registro"))
 
 
