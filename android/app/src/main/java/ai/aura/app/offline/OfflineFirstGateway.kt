@@ -18,6 +18,8 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * Gateway "offline primeiro" (AGENTS.md, regra 1): o app nunca fica morto. Envolve o gateway real e,
@@ -40,6 +42,8 @@ class OfflineFirstGateway(
     private val delegate: EngineGateway,
     private val store: LocalStore,
     private val link: EngineLink,
+    /** Onde o disco e o motor são tocados. Em produção: Dispatchers.IO (a UI chama da Main); o padrão não troca de thread. */
+    private val io: CoroutineContext = EmptyCoroutineContext,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : EngineGateway by delegate {
     // Protege a fila: enfileirar, cancelar e enviar nunca se atropelam, então ninguém sai duas vezes.
