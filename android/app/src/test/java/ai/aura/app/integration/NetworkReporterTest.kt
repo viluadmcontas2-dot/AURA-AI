@@ -62,11 +62,16 @@ class NetworkReporterTest {
         val sent = mutableListOf<NetworkSnapshot>()
         val reporter = NetworkReporter(cm, scope, { sent += it })
         reporter.start()
+        // O start() já avisa a rede de agora (no Robolectric, a rede padrão que ele traz). Dá um ponto de partida
+        // conhecido (VPN, diferente de wifi e cellular) e zera a lista: o teste cobre só o que vem depois.
+        callback().onCapabilitiesChanged(net, caps(NetworkCapabilities.TRANSPORT_VPN, true))
+        scope.runCurrent()
+        sent.clear()
         callback().onCapabilitiesChanged(net, caps(NetworkCapabilities.TRANSPORT_WIFI, true))
         callback().onCapabilitiesChanged(net, caps(NetworkCapabilities.TRANSPORT_WIFI, true))
         callback().onCapabilitiesChanged(net, caps(NetworkCapabilities.TRANSPORT_CELLULAR, false))
         scope.runCurrent()
-        assertEquals(listOf(NetworkSnapshot(false, "wifi"), NetworkSnapshot(true, "cellular")), sent.filter { it.transport != "unknown" })
+        assertEquals(listOf(NetworkSnapshot(false, "wifi"), NetworkSnapshot(true, "cellular")), sent.toList())
         assertEquals(NetworkSnapshot(true, "cellular"), reporter.current())
         reporter.stop()
         assertTrue(shadowOf(cm).networkCallbacks.isEmpty())
