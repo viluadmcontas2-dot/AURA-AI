@@ -139,6 +139,12 @@ class DesignCoverageGateTest(unittest.TestCase):
                            "scripts/check_design_coverage.py", "scripts/test_design_coverage.py"):
             self.assertGreaterEqual(workflow.count('"' + dependency + '"'), 2, dependency)
 
+    def test_android_ci_runs_for_engine_only_changes(self):
+        """Engine-only contract changes must revalidate Android/JVM on the same SHA."""
+        workflow = ANDROID_CI.read_text(encoding="utf-8")
+        self.assertGreaterEqual(workflow.count('"engine/**"'), 2,
+                                "push and pull_request must both include engine/**")
+
     def test_debug_apk_upload_remains_disabled_until_independent_physical_acceptance(self):
         """Structural 66/66 cannot authorize APK artifact upload without real device acceptance."""
         workflow = ANDROID_CI.read_text(encoding="utf-8")
