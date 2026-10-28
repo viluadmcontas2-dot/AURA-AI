@@ -45,7 +45,8 @@ if (!file("src/main/java/ai/aura/app/offline/EngineLink.kt").exists()) {
 }
 // O motor Python viaja dentro do APK (assets/engine.bin); o app o instala no Termux sem rede nem git.
 val packEngine = tasks.register<Tar>("packEngine") {
-    from(rootProject.file("../engine")) { include("aura_engine/**"); exclude("**/__pycache__/**", "**/*.pyc") }
+    // skills/** (as skills embutidas) ficam ao lado de aura_engine/: adapters.scan_skills procura em <app>/skills.
+    from(rootProject.file("../engine")) { include("aura_engine/**", "skills/**"); exclude("**/__pycache__/**", "**/*.pyc") }
     compression = Compression.GZIP
     archiveFileName.set("engine.bin")
     destinationDirectory.set(layout.buildDirectory.dir("generated/engineAssets"))
