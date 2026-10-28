@@ -78,7 +78,7 @@ class DesignCoverageGateTest(unittest.TestCase):
                 (report_dir / f"{ident}.md").write_text(
                     "Dispositivo: fixture-sintetico\n"
                     "Procedimento: procedimento-fixture\n"
-                    "Resultado: sucesso-sintetico\n"
+                    "Resultado: aprovado\n"
                     "Registro: id-fixture\n", encoding="utf-8")
             job = "https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456"
             rows = ["| ID | Tela/Função | Status | Evidência |",
@@ -98,6 +98,16 @@ class DesignCoverageGateTest(unittest.TestCase):
                 [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
                 text=True, capture_output=True, check=False, timeout=10)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            failed_report = report_dir / "FN-10.md"
+            failed_report.write_text(
+                failed_report.read_text(encoding="utf-8").replace(
+                    "Resultado: aprovado", "Resultado: falha observada"),
+                encoding="utf-8")
+            failed = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertNotEqual(failed.returncode, 0, failed.stdout)
+            self.assertIn("FN-10", failed.stdout + failed.stderr)
 
     def test_release_does_not_accept_ci_job_as_physical_termux_proof(self):
         """CI verde não prova RUN_COMMAND, voz, IME e outros efeitos físicos."""
