@@ -1,40 +1,41 @@
 package ai.aura.app.ui.screens.chat
 
 import ai.aura.app.offline.LocalStore
-import ai.aura.app.ui.components.StatusKind
-import ai.aura.app.ui.engine.Capability
-import ai.aura.app.ui.engine.JobRisk
-import ai.aura.app.ui.engine.JobStatus
-import ai.aura.app.ui.engine.RouteResult
-import ai.aura.app.ui.engine.Job
+import ai.aura.app.ui.engine.ChatAction
 import ai.aura.app.ui.screens.readList
 import ai.aura.app.ui.screens.writeList
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import org.json.JSONObject
+import java.text.Normalizer
 
 /**
  * O que a aba Início sabe sobre o chat aberto. Só strings, para sobreviver a rotação e a
- * morte do processo (rememberSaveable). O estado vivo (status do job) sempre vem do engine.
+ * morte do processo (rememberSaveable).
  */
 data class ChatEntry(
     val open: Boolean = false,
-    /** Pedido a enviar ao abrir o chat (vazio = chat em branco). */
+    /** Mensagem a enviar ao abrir o chat (vazio = chat em branco). */
     val prompt: String = "",
     val requestId: String = "",
-    /** Job já existente a acompanhar (vazio = nenhum). */
+    /** Trabalho da Atividade a mostrar como resumo (vazio = nenhum). */
     val jobId: String = "",
     /** Texto pré-preenchido no composer, sem enviar. */
     val draft: String = "",
+    /** Conversa em andamento: vai com cada mensagem para o motor continuar de onde parou. */
+    val sessionId: String = "",
 ) {
     companion object {
         val Closed = ChatEntry()
         val Saver: Saver<ChatEntry, Any> = listSaver<ChatEntry, Any>(
-            save = { listOf(if (it.open) "1" else "0", it.prompt, it.requestId, it.jobId, it.draft) },
+            save = { listOf(if (it.open) "1" else "0", it.prompt, it.requestId, it.jobId, it.draft, it.sessionId) },
             // Lista curta ou de tipo torto (versão antiga, Bundle estranho): descarta em vez de derrubar o app.
             restore = { l ->
                 if (l.size < 5) null
-                else ChatEntry(l[0] == "1", l[1] as? String ?: "", l[2] as? String ?: "", l[3] as? String ?: "", l[4] as? String ?: "")
+                else ChatEntry(
+                    l[0] == "1", l[1] as? String ?: "", l[2] as? String ?: "", l[3] as? String ?: "",
+                    l[4] as? String ?: "", l.getOrNull(5) as? String ?: "",
+                )
             },
         )
     }
@@ -53,94 +54,55 @@ internal fun LocalStore.saveChat(messages: List<ChatMessage>) = writeList(
     messages.takeLast(200).map { JSONObject().put("id", it.id).put("fromUser", it.fromUser).put("text", it.text) },
 )
 
-sealed interface ChatPhase {
-    object Idle : ChatPhase
-    object Routing : ChatPhase
-    /** Rota entendida; nada foi iniciado. [blocked] != null = ferramenta indisponível neste aparelho. */
-    class Understood(val route: RouteResult, val blocked: Capability?) : ChatPhase
-    object Submitting : ChatPhase
-    class Tracking(val job: Job) : ChatPhase
+internal fun LocalStore.loadSessionId(): String = read("chat-session")?.optString("session_id").orEmpty()
+
+internal fun LocalStore.saveSessionId(id: String) {
+    if (id.isEmpty()) delete("chat-session") else write("chat-session", JSONObject().put("session_id", id))
 }
 
-/** Erro mostrado com o que fazer; [retry] repete exatamente a última tentativa. */
-class ChatError(val title: String, val body: String, val retry: () -> Unit)
+/** Mensagem que ainda não saiu porque o motor estava desligado. Sai sozinha quando ele volta. */
+internal fun LocalStore.loadPending(): String = read("chat-pending")?.optString("text").orEmpty()
 
-class ChatCommand(val name: String, val description: String, private val expansion: String) {
-    /** Texto em português simples que vai para o /v1/route. */
-    fun expand(args: String): String = if (args.isBlank()) expansion else "$expansion: $args"
+internal fun LocalStore.savePending(text: String) {
+    if (text.isEmpty()) delete("chat-pending") else write("chat-pending", JSONObject().put("text", text))
 }
 
+/** Aviso do próprio app dentro da conversa, em português, com no máximo uma ação. */
+class ChatNotice(val message: String, val action: ChatAction?)
+
+/** Texto que chega aos poucos e as linhas de ferramenta, cada uma na posição do texto em que apareceu. */
+class LiveReply(val text: String, val tools: List<ToolMark>) {
+    class ToolMark(val offset: Int, val summary: String)
+}
+
+/** Para onde um comando "/" leva dentro do app. */
+enum class AppTarget { Projects, Reform, Connections, Settings, Activity, Voice, Devices }
+
+class ChatCommand(val name: String, val description: String, val target: AppTarget, val opened: String)
+
+/** Comandos "/" são do app: locais, instantâneos e nunca enviados à IA. */
 object ChatCommands {
-    const val CONTINUE = "/continuar"
     val all: List<ChatCommand> = listOf(
-        ChatCommand(CONTINUE, "Retomar de onde parou", "Continuar a tarefa em andamento"),
-        ChatCommand("/projeto", "Abrir ou criar um projeto", "Abrir ou criar um projeto"),
-        ChatCommand("/aparelho", "Falar com TV, celular ou multimídia", "Controlar um aparelho Android"),
-        ChatCommand("/instalar", "Instalar um APK em um aparelho", "Instalar um APK em um aparelho"),
-        ChatCommand("/explicar", "Explicar o último resultado em português simples", "Explicar o último resultado em português simples"),
+        ChatCommand("/projeto", "Abrir ou criar um projeto", AppTarget.Projects, "Abri Projetos."),
+        ChatCommand("/reformar", "Reformar um app que já existe", AppTarget.Reform, "Abri Reformar apps."),
+        ChatCommand("/conexoes", "Termux, contas e permissões", AppTarget.Connections, "Abri Conexões."),
+        ChatCommand("/ajustes", "Mudar como o AURA trabalha", AppTarget.Settings, "Abri Ajustes."),
+        ChatCommand("/atividade", "Ver o que está rodando", AppTarget.Activity, "Abri Atividade."),
+        ChatCommand("/aparelho", "TV, celular ou multimídia", AppTarget.Devices, "Abri Dispositivos."),
+        ChatCommand("/voz", "Falar em vez de digitar", AppTarget.Voice, "Abri a voz."),
     )
 
-    /** Mostra o painel só enquanto o usuário digita a palavra do comando (sem espaço ainda). */
+    private fun norm(s: String): String =
+        Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "")
+
+    /** Mostra o painel só enquanto a pessoa digita a palavra do comando (sem espaço ainda). */
     fun suggestionsFor(text: String): List<ChatCommand> =
-        if (text.startsWith("/") && text.none { it.isWhitespace() }) all.filter { it.name.startsWith(text.lowercase()) } else emptyList()
+        if (text.startsWith("/") && text.none { it.isWhitespace() }) all.filter { it.name.startsWith(norm(text)) } else emptyList()
 
-    fun find(text: String): ChatCommand? = all.firstOrNull { it.name == text.substringBefore(' ').lowercase() }
-}
+    fun find(text: String): ChatCommand? = all.firstOrNull { it.name == norm(text.trim().substringBefore(' ')) }
 
-internal fun kindLabel(kind: String): String = when (kind) {
-    "claude_cli", "claude_api" -> "Claude"
-    "gemini_cli", "gemini_api" -> "Gemini"
-    "agy_cli" -> "Antigravity"
-    "github" -> "GitHub"
-    "adb" -> "Controle de Android"
-    "shell" -> "Terminal do Termux"
-    "files" -> "Arquivos"
-    "system" -> "Sistema"
-    "skills" -> "Habilidades"
-    else -> "Ferramenta do AURA"
-}
+    fun isCommandText(text: String): Boolean = text.trim().startsWith("/")
 
-internal fun riskLabel(risk: JobRisk): String = when (risk) {
-    JobRisk.Read -> "Só leitura"
-    JobRisk.Write -> "Altera arquivos"
-    JobRisk.Spend -> "Pode gerar custo"
-    JobRisk.Critical -> "Ação crítica"
-}
-
-internal fun riskKind(risk: JobRisk): StatusKind = when (risk) {
-    JobRisk.Read -> StatusKind.Ready
-    JobRisk.Write, JobRisk.Spend -> StatusKind.NeedsYou
-    JobRisk.Critical -> StatusKind.Risk
-}
-
-internal fun riskWarning(risk: JobRisk): String = when (risk) {
-    JobRisk.Read -> "Este pedido só lê informações."
-    JobRisk.Write -> "Este pedido pode criar ou alterar arquivos e serviços conectados."
-    JobRisk.Spend -> "Este pedido pode gerar custo. Confira antes de aprovar."
-    JobRisk.Critical -> "Ação crítica. Pode não ser possível desfazer."
-}
-
-internal fun statusKind(status: JobStatus): StatusKind = when (status) {
-    JobStatus.Queued, JobStatus.Cancelled -> StatusKind.Neutral
-    JobStatus.AwaitingApproval, JobStatus.Interrupted, JobStatus.WaitingEngine -> StatusKind.NeedsYou
-    JobStatus.Running -> StatusKind.Info
-    JobStatus.Completed -> StatusKind.Ready
-    JobStatus.Failed -> StatusKind.Risk
-}
-
-internal fun statusText(status: JobStatus): String = when (status) {
-    JobStatus.Queued -> "Na fila"
-    JobStatus.WaitingEngine -> "Aguardando o motor"
-    JobStatus.AwaitingApproval -> "Precisa de você"
-    JobStatus.Running -> "Rodando"
-    JobStatus.Completed -> "Concluído"
-    JobStatus.Failed -> "Falhou"
-    JobStatus.Cancelled -> "Cancelado"
-    JobStatus.Interrupted -> "Interrompido"
-}
-
-internal fun errorText(code: String?): String = when (code) {
-    "auth_required" -> "Falta entrar na conta do serviço (por exemplo, GitHub)."
-    null -> "O motor não informou o motivo."
-    else -> "O motor recusou ou não conseguiu terminar o pedido."
+    /** Palavra digitada, para a frase "Não conheço /x". */
+    fun wordOf(text: String): String = text.trim().substringBefore(' ')
 }

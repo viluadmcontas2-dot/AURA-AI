@@ -1,12 +1,14 @@
 package ai.aura.app.ui.screens.chat
 
+import ai.aura.app.offline.LinkState
+import ai.aura.app.offline.LocalStore
+import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.components.AuraComposerField
 import ai.aura.app.ui.components.EmptyState
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.screens.rememberAuraStore
 import ai.aura.app.ui.theme.AuraColors
-import ai.aura.app.ui.theme.AuraTheme
+import ai.aura.app.voice.LocalVoiceInput
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,21 +25,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 
 /**
- * Fluxo de chat (Chat-1..5) por estado, sem navigation-compose:
- * pedido -> Entendi -> Começar -> acompanhar -> aprovação -> resultado em 4 blocos.
- * Composer ancorado (imePadding no próprio AuraComposerField); o texto digitado é guardado com
- * rememberSaveable e só é limpo quando o pedido é aceito.
+ * Chat de verdade: a pessoa escreve, vê a bolha dela na hora e a resposta do AURA crescendo em
+ * texto. Sem plano, sem rota, sem aprovação. Comandos "/" abrem telas do app ([onNavigate]).
+ * O microfone usa a digitação por voz do Google e o texto cai neste mesmo campo.
  *
- * @param entry como o chat foi aberto (pedido, job a acompanhar ou rascunho)
- * @param onEntryChange o chat avisa o pedido/job atual para a Home guardar (rotação/aba)
- * @param onClose volta ao início; tarefas em andamento continuam no engine
+ * @param entry como o chat foi aberto (mensagem a enviar, conversa em andamento ou rascunho)
+ * @param onEntryChange o chat avisa a conversa atual para a Home guardar (rotação/aba)
+ * @param onClose volta ao início
+ * @param link estado do motor; ao voltar a "no ar", a mensagem guardada sai sozinha
+ * @param onStartEngine botão "Iniciar o motor" (o mesmo do aviso global)
  */
 @Composable
 fun ChatScreen(
@@ -47,45 +52,42 @@ fun ChatScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onLeaveDraft: (String) -> Unit = {},
+    link: LinkState = LinkState.Unknown,
+    onNavigate: (AppTarget, String) -> Unit = { _, _ -> },
+    onStartEngine: (OfflineReason) -> Unit = {},
+    store: LocalStore = rememberAuraStore(),
 ) {
     val scope = rememberCoroutineScope()
-    val store = rememberAuraStore()
-    val controller = remember(gateway) { ChatController(gateway, scope, entry, onEntryChange, store = store) }
-    var text by rememberSaveable { mutableStateOf(entry.draft) }
-    var sheetRequested by rememberSaveable { mutableStateOf(false) }
-
-    val phase = controller.phase
-    val job = (phase as? ChatPhase.Tracking)?.job
-    val showSheet = sheetRequested && job != null && job.status == JobStatus.AwaitingApproval
-
-    // Aprovação abre sozinha uma vez por pedido que passa a esperar o usuário (fluxo Chat-3 -> Chat-4).
-    LaunchedEffect(job?.id, job?.status) {
-        if (job?.status == JobStatus.AwaitingApproval) sheetRequested = true else sheetRequested = false
+    val navigate by rememberUpdatedState(onNavigate)
+    val startEngine by rememberUpdatedState(onStartEngine)
+    val controller = remember(gateway) {
+        ChatController(
+            gateway, scope, entry, onEntryChange, store = store,
+            onNavigate = { target, rest -> navigate(target, rest) },
+            onStartEngine = { reason -> startEngine(reason) },
+        )
     }
+    var text by rememberSaveable { mutableStateOf(entry.draft) }
+    val voice = LocalVoiceInput.current
+
+    LaunchedEffect(link) { if (link == LinkState.Online) controller.engineBack() }
 
     // Ao sair com texto não enviado, o rascunho volta para o campo da Início.
     val close = { if (text.isNotBlank()) onLeaveDraft(text); onClose() }
-    BackHandler(enabled = true) { if (showSheet) sheetRequested = false else close() }
+    BackHandler(enabled = true) { close() }
 
-    val title = job?.title ?: controller.messages.lastOrNull { it.fromUser }?.text ?: "Nova conversa"
-    val subtitle = job?.let { kindLabel(it.kind) } ?: "AURA"
+    val messages = controller.messages
+    val title = messages.firstOrNull { it.fromUser }?.text ?: "Nova conversa"
     val commands = ChatCommands.suggestionsFor(text)
-    val placeholder = when {
-        job != null && !job.status.isTerminal -> "Mudou de ideia? Diga ao AURA…"
-        job != null -> "Responder ao AURA…"
-        else -> "Peça algo ao AURA…"
-    }
 
     Box(modifier.fillMaxSize().background(AuraColors.Bg)) {
         Column(Modifier.fillMaxSize()) {
-            ChatHeader(title = title, subtitle = subtitle, status = job, onBack = close)
+            ChatHeader(
+                title = title, onBack = close,
+                onNew = if (messages.isNotEmpty() && !controller.responding) ({ controller.newConversation() }) else null,
+            )
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                ChatBody(
-                    controller = controller,
-                    onReviewApproval = { sheetRequested = true },
-                    onFillComposer = { text = it },
-                    onAdjust = { text = controller.adjust() },
-                )
+                ChatBody(controller = controller, onFillComposer = { text = it })
             }
             if (commands.isNotEmpty()) {
                 CommandsPanel(commands, onPick = { text = it.name + " " })
@@ -94,64 +96,54 @@ fun ChatScreen(
                 value = text,
                 onValueChange = { text = it },
                 onSend = { if (controller.send(text)) text = "" },
-                placeholder = placeholder,
-            )
-        }
-        if (showSheet && job != null) {
-            ApprovalSheet(
-                job = job,
-                busy = controller.busy,
-                onApprove = { controller.approve() },
-                onDecline = { controller.cancel(); sheetRequested = false },
-                onDismiss = { sheetRequested = false },
+                placeholder = "Escreva para o AURA…",
+                // Voz é só um jeito de digitar: o texto falado cai no campo e a pessoa confirma em enviar.
+                onMic = voice?.let { listen -> { listen { spoken -> text = (text.trim() + " " + spoken.trim()).trim() } } },
+                onStop = if (controller.responding) ({ controller.stop() }) else null,
             )
         }
     }
 }
 
 @Composable
-private fun ChatBody(
-    controller: ChatController,
-    onReviewApproval: () -> Unit,
-    onFillComposer: (String) -> Unit,
-    onAdjust: () -> Unit,
-) {
+private fun ChatBody(controller: ChatController, onFillComposer: (String) -> Unit) {
     val scroll = rememberScrollState()
-    val phase = controller.phase
-    val jobStatus = (phase as? ChatPhase.Tracking)?.job?.status
-    LaunchedEffect(controller.messages.size, phase::class, jobStatus, controller.error) {
+    val messages = controller.messages
+    val live = controller.live
+    val notice = controller.notice
+    val clipboard = LocalClipboardManager.current
+    LaunchedEffect(messages.size, live?.text?.length, live?.tools?.size, live != null, notice) {
         scroll.scrollTo(scroll.maxValue)
     }
     Column(
         Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        controller.messages.forEach { MessageBubble(it) }
-        when (phase) {
-            ChatPhase.Idle ->
-                if (controller.messages.isEmpty() && controller.error == null) {
-                    EmptyState(
-                        title = "Sobre o que vamos falar?",
-                        body = "Escreva o que você quer fazer. Digite / para ver os comandos.",
-                        actionText = "Ver comandos",
-                        onAction = { onFillComposer("/") },
-                    )
-                }
-            ChatPhase.Routing -> ThinkingRow("Entendendo o seu pedido…")
-            is ChatPhase.Understood -> UnderstoodCard(phase, onStart = controller::start, onAdjust = onAdjust)
-            ChatPhase.Submitting -> ThinkingRow("Enviando ao AURA…")
-            is ChatPhase.Tracking -> JobPanel(
-                job = phase.job,
-                events = controller.events,
-                connectionLost = controller.connectionLost,
-                busy = controller.busy,
-                onReviewApproval = onReviewApproval,
-                onStop = controller::cancel,
-                onRetry = controller::retryJob,
-                onExplain = { controller.send("Explicar em português simples: ${phase.job.title}") },
-                onNew = controller::newRequest,
+        if (messages.isEmpty() && live == null && notice == null) {
+            EmptyState(
+                title = "Sobre o que vamos falar?",
+                body = "Escreva o que você quer fazer. Digite / para ver os comandos.",
+                actionText = "Ver comandos",
+                onAction = { onFillComposer("/") },
             )
         }
-        controller.error?.let { ChatErrorCard(it) }
+        messages.forEach { MessageBubble(it) }
+        if (live != null) {
+            if (live.text.isBlank() && live.tools.isEmpty()) TypingBubble() else LiveBubble(live)
+        } else if (notice != null) {
+            NoticeBubble(notice, onAction = controller::act)
+        } else if (lastIsAnswer(messages)) {
+            AnswerActions(
+                onCopy = { clipboard.setText(AnnotatedString(messages.last().text)) },
+                onContinue = { controller.send("Continue.") },
+            )
+        }
     }
+}
+
+/** A última bolha é resposta da IA a uma mensagem comum (não a um comando do app). */
+internal fun lastIsAnswer(messages: List<ChatMessage>): Boolean {
+    val last = messages.lastOrNull() ?: return false
+    val before = messages.getOrNull(messages.size - 2) ?: return false
+    return !last.fromUser && before.fromUser && !ChatCommands.isCommandText(before.text)
 }

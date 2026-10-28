@@ -61,6 +61,8 @@ fun AuraComposerField(
     modifier: Modifier = Modifier,
     placeholder: String = "Peça algo ao AURA…",
     onMic: (() -> Unit)? = null,
+    /** Não nulo enquanto o AURA responde: o botão de enviar vira "Parar resposta". */
+    onStop: (() -> Unit)? = null,
 ) {
     val canSend = value.isNotBlank()
     val sendSource = remember { MutableInteractionSource() }
@@ -113,19 +115,32 @@ fun AuraComposerField(
                     contentAlignment = Alignment.Center,
                 ) { MicGlyph() }
             }
-            Box(
-                Modifier
-                    .size(AuraSpacing.TouchTarget)
-                    .clip(AuraShapes.Circle)
-                    .background(if (canSend) AuraColors.Ink else AuraColors.Line)
-                    .auraFocusRing(sendSource, AuraShapes.Circle)
-                    .clickable(
-                        interactionSource = sendSource, indication = null, enabled = canSend,
-                        role = Role.Button, onClick = onSend,
-                    )
-                    .semantics { contentDescription = "Enviar mensagem" },
-                contentAlignment = Alignment.Center,
-            ) { Text("↑", style = AuraType.Section.copy(color = if (canSend) Color.White else AuraColors.Ink3)) }
+            if (onStop != null) {
+                Box(
+                    Modifier
+                        .size(AuraSpacing.TouchTarget)
+                        .clip(AuraShapes.Circle)
+                        .background(AuraColors.Ink)
+                        .auraFocusRing(sendSource, AuraShapes.Circle)
+                        .clickable(interactionSource = sendSource, indication = null, role = Role.Button, onClick = onStop)
+                        .semantics { contentDescription = "Parar resposta" },
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(14.dp).clip(RoundedCornerShape(3.dp)).background(Color.White)) }
+            } else {
+                Box(
+                    Modifier
+                        .size(AuraSpacing.TouchTarget)
+                        .clip(AuraShapes.Circle)
+                        .background(if (canSend) AuraColors.Ink else AuraColors.Line)
+                        .auraFocusRing(sendSource, AuraShapes.Circle)
+                        .clickable(
+                            interactionSource = sendSource, indication = null, enabled = canSend,
+                            role = Role.Button, onClick = onSend,
+                        )
+                        .semantics { contentDescription = "Enviar mensagem" },
+                    contentAlignment = Alignment.Center,
+                ) { Text("↑", style = AuraType.Section.copy(color = if (canSend) Color.White else AuraColors.Ink3)) }
+            }
         }
     }
 }
