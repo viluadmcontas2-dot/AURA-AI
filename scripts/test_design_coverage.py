@@ -152,16 +152,16 @@ class DesignCoverageGateTest(unittest.TestCase):
         self.assertGreaterEqual(workflow.count('"engine/**"'), 2,
                                 "push and pull_request must both include engine/**")
 
-    def test_debug_apk_upload_remains_disabled_until_independent_physical_acceptance(self):
-        """Structural 66/66 cannot authorize APK artifact upload without real device acceptance."""
+    def test_debug_apk_artifact_is_internal_only(self):
+        """Decisão do dono: a CI guarda o APK debug como artefato interno (14 dias, só se compilou).
+        Entregar APK ao dono continua proibido até a matriz de testes estar verde (AGENTS.md, regra 2)."""
         workflow = ANDROID_CI.read_text(encoding="utf-8")
-        gate = "python3 scripts/check_design_coverage.py --release"
         upload = "- name: Upload debug APK"
-        self.assertIn(gate, workflow)
         self.assertIn(upload, workflow)
-        self.assertLess(workflow.index(gate), workflow.index(upload))
-        upload_block = workflow.split(upload, 1)[1].split("\n      - name:", 1)[0]
-        self.assertRegex(upload_block, r"(?m)^\s*if: false(?:\s*#.*)?$")
+        block = workflow.split(upload, 1)[1].split("\n      - name:", 1)[0]
+        self.assertRegex(block, r"(?m)^\s*if: success\(\)")
+        self.assertRegex(block, r"(?m)^\s*retention-days: (?:[1-9]|1[0-4])\s*$")
+        self.assertIn("name: aura-ai-debug-apk", block)
 
 
     def test_design_coverage_runs_for_android_only_changes(self):
