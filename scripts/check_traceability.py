@@ -47,7 +47,7 @@ def check():
         print(f"TRACE-01: manifest inválido: {exc}", file=sys.stderr)
         return 1
     records = data.get("requirements", []) if isinstance(data, dict) else []
-    if data.get("schema") != 1 or not isinstance(records, list) or not records:
+    if not isinstance(data, dict) or data.get("schema") != 1 or not isinstance(records, list) or not records:
         print("TRACE-01: schema ou lista de requisitos inválidos", file=sys.stderr)
         return 1
     seen = set()
