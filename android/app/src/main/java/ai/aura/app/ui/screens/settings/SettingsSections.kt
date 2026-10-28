@@ -233,7 +233,7 @@ internal fun ModelsSection(
         RowDivider()
         SettingRow("API paga") {
             Segmented(
-                listOf("never" to "Nunca", "allow" to "Se preciso"), m.apiFallback,
+                listOf("never" to "Nunca", "ask" to "Perguntar antes"), m.apiFallback,
                 { v -> onEdit { it.copy(apiFallback = v) } },
                 groupLabel = "API paga: nunca ou se preciso", modifier = Modifier.width(184.dp),
             )

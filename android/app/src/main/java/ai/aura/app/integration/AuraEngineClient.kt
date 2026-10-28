@@ -13,8 +13,18 @@ import java.net.SocketTimeoutException
 import java.net.URL
 
 /** Typed HTTP transport for local Termux engine. UI consumes state, never terminal transcripts. */
-class AuraEngineClient(private val credentials: EngineCredentialStore) : EngineApi {
-    private val endpoint = "http://127.0.0.1:8765"
+class AuraEngineClient(
+    private val readToken: () -> String?,
+    private val endpoint: String = DEFAULT_ENDPOINT,
+) : EngineApi {
+    /** Produção: token do Keystore e porta fixa 8765. Testes JVM usam o construtor principal. */
+    constructor(credentials: EngineCredentialStore, endpoint: String = DEFAULT_ENDPOINT) :
+        this({ credentials.read() }, endpoint)
+
+    companion object {
+        const val DEFAULT_ENDPOINT = "http://127.0.0.1:8765"
+    }
+
     private fun segment(value: String): String {
         require(SEGMENT.matches(value)) { "Invalid identifier" }
         return value
@@ -28,7 +38,7 @@ class AuraEngineClient(private val credentials: EngineCredentialStore) : EngineA
     ): JSONObject =
         withContext(Dispatchers.IO) {
             require(path.startsWith("/v1/") && !path.contains("..")) { "Invalid API route" }
-            val token = credentials.read()
+            val token = readToken()
                 ?: throw EngineUnreachableException("Conecte o Termux em Conexões", OfflineReason.NoToken)
             val conn = (URL(endpoint + path).openConnection() as HttpURLConnection)
             try {

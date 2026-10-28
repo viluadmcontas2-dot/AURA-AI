@@ -143,7 +143,7 @@ data class ModelsDoc(
     val ceiling: Map<String, String> = mapOf("claude" to "sonnet:medium"),
     val routes: List<ModelRoute> = emptyList(),
     val preferSubscription: Boolean = true,
-    /** "never" | "allow". */
+    /** "never" | "ask" (contrato do motor). */
     val apiFallback: String = "never",
 )
 

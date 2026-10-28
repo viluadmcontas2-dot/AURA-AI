@@ -123,7 +123,7 @@ internal object EnginePayloads {
         val ceilingObj = o.optJSONObject("ceiling")
         val routesArr = o.optJSONArray("routes")
         val fallback = o.optString("api_fallback", defaults.apiFallback)
-        if (fallback != "never" && fallback != "allow") throw JSONException("api_fallback")
+        if (fallback != "never" && fallback != "ask") throw JSONException("api_fallback")
         return ModelsDoc(
             version = o.getInt("version"),
             deny = if (o.has("deny")) strings(o.optJSONArray("deny")) else defaults.deny,

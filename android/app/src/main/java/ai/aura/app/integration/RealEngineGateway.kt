@@ -218,7 +218,8 @@ class RealEngineGateway(
         val map = LinkedHashMap<String, AuthStatus>()
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
-            val id = item.optString("provider")
+            // O motor chama o Drive de "google"; o app e o contrato de login usam "gdrive".
+            val id = item.optString("provider").let { if (it == "google") "gdrive" else it }
             if (id.isBlank()) continue
             map[id] = AuthStatus(
                 provider = id,
