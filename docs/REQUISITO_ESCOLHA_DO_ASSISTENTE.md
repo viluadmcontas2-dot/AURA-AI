@@ -3,7 +3,7 @@
 Pedido: usar ao máximo o Antigravity CLI (e o Gemini) para executar o trabalho; o Claude Code só quando o dono quiser, para não gastar o limite dele. Poder escolher isso direto no chat e trocar a qualquer hora, conforme o contexto.
 
 ## Escolha no chat
-- Seletor discreto no campo de mensagem: "Quem responde: Automático ▾". Opções: **Automático** (Antigravity, depois Gemini, depois Claude Code), **Antigravity**, **Gemini**, **Claude Code**.
+- Seletor discreto no campo de mensagem: "Quem responde: Automático ▾". Opções: **Automático** (Antigravity, depois Gemini, depois Claude Code), **Antigravity**, **Gemini**, **Codex**, **Claude Code**. O Codex também precisa ser executor do chat (hoje o motor só o tem como ação `codex_cli`): o dono quer poder mandar o Codex instalar o Antigravity e outras tarefas de Termux.
 - Vale para a PRÓXIMA mensagem e vira o padrão da conversa; trocar a qualquer momento (inclusive no meio da fila de mensagens: cada mensagem enfileirada guarda o assistente escolhido).
 - Padrão geral em Ajustes ("Assistente padrão"). Valor inicial: Automático.
 - Toda resposta mostra, pequeno, quem respondeu ("Antigravity", "Claude Code"). Em cada resposta: ação **"Refazer com outro assistente"** (reenvia o mesmo pedido a outro executor).
