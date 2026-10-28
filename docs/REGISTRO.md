@@ -125,3 +125,11 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Testes escritos antes (sem SDK, RED/GREEN real fica para a CI): ReformGatewayTest, NetworkReporterTest, ReformControllerTest, ReformToolsWifiNoticeTest.
 - Bloqueio: nenhuma compilação nem teste Android executado neste ambiente. O passo `tools` exige uma reforma já criada (Escopo); antes disso "Instalar o que falta" cai no pedido pelo chat.
 - Próximo item: CI compilar e rodar; motor aceitar `tools` sem reforma (ou rota própria); teste real que chame POST /verify.
+
+## 2026-10-28 — Motor: autonomia total dos CLIs, instalar CLIs, login por código, REA ponta a ponta
+- Objetivo: Claude Code no Termux com máxima autonomia (delegar a agy/gemini/codex), root aberto, REA de ponta a ponta.
+- Estado verificado: flags de autonomia total chegam aos CLIs (falsos no PATH; motor real em processo + HTTP); `POST /v1/tools/install`, `POST /v1/auth/code`, `POST /v1/auth/token`, rea/reverse_engineer; recusa de root removida do motor; `termux-wake-lock` best effort. Detalhes em docs/ENGINE_CONTRACT.md.
+- G5 (agy): o motor junta `command(*) read_file(*) write_file(*) mcp(*)` a `~/.gemini/antigravity-cli/settings.json` (doc de permissões do agy) e passa `--dangerously-skip-permissions`.
+- Phantom process killer (Android 12+ mata processos do Termux): uma vez, no PC com depuração USB: `adb shell "/system/bin/device_config put activity_manager max_phantom_processes 2147483647"`.
+- Bloqueio / não comprovado: nada rodou no Termux de verdade; pacotes npm e o instalador glibc-runner (issue anthropics/claude-code#72620) só por doc; argumentos reais das ferramentas do REA e se `agy -p` trava sem TTY (issue aberta no repo do agy) ficam para o aparelho. O Kotlin ainda mostra o interruptor "Usar root" (SettingsSections.kt:104, SettingsState.kt:206): agora sem efeito no motor.
+- Próximo item: ligar "Instalar" e o campo de código no app; testar no aparelho.

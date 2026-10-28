@@ -85,7 +85,7 @@ class RiskPolicy:
         if kind == "skills":
             return "read" if action in ("list", "read") else "critical"
         if kind == "rea":
-            return {"setup": "write", "tools": "read", "measure": "read"}.get(action, "critical")
+            return {"setup": "write", "tools": "read", "measure": "read", "reverse_engineer": "write"}.get(action, "critical")
         if kind == "tools":
             return "write"
         if kind == "shell":
