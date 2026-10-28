@@ -4,10 +4,34 @@ on:
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
+      - "AGENTS.md"
+      - "README.md"
+      - "docs/ANDROID_HANDOFF.md"
+      - "docs/CONSTRAINTS.md"
+      - "docs/ENGINE_CONTRACT.md"
+      - "docs/ENGINE_IMPLEMENTATION_STATE.md"
+      - "docs/MATRIZ_DE_TESTES.md"
+      - "docs/TRACEABILITY.md"
+      - "docs/design/**"
+      - "docs/superpowers/plans/**"
+      - "scripts/check_design_coverage.py"
   pull_request:
     paths:
       - "android/**"
       - ".github/workflows/android-ci.yml"
+      - "AGENTS.md"
+      - "README.md"
+      - "docs/ANDROID_HANDOFF.md"
+      - "docs/CONSTRAINTS.md"
+      - "docs/ENGINE_CONTRACT.md"
+      - "docs/ENGINE_IMPLEMENTATION_STATE.md"
+      - "docs/MATRIZ_DE_TESTES.md"
+      - "docs/TRACEABILITY.md"
+      - "docs/design/**"
+      - "docs/superpowers/plans/**"
+      - "scripts/check_design_coverage.py"
+permissions:
+  contents: read
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -29,6 +53,14 @@ jobs:
       - name: Compile app, test contracts and package debug APK
         working-directory: android
         run: gradle --no-daemon --stacktrace :app:assembleDebug :app:testDebugUnitTest
+      - name: Keep JUnit results on test failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-android-junit
+          path: android/app/build/test-results/testDebugUnitTest/**/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload debug APK for remote installation
         if: success()
         uses: actions/upload-artifact@v4
