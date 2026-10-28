@@ -48,6 +48,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 import java.io.IOException
 
@@ -139,6 +140,7 @@ enum class Estado { Online, Offline, Vazio }
 
 /** Regra nº 1: cada aba nos 3 estados mostra algo útil e uma ação, nunca tela em branco. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
+@Config(qualifiers = "w390dp-h844dp") // tela de celular: a lista preguicosa so compoe o que cabe
 class AbasTest(private val estado: Estado) {
     companion object {
         @JvmStatic

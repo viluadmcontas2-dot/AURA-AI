@@ -26,7 +26,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -185,9 +184,8 @@ fun PermissionSheet(item: AppPermission, onAllow: () -> Unit, onNotNow: () -> Un
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .clip(AuraShapes.Sheet)
-                .background(AuraColors.Surface)
-                .pointerInput(Unit) { detectTapGestures { } }
+                .background(AuraColors.Surface, AuraShapes.Sheet) // sem clip: o toque nos botoes nao passa por recorte
+                .pointerInput(Unit) { } // segura o toque no vazio da folha, sem consumir o dos botoes
                 .navigationBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp)
                 .semantics { paneTitle = "Permitir ${item.function.lowercase()}" },
