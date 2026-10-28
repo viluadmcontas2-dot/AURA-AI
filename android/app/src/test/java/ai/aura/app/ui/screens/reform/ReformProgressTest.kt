@@ -251,7 +251,8 @@ class ReformProgressScreensTest {
             compose.onNodeWithText("Escolher um app").performClick()
             compose.runOnIdle { p = ReformProgress(error = "O motor parou. O que foi feito está salvo.") }
             compose.onNodeWithText("Escolher um app").assertDoesNotExist()
-            compose.onNodeWithText("Tentar de novo").performClick()
+            // O aviso junta os filhos num nó só; o toque tem de cair no botão, então se procura na árvore sem junção.
+            compose.onNodeWithText("Tentar de novo", useUnmergedTree = true).performClick()
         }
         assertEquals(List(3) { listOf("escolher", "tentar") }.flatten(), cliques)
     }
