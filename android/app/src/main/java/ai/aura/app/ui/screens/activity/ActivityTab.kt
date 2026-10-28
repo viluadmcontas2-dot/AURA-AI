@@ -189,7 +189,9 @@ fun ActivityContent(
                 FilterRow(jobs, filter) { filterIndex = it.ordinal }
                 val shown = jobs.filter { it.matches(filter) }
                 val needs = shown.filter { it.status == JobStatus.AwaitingApproval }
-                val running = shown.filter { it.status == JobStatus.Running || it.status == JobStatus.Queued }
+                val running = shown.filter {
+                    it.status == JobStatus.Running || it.status == JobStatus.Queued || it.status == JobStatus.WaitingEngine
+                }
                 val history = groupHistory(shown.filter { it.status.isTerminal }, now)
                 LazyColumn(
                     Modifier.fillMaxSize(),
@@ -306,6 +308,7 @@ private fun RunningCard(job: Job, progress: StepProgress?, onCancel: () -> Unit)
         Text(job.title, style = AuraType.BodyStrong)
         val line = when {
             job.status == JobStatus.Queued -> "Na fila"
+            job.status == JobStatus.WaitingEngine -> "Aguardando o motor ligar"
             progress != null -> "Passo ${progress.step} de ${progress.total}" +
                 (progress.label?.let { " · $it" } ?: "")
             else -> "Rodando agora"

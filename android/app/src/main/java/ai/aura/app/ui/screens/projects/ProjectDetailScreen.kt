@@ -223,6 +223,7 @@ internal fun JobChip(j: Job) = when (j.status) {
     JobStatus.Completed -> StatusChip(StatusKind.Ready, "Pronto")
     JobStatus.Failed -> StatusChip(StatusKind.Risk, "Falhou")
     JobStatus.Queued -> StatusChip(StatusKind.Neutral, "Triagem")
+    JobStatus.WaitingEngine -> StatusChip(StatusKind.NeedsYou, "Aguardando o motor")
     JobStatus.Cancelled -> StatusChip(StatusKind.Neutral, "Cancelado")
     JobStatus.Interrupted -> StatusChip(StatusKind.Neutral, "Interrompido")
 }

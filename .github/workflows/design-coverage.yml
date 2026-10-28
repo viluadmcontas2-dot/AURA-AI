@@ -1,0 +1,14 @@
+name: design-coverage
+on:
+  pull_request:
+    paths: ['docs/design/**', 'scripts/check_design_coverage.py']
+concurrency:
+  group: design-coverage-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check_design_coverage.py

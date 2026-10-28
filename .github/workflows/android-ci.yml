@@ -62,7 +62,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload debug APK for remote installation
-        if: success()
+        # Retido ate integrar o gate de 66/66 e as provas fisicas do PR #3.
+        # A condicao coincide com a do PR #3; sem release_coverage, nao ha upload.
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.release_coverage.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: aura-ai-debug-apk
