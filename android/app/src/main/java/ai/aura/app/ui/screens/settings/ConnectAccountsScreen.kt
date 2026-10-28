@@ -40,7 +40,6 @@ import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraSpacing
@@ -48,6 +47,7 @@ import ai.aura.app.ui.theme.AuraTheme
 import ai.aura.app.ui.theme.AuraType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /** Nome para a tela de cada provedor (ids do contrato em AUTH_PROVIDER_IDS). */
 private fun providerLabel(id: String): String = when (id) {
@@ -159,7 +159,8 @@ fun ConnectAccountsScreen(
         scope.launch {
             val label = providerLabel(provider)
             val job = runCatching {
-                gateway.submit("install_cli_$provider", JobRequest("system", "Instalar o programa de $label"))
+                // Um id novo a cada toque: com id fixo o motor devolveria o mesmo job (já falho) em vez de tentar de novo.
+                gateway.submit("install_cli_${provider}_${UUID.randomUUID()}", JobRequest("system", "Instalar o programa de $label"))
             }.getOrNull()
             notice = if (job != null) SettingsNotice(true, "Pedido para instalar $label criado. Aprove em Atividade.")
             else SettingsNotice(false, ENGINE_DOWN_HINT)
@@ -273,10 +274,4 @@ private fun PromptCard(step: AuthStep, copied: Boolean, onCopy: () -> Unit, onOp
             AuraButtonText("Cancelar", onCancel, Modifier.fillMaxWidth())
         }
     }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 900)
-@Composable
-private fun ConnectAccountsPreview() {
-    AuraTheme { ConnectAccountsScreen(FakeEngineGateway(), onClose = {}, onOpenUrl = {}) }
 }
