@@ -43,8 +43,10 @@ class RiskPolicy:
         autonomy = self.config.settings()["autonomy"] if self.config is not None else "total"
         if autonomy == "total":
             return "auto", "autonomia total: sem aprovação", version
-        if risk in self.AUTONOMY_ASK.get(autonomy, ()):
-            return "ask", "autonomia %s: %s pede aprovação" % (autonomy, risk), version
+        if autonomy in self.AUTONOMY_ASK:
+            if risk in self.AUTONOMY_ASK[autonomy]:
+                return "ask", "autonomia %s: %s pede aprovação" % (autonomy, risk), version
+            return "auto", "autonomia %s: %s é automático" % (autonomy, risk), version
         tag = "política v%s (%s)" % (version, mode)
         if mode == "total":
             return "auto", "%s: tudo automático" % tag, version
