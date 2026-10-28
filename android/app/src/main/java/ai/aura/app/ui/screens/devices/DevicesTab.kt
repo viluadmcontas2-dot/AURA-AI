@@ -94,6 +94,8 @@ fun DevicesTab(
     BackHandler(enabled = route != ROUTE_LIST) { route = ROUTE_LIST; notice = null }
 
     fun perform(entry: DeviceEntry, action: DeviceActionKind) {
+        // Sem motor, "Reconectar" é tentar falar com ele de novo (não há pedido para enviar).
+        if (caps == null && loadFailed && action == DeviceActionKind.Reconnect) { reload++; return }
         if (action == DeviceActionKind.SignIn) {
             if (onSignIn != null) onSignIn(entry) else notice = Notice(
                 IncidentLevel.Info, "Login pelo navegador indisponível",
@@ -120,15 +122,19 @@ fun DevicesTab(
         }
     }
 
-    val current = caps
-    val detailEntry = if (current != null && route.startsWith(ROUTE_DETAIL)) {
+    // Sem motor a aba continua útil: mostra só "Este celular" (regra nº 1), com a ação de reconectar.
+    val offline = caps == null && loadFailed
+    val current = caps ?: if (loadFailed) emptyList<Capability>() else null
+    val phone = if (offline) OFFLINE_PHONE else current?.phoneEntry()
+    val shownNotice = notice?.let { it.level to (it.title to it.body) }
+        ?: if (offline) IncidentLevel.Failed to ("Sem resposta do motor" to "Mostrando só este celular. Toque em Reconectar quando o Termux estiver ligado.") else null
+    val detailEntry = if (current != null && phone != null && route.startsWith(ROUTE_DETAIL)) {
         val id = route.removePrefix(ROUTE_DETAIL)
-        (listOf(current.phoneEntry()) + current.deviceEntries()).firstOrNull { it.id == id }
+        (listOf(phone) + current.deviceEntries()).firstOrNull { it.id == id }
     } else null
     Box(modifier.fillMaxSize().background(AuraColors.Bg)) {
         when {
-            current == null && loadFailed -> LoadError(onRetry = { reload++ })
-            current == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            current == null || phone == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Procurando aparelhos…", style = AuraType.Secondary)
             }
             route == ROUTE_CONNECTIONS -> ConnectionsContent(
@@ -136,12 +142,12 @@ fun DevicesTab(
                 onBack = { route = ROUTE_LIST; notice = null }, onAction = ::perform,
             )
             detailEntry != null -> DeviceDetailContent(
-                entry = detailEntry, notice = notice?.let { it.level to (it.title to it.body) },
+                entry = detailEntry, notice = shownNotice,
                 onBack = { route = ROUTE_LIST; notice = null }, onAction = { perform(detailEntry, it) },
             )
             else -> DevicesListContent(
-                phone = current.phoneEntry(), devices = current.deviceEntries(),
-                notice = notice?.let { it.level to (it.title to it.body) },
+                phone = phone, devices = current.deviceEntries(),
+                notice = shownNotice,
                 onOpen = { route = ROUTE_DETAIL + it.id; notice = null },
                 onAction = ::perform,
                 onAdd = { route = ROUTE_CONNECTIONS; notice = null },
@@ -150,16 +156,11 @@ fun DevicesTab(
     }
 }
 
-@Composable
-private fun LoadError(onRetry: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(AuraSpacing.ScreenGutter), verticalArrangement = Arrangement.Center) {
-        IncidentBanner(
-            IncidentLevel.Failed, "Não consegui falar com o AURA neste celular",
-            "Abra o Termux e confira se o AURA está ativo. Depois tente de novo.",
-            actionText = "Tentar de novo", onAction = onRetry,
-        )
-    }
-}
+/** O que a aba mostra de "Este celular" quando o motor não responde: o motivo é do motor, não do Termux. */
+private val OFFLINE_PHONE = DeviceEntry(
+    "termux", "Este celular", DeviceGroup.ThisPhone, ConnectionState.Offline,
+    "O motor não responde. Abra o Termux e ligue o AURA.",
+)
 
 private fun tintFor(group: DeviceGroup): Color = when (group) {
     DeviceGroup.ThisPhone -> AuraColors.CategoryAndroid

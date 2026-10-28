@@ -1,14 +1,17 @@
 package ai.aura.app.ui.screens.projects
 
+import ai.aura.app.offline.LocalStore
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobStatus
+import ai.aura.app.ui.screens.readList
+import ai.aura.app.ui.screens.writeList
+import org.json.JSONArray
+import org.json.JSONObject
 
 /*
  * Modelos locais da aba Projetos. O engine ainda não tem o conceito de "projeto" (só jobs), então
  * o projeto vive no aparelho e liga-se a jobs pelo id; o status vem SEMPRE do job (nunca inventado).
  */
-
-private const val SEP = "\u001F"
 
 data class Project(
     val id: String,
@@ -24,20 +27,31 @@ data class Project(
     val archived: Boolean = false,
 )
 
-/** Tudo em String para sobreviver a rotação via rememberSaveable (sem Parcelable/serialização extra). */
-internal fun Project.toSaved(): List<String> = listOf(
-    id, name, goal, platform, screens.joinToString(SEP), doneWhen.joinToString(SEP),
-    deliveries.joinToString(SEP), repo, branch, jobIds.joinToString(SEP), if (archived) "1" else "0",
-)
+internal fun Project.toJson(): JSONObject = JSONObject()
+    .put("id", id).put("name", name).put("goal", goal).put("platform", platform)
+    .put("screens", JSONArray(screens)).put("doneWhen", JSONArray(doneWhen)).put("deliveries", JSONArray(deliveries))
+    .put("repo", repo).put("branch", branch).put("jobIds", JSONArray(jobIds)).put("archived", archived)
 
-internal fun projectFromSaved(s: List<Any?>): Project {
-    fun list(i: Int) = (s[i] as String).split(SEP).filter { it.isNotEmpty() }
+/** Tolerante: campo ausente ou de tipo errado vira o padrão; sem id o projeto é descartado. Nunca lança. */
+internal fun projectFromJson(o: JSONObject): Project? {
+    fun list(key: String): List<String> {
+        val a = o.optJSONArray(key) ?: return emptyList()
+        return (0 until a.length()).map { a.optString(it, "") }.filter { it.isNotEmpty() }
+    }
+    val id = o.optString("id", "")
+    if (id.isEmpty()) return null
     return Project(
-        id = s[0] as String, name = s[1] as String, goal = s[2] as String, platform = s[3] as String,
-        screens = list(4), doneWhen = list(5), deliveries = list(6), repo = s[7] as String,
-        branch = s[8] as String, jobIds = list(9), archived = s[10] == "1",
+        id = id, name = o.optString("name", ""), goal = o.optString("goal", ""), platform = o.optString("platform", ""),
+        screens = list("screens"), doneWhen = list("doneWhen"), deliveries = list("deliveries"),
+        repo = o.optString("repo", ""), branch = o.optString("branch", "main"),
+        jobIds = list("jobIds"), archived = o.optBoolean("archived", false),
     )
 }
+
+/** Projetos moram no disco (FN-12): sobrevivem à morte do processo e funcionam sem motor. */
+internal fun LocalStore.loadProjects(): List<Project> = readList("projects", ::projectFromJson)
+
+internal fun LocalStore.saveProjects(projects: List<Project>) = writeList("projects", projects.map { it.toJson() })
 
 enum class ProjectTab(val label: String) { Now("Agora"), Triage("Triagem"), Archive("Arquivo") }
 

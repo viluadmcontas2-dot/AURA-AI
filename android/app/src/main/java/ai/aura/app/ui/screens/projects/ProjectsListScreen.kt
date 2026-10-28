@@ -59,13 +59,15 @@ fun ProjectsListScreen(
     onOpenArtifact: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var tabName by rememberSaveable { mutableStateOf(ProjectTab.Now.name) }
+    var tabName by rememberSaveable { mutableStateOf("") } // vazio = o dono ainda não escolheu
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    val tab = ProjectTab.valueOf(tabName)
 
     val rows = projects.map { it to phaseOf(it, jobs) }
     val byTab = rows.groupBy { (p, ph) -> tabOf(p, ph) }
+    // Sem escolha (ou nome desconhecido), abre na primeira aba que tem projeto: sem motor, nada fica escondido.
+    val tab = ProjectTab.entries.firstOrNull { it.name == tabName }
+        ?: ProjectTab.entries.firstOrNull { !byTab[it].isNullOrEmpty() } ?: ProjectTab.Now
     val shown = (byTab[tab] ?: emptyList()).filter { (p, _) -> query.isBlank() || p.name.contains(query.trim(), ignoreCase = true) }
 
     Column(modifier.fillMaxSize()) {

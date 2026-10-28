@@ -1,5 +1,6 @@
 package ai.aura.app.ui.screens.chat
 
+import ai.aura.app.offline.LocalStore
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.Job
@@ -13,9 +14,12 @@ import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Máquina de estados do chat: route -> (usuário confirma) -> submit -> acompanhar eventos/jobs
@@ -30,6 +34,8 @@ class ChatController(
     private val onEntryChange: (ChatEntry) -> Unit = {},
     private val newId: () -> String = { "req_" + UUID.randomUUID().toString().replace("-", "").take(16) },
     private val pollMillis: Long = 2_000L,
+    /** Onde o histórico fica no disco (null = não grava). */
+    private val store: LocalStore? = null,
 ) {
     var phase by mutableStateOf<ChatPhase>(
         if (initial.jobId.isNotEmpty() || initial.prompt.isNotEmpty()) ChatPhase.Routing else ChatPhase.Idle,
@@ -52,6 +58,14 @@ class ChatController(
     init {
         // Adiado: persist() escreve estado da Home e não pode rodar durante a composição.
         scope.launch {
+            // Reabrindo a conversa (pedido já salvo), o histórico volta do disco, fora da thread principal.
+            if (store != null && initial.prompt.isNotEmpty() && (initial.requestId.isNotEmpty() || initial.jobId.isNotEmpty())) {
+                val saved = withContext(Dispatchers.IO) { store.loadChat() }
+                if (saved.isNotEmpty() && messages.isEmpty()) {
+                    messages = saved
+                    nextMessageId = saved.maxOf { it.id } + 1
+                }
+            }
             when {
                 initial.jobId.isNotEmpty() -> restoreJob(initial.jobId, initial.prompt)
                 initial.prompt.isNotEmpty() -> ask(initial.prompt, initial.prompt, keepRequestId = true)
@@ -96,7 +110,7 @@ class ChatController(
     /** "Ajustar pedido": devolve o texto para o composer e descarta o plano. */
     fun adjust(): String {
         val text = messages.lastOrNull { it.fromUser }?.text.orEmpty()
-        if (messages.lastOrNull()?.fromUser == true) messages = messages.dropLast(1)
+        if (messages.lastOrNull()?.fromUser == true) { messages = messages.dropLast(1); saveChat() }
         phase = ChatPhase.Idle
         error = null
         lastRoute = null
@@ -128,6 +142,7 @@ class ChatController(
         trackJob?.cancel()
         phase = ChatPhase.Idle
         messages = emptyList()
+        saveChat()
         error = null
         events = emptyList()
         connectionLost = false
@@ -208,7 +223,7 @@ class ChatController(
     }
 
     private fun restoreJob(id: String, prompt: String) {
-        if (prompt.isNotEmpty()) addMessage(true, prompt)
+        if (prompt.isNotEmpty() && messages.isEmpty()) addMessage(true, prompt) // já veio do disco = não repete
         scope.launch {
             phase = ChatPhase.Routing
             try {
@@ -296,6 +311,14 @@ class ChatController(
 
     private fun addMessage(fromUser: Boolean, text: String) {
         messages = messages + ChatMessage(nextMessageId++, fromUser, text)
+        saveChat()
+    }
+
+    // shortcut: gravações seguidas rodam em paralelo e podem terminar fora de ordem; o histórico é pequeno, serialize se virar problema.
+    private fun saveChat() {
+        val s = store ?: return
+        val snapshot = messages
+        scope.launch(Dispatchers.IO + NonCancellable) { s.saveChat(snapshot) }
     }
 
     private fun persist(prompt: String? = null, jobId: String? = null, requestId: String? = null) {

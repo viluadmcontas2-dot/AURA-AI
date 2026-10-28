@@ -67,7 +67,7 @@ fun ProjectDetailScreen(
 ) {
     var tabName by rememberSaveable { mutableStateOf(DetailTab.Summary.name) }
     var menu by rememberSaveable { mutableStateOf(false) }
-    val tab = DetailTab.valueOf(tabName)
+    val tab = DetailTab.entries.firstOrNull { it.name == tabName } ?: DetailTab.Summary
     Column(modifier.fillMaxSize()) {
         ProjHeader(project.name, onBack, backDescription = "Voltar para Projetos", subtitle = "${project.repo} · ${project.branch}") {
             Box {

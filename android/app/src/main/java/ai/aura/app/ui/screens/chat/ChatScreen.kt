@@ -5,6 +5,7 @@ import ai.aura.app.ui.components.EmptyState
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.JobStatus
+import ai.aura.app.ui.screens.rememberAuraStore
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraTheme
 import androidx.activity.compose.BackHandler
@@ -49,7 +50,8 @@ fun ChatScreen(
     onLeaveDraft: (String) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
-    val controller = remember(gateway) { ChatController(gateway, scope, entry, onEntryChange) }
+    val store = rememberAuraStore()
+    val controller = remember(gateway) { ChatController(gateway, scope, entry, onEntryChange, store = store) }
     var text by rememberSaveable { mutableStateOf(entry.draft) }
     var sheetRequested by rememberSaveable { mutableStateOf(false) }
 

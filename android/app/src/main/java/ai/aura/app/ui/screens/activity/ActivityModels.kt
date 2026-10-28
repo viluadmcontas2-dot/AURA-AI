@@ -14,6 +14,9 @@ enum class ActivityFilter(val label: String) {
     All("Tudo"), NeedsYou("Precisa de você"), Running("Rodando"), Done("Pronto"), Stopped("Parou"),
 }
 
+/** Número do selo laranja na aba Atividade: o que espera uma decisão do dono. */
+fun activityBadgeCount(jobs: List<Job>): Int = jobs.count { it.status == JobStatus.AwaitingApproval }
+
 fun Job.matches(f: ActivityFilter): Boolean = when (f) {
     ActivityFilter.All -> true
     ActivityFilter.NeedsYou -> status == JobStatus.AwaitingApproval

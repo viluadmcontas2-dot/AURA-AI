@@ -10,7 +10,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -19,13 +18,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
+import ai.aura.app.offline.LocalStore
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
+import ai.aura.app.ui.screens.rememberAuraStore
 import ai.aura.app.ui.theme.AuraTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 private object Route {
@@ -36,11 +41,6 @@ private object Route {
     const val Artifacts = "artifacts"
     const val Artifact = "artifact"
 }
-
-private val ProjectsSaver = listSaver<List<Project>, List<String>>(
-    save = { list -> list.map { it.toSaved() } },
-    restore = { saved -> saved.map { projectFromSaved(it) } },
-)
 
 private fun createPrompt(p: Project) = "Criar repositório privado ${p.repo} no GitHub"
 
@@ -56,6 +56,7 @@ internal fun ProjectsHost(
     modifier: Modifier = Modifier,
     initialProjects: List<Project> = emptyList(),
     initialArtifacts: List<Artifact> = emptyList(),
+    store: LocalStore = rememberAuraStore(),
 ) {
     var route by rememberSaveable { mutableStateOf(Route.List) }
     var projectId by rememberSaveable { mutableStateOf("") }
@@ -64,8 +65,19 @@ internal fun ProjectsHost(
     var idea by rememberSaveable { mutableStateOf("") }
     var answer by rememberSaveable { mutableStateOf("") }
     var draftId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
-    var projects by rememberSaveable(stateSaver = ProjectsSaver) { mutableStateOf(initialProjects) }
+    var projects by remember { mutableStateOf(initialProjects) }
+    var loaded by remember { mutableStateOf(false) }
     val artifacts = remember(initialArtifacts) { initialArtifacts }
+
+    // Projetos moram no disco (FN-12), lidos e gravados fora da thread principal; sem motor continuam aqui.
+    LaunchedEffect(store) {
+        val saved = withContext(Dispatchers.IO) { store.loadProjects() }
+        if (saved.isNotEmpty()) projects = saved
+        loaded = true
+    }
+    LaunchedEffect(projects, loaded) {
+        if (loaded) withContext(Dispatchers.IO + NonCancellable) { store.saveProjects(projects) }
+    }
 
     var jobs by remember { mutableStateOf<Map<String, Job>>(emptyMap()) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -145,13 +157,15 @@ internal fun ProjectsHost(
             idea = idea.trim(), draft = draft, question = question, needsApproval = needsApproval, busy = busy, error = error,
             onAnswer = { answer = it },
             onCreate = {
-                runAction("Não consegui criar o projeto. Toque em Criar projeto para tentar de novo.") {
-                    // draft.id é a chave de idempotência: repetir o toque não duplica o job.
-                    val job = gateway.submit("req_proj_" + draft.id, JobRequest("github", createPrompt(draft)))
-                    projects = projects.filter { it.id != draft.id } + draft.copy(jobIds = listOf(job.id))
-                    refreshJobs()
+                runAction("O projeto foi salvo neste celular, mas o pedido ao AURA não saiu. Escreva a primeira tarefa quando o motor voltar.") {
+                    // Salva antes de falar com o motor: sem motor o projeto existe do mesmo jeito.
+                    projects = projects.filter { it.id != draft.id } + draft
                     projectId = draft.id; idea = ""; answer = ""; draftId = UUID.randomUUID().toString()
                     go(Route.Detail)
+                    // draft.id é a chave de idempotência: repetir o toque não duplica o job.
+                    val job = gateway.submit("req_proj_" + draft.id, JobRequest("github", createPrompt(draft)))
+                    projects = projects.map { if (it.id == draft.id) it.copy(jobIds = (it.jobIds + job.id).distinct()) else it }
+                    refreshJobs()
                 }
             },
             onAdjust = ::back, modifier = modifier,
@@ -232,6 +246,9 @@ internal fun ProjectsHost(
 @Composable
 private fun ProjectsHostPreview() {
     AuraTheme {
-        ProjectsHost(FakeEngineGateway(ExampleData.jobs), initialProjects = ExampleData.projects, initialArtifacts = ExampleData.artifacts)
+        ProjectsHost(
+            FakeEngineGateway(ExampleData.jobs), initialProjects = ExampleData.projects, initialArtifacts = ExampleData.artifacts,
+            store = LocalStore(File(System.getProperty("java.io.tmpdir"), "aura-preview")),
+        )
     }
 }
