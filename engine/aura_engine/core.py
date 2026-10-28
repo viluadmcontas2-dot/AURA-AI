@@ -6,7 +6,17 @@ import threading
 import time
 
 from . import adapters, routing
+from .build import engine_build
 from .chat import ChatManager
+
+_BUILD = None  # calculado uma vez, na subida do processo
+
+
+def current_build():
+    global _BUILD
+    if _BUILD is None:
+        _BUILD = engine_build()
+    return _BUILD
 from .auth import AuthManager
 from .config import ConfigStore
 from .security import RiskPolicy, workspace_name, load_or_create_token
@@ -18,6 +28,7 @@ class Engine:
     def __init__(self, home=None, auto_worker=True, max_workers=2, auth_timeout=300):
         self.home = pathlib.Path(home or (pathlib.Path.home() / ".aura" / "engine"))
         self.token = load_or_create_token(self.home)
+        self.build = current_build()
         self.store = Store(self.home / "engine.sqlite3")
         self.config = ConfigStore(self.home, self.store)
         self.policy = RiskPolicy(self.config)

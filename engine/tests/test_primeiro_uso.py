@@ -49,6 +49,33 @@ class ClaudeNoPathDoMotor(ChatBase):
             self.assertFalse(adapters.installed("claude"))
 
 
+class VersaoDoMotor(ChatBase):
+    def test_PU3_health_traz_engine_build_do_conteudo_de_aura_engine(self):
+        code, body = self.call("GET", "/v1/health")
+        self.assertEqual((code, body["version"]), (200, 1))
+        self.assertRegex(body["engine_build"], r"^[0-9a-f]{12}$")
+        pacote = pathlib.Path(adapters.__file__).parent
+        digest = hashlib.sha256()
+        arquivos = sorted((p for p in pacote.rglob("*") if p.is_file() and "__pycache__" not in p.parts
+                           and p.suffix != ".pyc"), key=lambda p: p.relative_to(pacote).as_posix().encode())
+        for p in arquivos:
+            digest.update(p.relative_to(pacote).as_posix().encode() + b"\0" + p.read_bytes() + b"\0")
+        self.assertEqual(body["engine_build"], digest.hexdigest()[:12])
+
+    def test_PU3_build_muda_quando_o_codigo_muda(self):
+        import tempfile
+        from aura_engine.build import engine_build
+        with tempfile.TemporaryDirectory() as tmp:
+            raiz = pathlib.Path(tmp)
+            (raiz / "a.py").write_text("x = 1\n")
+            antes = engine_build(raiz)
+            (raiz / "__pycache__").mkdir()
+            (raiz / "__pycache__" / "a.pyc").write_bytes(b"lixo")
+            self.assertEqual(engine_build(raiz), antes)  # cache de bytecode nao conta
+            (raiz / "a.py").write_text("x = 2\n")
+            self.assertNotEqual(engine_build(raiz), antes)
+
+
 class InstaladorDeTerceiro(unittest.TestCase):
     def test_PU2_fallback_fixa_commit_e_sha256_nunca_a_branch(self):
         self.assertRegex(cli_setup.CLAUDE_ANDROID_COMMIT, r"^[0-9a-f]{40}$")

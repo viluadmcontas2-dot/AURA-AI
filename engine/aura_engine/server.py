@@ -107,7 +107,8 @@ def make_server(engine, host="127.0.0.1", port=8765):
                     return self.send(200, current if setting == "network" else {setting: current})
                 if method == "GET":
                     if path == "/v1/health":
-                        return self.send(200, {"service": "aura-engine", "version": 1})
+                        return self.send(200, {"service": "aura-engine", "version": 1,
+                                                  "engine_build": engine.build})
                     if path == "/v1/capabilities":
                         return self.send(200, engine.capabilities())
                     if path == "/v1/jobs":

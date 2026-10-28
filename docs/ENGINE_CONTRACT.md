@@ -20,7 +20,7 @@ GET /v1/capabilities: real installed tools and API-key presence (never actual cr
 GET /v1/skills: scanned local SKILL.md manifests, never executed automatically merely by enumeration.
 POST /v1/memory, GET /v1/memory?workspace=...&q=..., DELETE /v1/memory/{id}, DELETE /v1/memory: scoped durable notes with a type (`kind`) and an origin (`source`); forget one or forget all (see "Memoria"). No secret storage.
 POST /v1/schedules, GET /v1/schedules: scheduled commands, no automatic bypass of risk approval.
-GET /v1/health: status and schema version.
+GET /v1/health: `{service:"aura-engine", version:1, engine_build:"<12 hex>"}`. `version` é a versão do esquema da API (fixa). `engine_build` identifica o CÓDIGO do motor em execução: sha256 curto (12 hex) do conteúdo de `aura_engine/`, calculado uma vez na subida. Algoritmo (o app calcula igual sobre o `aura_engine/` do `engine.bin`): para cada arquivo de `aura_engine/` (recursivo, sem `__pycache__` e sem `*.pyc`), ordenado pelo caminho relativo com "/" (bytes UTF-8), alimentar o sha256 com `caminho_relativo + 0x00 + conteúdo + 0x00`; usar os 12 primeiros caracteres hexadecimais. Se o `engine_build` do health diferir do esperado pelo APK (ou o campo faltar, motor antigo), o app reinstala o motor e reinicia.
 
 ## Request semantics
 - `system`: capabilities, pwd, health.
