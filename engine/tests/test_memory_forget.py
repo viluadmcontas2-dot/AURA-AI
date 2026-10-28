@@ -268,6 +268,14 @@ class ForgetAll(MemoryBase):
         self.assertEqual(self.call("DELETE", "/v1/memory", auth=False)[0], 401)
         self.assertEqual(len(self.entries("default")) + len(self.entries("projeto-x")), 3)
 
+    def test_FORGET_all_wipes_only_on_the_exact_path(self):
+        self.seed()
+        # urlparse tira ";params" do caminho, entao o caminho CRU tem de ser exatamente /v1/memory
+        for path in ("/v1/memory;x", "/v1/memory;", "/v1/memory/", "/v1/memory%2f"):
+            with self.subTest(path=path):
+                self.assertIn(self.call("DELETE", path)[0], (400, 404))
+        self.assertEqual(len(self.entries("default")) + len(self.entries("projeto-x")), 3)
+
 
 class LegacyMemory(MemoryBase):
     def build_legacy_db(self, trigger=None):
