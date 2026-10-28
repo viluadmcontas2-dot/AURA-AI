@@ -151,5 +151,29 @@ class DesignCoverageGateTest(unittest.TestCase):
             workflow)
 
 
+    def test_normal_accepts_task_column_from_pr2(self):
+        """A matriz de execucao do PR #2 acrescenta Tarefa sem alterar o gate."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "scripts").mkdir()
+            shutil.copyfile(CHECKER, root / "scripts/check_design_coverage.py")
+            screens = root / "docs/design/telas"
+            screens.mkdir(parents=True)
+            rows = ["| ID | Tela/Função | Status | Evidência | Tarefa |",
+                    "|---|---|---|---|---|"]
+            for i in range(1, 46):
+                name = f"Screen-{i:02d}.dc.html"
+                (screens / name).write_text("fixture", encoding="utf-8")
+                rows.append(f"| UI-{i:02d} | `{name}` | pendente | - | T17 |")
+            for i in range(1, 22):
+                rows.append(f"| FN-{i:02d} | Função {i} | pendente | - | T20 |")
+            (root / "docs/design/COBERTURA.md").write_text("\n".join(rows), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py")],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+
 if __name__ == "__main__":
     unittest.main()
