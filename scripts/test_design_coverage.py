@@ -70,10 +70,10 @@ class DesignCoverageGateTest(unittest.TestCase):
             report_dir.mkdir()
             report = report_dir / "FN-10.md"
             report.write_text(
-                "Dispositivo: telefone real, revisão pendente\\n"
-                "Procedimento: abertura de Termux\\n"
-                "Resultado: falha observada\\n"
-                "Registro: laudo identificável\\n", encoding="utf-8")
+                "Dispositivo: fixture-sintetico\n"
+                "Procedimento: procedimento-fixture\n"
+                "Resultado: sucesso-sintetico\n"
+                "Registro: id-fixture\n", encoding="utf-8")
             job = "https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456"
             rows = ["| ID | Tela/Função | Status | Evidência |",
                     "|---|---|---|---|"]
