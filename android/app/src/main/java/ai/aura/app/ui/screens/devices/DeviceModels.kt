@@ -18,7 +18,7 @@ enum class ConnectionState(val label: String, val kind: StatusKind) {
 enum class DeviceGroup { ThisPhone, Device, Tool }
 
 enum class DeviceActionKind(val label: String) {
-    SignIn("Entrar pelo navegador"),
+    SignIn("Abrir Conexões"),
     InstallTool("Instalar"),
     Reconnect("Reconectar"),
     Capture("Capturar tela"),
@@ -29,7 +29,7 @@ enum class DeviceActionKind(val label: String) {
 
     /** Texto do pedido enviado ao engine (que decide risco e aprovação). */
     fun prompt(device: String): String = when (this) {
-        SignIn -> "Entrar em $device"
+        SignIn -> "Conectar $device"
         InstallTool -> "Instalar $device"
         Reconnect -> "Reconectar $device"
         Capture -> "Capturar tela de $device"

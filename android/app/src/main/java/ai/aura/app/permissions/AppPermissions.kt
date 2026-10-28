@@ -41,6 +41,9 @@ object AppPermissions {
         ),
     )
 
+    /** Chave em aura_prefs com quantas vezes o dono negou esta permissão (a tela Conexões e a abertura leem a mesma). */
+    fun denialKey(permission: String): String = "perm_denied_$permission"
+
     fun forSdk(sdk: Int): List<AppPermission> = all.filter { sdk >= it.minSdk }
 
     fun state(granted: Boolean, denials: Int): PermissionState = when {

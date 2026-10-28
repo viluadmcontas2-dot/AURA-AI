@@ -21,12 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -72,7 +67,7 @@ fun SettingsScreen(
     gateway: EngineGateway,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    onOpenUrl: (String) -> Unit = {},
+    onOpenConnections: (() -> Unit)? = null,
     settings: SettingsGateway = NoEngineSettingsGateway,
     /** Abre outra tela do app pelo id da rota (Check-up, Notificações, Modos de voz, Bastidores). Nulo = sem o grupo "Mais". */
     onOpenScreen: ((String) -> Unit)? = null,
@@ -90,14 +85,6 @@ fun SettingsScreen(
         catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) { /* sem eventos; o botão Tentar de novo recarrega */ }
     }
-    var showAccounts by rememberSaveable { mutableStateOf(false) }
-    // Voltar em Contas volta aos Ajustes (não fecha os Ajustes inteiros).
-    BackHandler(enabled = showAccounts) { showAccounts = false }
-    if (showAccounts) {
-        ConnectAccountsScreen(gateway, onClose = { showAccounts = false }, onOpenUrl = onOpenUrl, modifier = modifier)
-        return
-    }
-
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         SettingsHeader(onClose = onClose, onStopAll = state::stopAll)
         when (state.load) {
@@ -106,6 +93,7 @@ fun SettingsScreen(
                     .padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                ConnectionsEntry(onOpenConnections)
                 AutonomySection(autonomy)
                 Text("Carregando ajustes…", style = AuraType.Secondary)
                 MoreScreensGroup(onOpenScreen)
@@ -115,11 +103,12 @@ fun SettingsScreen(
                     .padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                ConnectionsEntry(onOpenConnections)
                 AutonomySection(autonomy)
                 EmptyState("Motor indisponível", state.unavailableHint, "Tentar de novo", { state.reload(); autonomy.reload() }, glyph = "!")
                 MoreScreensGroup(onOpenScreen)
             }
-            SettingsLoad.Ready -> SettingsBody(state, autonomy, { showAccounts = true }, onOpenScreen, Modifier.weight(1f))
+            SettingsLoad.Ready -> SettingsBody(state, autonomy, onOpenConnections, onOpenScreen, Modifier.weight(1f))
         }
         if (state.load == SettingsLoad.Ready) SaveBar(state)
         // "Parar tudo" responde em qualquer estado: a barra de salvar só existe com o motor no ar.
@@ -151,7 +140,7 @@ fun SettingsScreen(
 private fun SettingsBody(
     state: SettingsState,
     autonomy: AutonomyState,
-    onOpenAccounts: () -> Unit,
+    onOpenConnections: (() -> Unit)?,
     onOpenScreen: ((String) -> Unit)?,
     modifier: Modifier,
 ) {
@@ -162,12 +151,7 @@ private fun SettingsBody(
         modifier.verticalScroll(rememberScrollState()).padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SettingsGroup {
-            SettingRow(
-                "Contas", subtitle = "Claude, Gemini, Codex, GitHub e Drive, sem chave de API.",
-                trailing = { AuraButtonSecondary("Conectar contas", onOpenAccounts) },
-            )
-        }
+        ConnectionsEntry(onOpenConnections)
         AutonomySection(autonomy)
         AuthorizationSection(policy, state::editPolicy)
         NoLimitsSection(
@@ -213,6 +197,18 @@ private fun MoreScreensGroup(onOpen: ((String) -> Unit)?) {
         SettingRow(
             "Bastidores", subtitle = "O que o AURA fez por baixo.",
             trailing = { AuraButtonSecondary("Ver bastidores", { onOpen("bastidores") }) },
+        )
+    }
+}
+
+/** Atalho para Conexões (Termux e motor, contas e permissões). Fica fora do bloco que depende do motor: abre sempre. */
+@Composable
+private fun ConnectionsEntry(onOpen: (() -> Unit)?) {
+    if (onOpen == null) return
+    SettingsGroup {
+        SettingRow(
+            "Conexões", subtitle = "Termux e motor, contas (Claude, Codex, Gemini, GitHub) e permissões do Android.",
+            trailing = { AuraButtonSecondary("Abrir Conexões", onOpen) },
         )
     }
 }

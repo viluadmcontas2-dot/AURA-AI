@@ -184,6 +184,8 @@ data class AuthStatus(val provider: String, val state: AuthState, val installabl
 sealed interface AuthStartResult {
     /** O link/código chegam pelo evento auth.prompt; o fim, por auth.done ou auth.failed. */
     data object Started : AuthStartResult
+    /** O motor já devolveu link e código na resposta (login que já estava em andamento). */
+    data class Prompted(val url: String, val code: String?) : AuthStartResult
     /** reason: o que houve; fix: o que o dono deve fazer (português, sem log). */
     data class Failed(val reason: String, val fix: String) : AuthStartResult
 }

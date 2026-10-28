@@ -48,4 +48,4 @@ Objetivo: o dono conecta Claude, Gemini, Antigravity, Codex, GitHub e Google Dri
 
 ## UI (já feita)
 
-`ui/screens/settings/ConnectAccountsScreen.kt`, acessada por "Conectar contas" em Ajustes. Contrato no app: `EngineGateway.authStatus()` e `startAuth(provider)` (padrão = indisponível), com `FakeEngineGateway` simulando. Eventos: `auth.prompt`, `auth.done`, `auth.failed`. A tela confere `authStatus()` a cada 2 s como plano B se um evento se perder.
+`ui/screens/settings/AccountsAuth.kt` (estado e linhas das contas), mostrada na tela Conexões (`ui/screens/connections/ConnectionsScreen.kt`, aberta por Ajustes, Dispositivos e pelo aviso "Motor desligado") e no passo "Conectar suas contas" da abertura. O login roda no Termux pelo motor; a tela só mostra o código e o link. Contrato no app: `EngineGateway.authStatus()` e `startAuth(provider)` (padrão = indisponível), com `FakeEngineGateway` simulando. Eventos: `auth.prompt`, `auth.done`, `auth.failed`. A tela confere `authStatus()` a cada 2 s como plano B se um evento se perder.

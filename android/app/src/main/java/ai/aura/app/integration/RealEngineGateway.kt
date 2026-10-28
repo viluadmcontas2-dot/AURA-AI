@@ -233,8 +233,18 @@ class RealEngineGateway(
 
     override suspend fun startAuth(provider: String): AuthStartResult {
         return try {
-            client.startAuth(provider)
-            AuthStartResult.Started
+            val answer = client.startAuth(provider)
+            val prompt = answer.optJSONObject("prompt")
+            val url = prompt?.optString("url")?.ifBlank { null }
+            when {
+                answer.optString("state") == "indisponivel" -> AuthStartResult.Failed(
+                    "O programa desta conta não está instalado no Termux.",
+                    "Toque em Instalar e depois em Conectar.",
+                )
+                // Login já em andamento: o motor devolve o link e o código na própria resposta.
+                url != null -> AuthStartResult.Prompted(url, prompt?.optString("code")?.ifBlank { null })
+                else -> AuthStartResult.Started
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: IllegalArgumentException) {

@@ -43,7 +43,21 @@ class MainActivity : ComponentActivity() {
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         // Só preferências de UI (onboarding e rascunho). Nunca token ou segredo aqui.
         val prefs = getSharedPreferences("aura_prefs", MODE_PRIVATE)
-        // Nenhuma permissão é pedida ao abrir: cada função pede a sua na hora de usar (ui/screens/permissions).
+        // Permissões no primeiro uso, no passo certo da abertura (Termux no passo do Termux, avisos em Contas) e depois
+        // pela tela Conexões. Negar nunca trava o app. Microfone: só ao tocar na voz (ui/screens/voice).
+        val notificationsKey = AppPermissions.denialKey(android.Manifest.permission.POST_NOTIFICATIONS)
+        val notificationsLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            if (!granted) prefs.edit().putInt(notificationsKey, prefs.getInt(notificationsKey, 0) + 1).apply()
+        }
+        val askNotifications = {
+            val ask = android.os.Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                prefs.getInt(notificationsKey, 0) < AppPermissions.MAX_DENIALS
+            if (ask) runCatching { notificationsLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+            Unit
+        }
         // Voz: tela de reconhecimento do próprio Android (não depende do Termux nem do motor).
         var onSpoken: ((String) -> Unit)? = null
         val voiceLauncher = registerForActivityResult(
@@ -129,6 +143,7 @@ class MainActivity : ComponentActivity() {
                 onRequestTermuxPermission = {
                     runCatching { TermuxBridge(this).askPermission(this) }
                 },
+                onRequestNotifications = askNotifications,
                 onOpenTermux = {
                     runCatching {
                         packageManager.getLaunchIntentForPackage("com.termux")?.let { startActivity(it) }

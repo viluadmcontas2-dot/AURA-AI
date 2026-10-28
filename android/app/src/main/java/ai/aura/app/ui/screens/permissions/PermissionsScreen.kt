@@ -143,7 +143,7 @@ private fun Header(onBack: () -> Unit) {
 }
 
 @Composable
-private fun PermissionCard(row: PermissionRow, onAllow: () -> Unit, onOpenSettings: () -> Unit) {
+internal fun PermissionCard(row: PermissionRow, onAllow: () -> Unit, onOpenSettings: () -> Unit) {
     val p = row.item
     val (kind, label) = when (row.state) {
         PermissionState.Granted -> StatusKind.Ready to "Permitido"
@@ -207,15 +207,22 @@ fun PermissionSheet(item: AppPermission, onAllow: () -> Unit, onNotNow: () -> Un
     }
 }
 
-private fun denialKey(p: AppPermission) = "perm_denied_" + p.permission
+private fun denialKey(p: AppPermission) = AppPermissions.denialKey(p.permission)
+
+/** O que a tela precisa do Android: linhas com o estado agora, o pedido ao sistema e as configurações do app. */
+internal class PermissionsController(
+    val rows: List<PermissionRow>,
+    val ask: (AppPermission) -> Unit,
+    val openSettings: () -> Unit,
+)
 
 /**
  * Liga a tela ao Android: estado lido na hora (e de novo ao voltar das configurações), pedido ao sistema
  * só depois da folha, negativas contadas em aura_prefs e "Abrir ajustes" nas configurações do app.
- * Funciona sem motor e sem rede. Quem registra a rota (Routes.kt) só chama PermissionsRoute(onBack).
+ * Funciona sem motor e sem rede. Serve a tela Permissões e a seção de permissões de Conexões.
  */
 @Composable
-fun PermissionsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
+internal fun rememberPermissionsController(): PermissionsController {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("aura_prefs", Context.MODE_PRIVATE) }
     var reread by remember { mutableIntStateOf(0) }
@@ -239,17 +246,22 @@ fun PermissionsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 PermissionRow(p, AppPermissions.state(granted, prefs.getInt(denialKey(p), 0)))
             }
     }
-    PermissionsScreen(
+    return PermissionsController(
         rows,
-        onAsk = { asking = it; launcher.launch(it.permission) },
-        onOpenSettings = {
+        ask = { asking = it; launcher.launch(it.permission) },
+        openSettings = {
             runCatching {
                 context.startActivity(
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")),
                 )
             }
         },
-        onBack = onBack,
-        modifier = modifier,
     )
+}
+
+/** Quem registra a rota (Routes.kt) só chama PermissionsRoute(onBack). */
+@Composable
+fun PermissionsRoute(onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val c = rememberPermissionsController()
+    PermissionsScreen(c.rows, onAsk = c.ask, onOpenSettings = c.openSettings, onBack = onBack, modifier = modifier)
 }
