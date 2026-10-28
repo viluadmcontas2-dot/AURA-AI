@@ -66,9 +66,8 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Unit tests (resultado visivel; nao bloqueia o APK debug)
+      - name: Unit tests (falha de teste deixa a CI vermelha; o APK debug ja subiu acima)
         working-directory: android
-        continue-on-error: true
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
       - name: Keep JUnit results
         if: always()
