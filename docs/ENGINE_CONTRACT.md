@@ -100,7 +100,7 @@ GET `/v1/memory?workspace=default&q=` -> `{"entries":[ITEM, ...]}`. No maximo 50
 - `id` (texto): unico e estavel (UUID, 36 caracteres: letras minusculas, digitos e `-`; cabe em `[a-zA-Z0-9_-]{1,100}`, o que o app aceita na URL). Nao muda ao atualizar a lembranca nem ao reiniciar o motor.
 - `kind` (texto): `preference|project|device|rule`. Sem informar, vale `preference`.
 - `text` (texto): a lembranca, para mostrar na tela. E o mesmo texto de `value`.
-- `source` (texto, nunca `null`): de onde veio a lembranca, 1 a 60 caracteres, texto livre que o motor nao interpreta (a tela decide a frase e trata valor desconhecido). Sem informar, vale `user`.
+- `source` (texto, nunca `null`): de onde veio a lembranca, 1 a 60 caracteres, texto livre que o motor nao valida nem interpreta. Valores que o app usa: `user` (o dono pediu ou escreveu), `repository` (aprendida lendo o repositorio), `device` (aprendida ao conectar o aparelho). A tela mapeia para a frase de origem: `user` -> "você disse em <data de `createdAt`>" (com `kind` `rule`: "você definiu"), `repository` -> "aprendido no repositório", `device` -> "aprendido ao conectar"; valor fora da lista: mostra o texto cru. Sem informar, vale `user`.
 - `createdAt` (numero): epoch em segundos, com fracao, UTC, como `created_at` dos jobs. Quando a lembranca nasceu; nao muda ao atualizar.
 - `key`, `value`, `updated`: campos de antes, com os mesmos valores (`updated` = ultima gravacao). Codigo novo usa `id`, `kind`, `text`, `source` e `createdAt`.
 
@@ -108,7 +108,9 @@ POST `/v1/memory` `{"workspace"?,"key","value","kind"?,"source"?}` -> 200 `{"sto
 
 DELETE `/v1/memory/{id}` -> 204, sem corpo e sem `Content-Length` (nao leia JSON da resposta). Se nao existe (id errado ou ja esquecida; repetir a chamada da 404) -> 404 `{"error":{"code":"not_found","message":"Lembrança não encontrada. Talvez já tenha sido esquecida."}}`. A mensagem nao repete o id.
 
-DELETE `/v1/memory` -> 200 `{"deleted":N}`: esquece TODAS as lembrancas de TODOS os workspaces (nao so as 50 da lista) e diz quantas; `{"deleted":0}` se ja estava vazio (nao e erro). `?workspace=nome` limita a esse workspace. So esta rota exata apaga tudo: `/v1/memory/` (barra no fim, id vazio) responde 404 e nao apaga nada. Query desconhecida, `workspace` vazio ou invalido -> 400 `invalid_request`, sem apagar nada. Nao ha desfazer.
+DELETE `/v1/memory` -> 200 `{"deleted":N}`: esquece TODAS as lembrancas de TODOS os workspaces (nao so as 50 da lista) e diz quantas; `{"deleted":0}` se ja estava vazio (nao e erro). `?workspace=nome` limita a esse workspace. So o caminho exato apaga tudo: `/v1/memory/` (barra no fim, id vazio) e `/v1/memory;x` respondem 404 e nao apagam nada. Query desconhecida, `workspace` vazio ou invalido -> 400 `invalid_request`, sem apagar nada. Nao ha desfazer.
+
+Os dois DELETE apagam de verdade: o texto sai da lista e tambem dos arquivos do motor (o banco zera o conteudo apagado e o log `-wal` e esvaziado em seguida; se outro programa estiver lendo o banco naquele instante, o log so esvazia no proximo checkpoint). So vale para esquecer: trocar o texto de uma lembranca (POST na mesma `key`) pode deixar o texto antigo no log ate o proximo checkpoint.
 
 Compatibilidade: um motor anterior a esta versao guardava a tabela sem `id`, `kind`, `source` e `created`. Ao iniciar, o motor completa cada linha numa transacao so (tudo ou nada): `id` novo, `kind:"preference"`, `source:"user"`, `createdAt` igual a `updated` (a data da ultima gravacao era a unica que existia). Nenhuma lembranca se perde e os ids ficam os mesmos nos proximos inicios. Se a conversao falhar, a base fica como estava e o motor nao inicia.
 Nao existe: filtro por `kind` no GET (a tela filtra), evento no log de eventos, desfazer.
