@@ -48,7 +48,7 @@ class ReformToolsWifiNoticeTest {
     }
 
     @Test
-    fun `aviso de download grande: toque mostra o tamanho em MB e Entendi fecha, sem bloquear nada`() {
+    fun `aviso de download grande - toque mostra o tamanho em MB e Entendi fecha, sem bloquear nada`() {
         var installs = 0
         compose.setContent {
             AuraTheme {
