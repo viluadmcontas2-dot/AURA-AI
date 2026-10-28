@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "android/**"
+      - "engine/**"
       - "docs/design/**"
       - "scripts/check_design_coverage.py"
       - "scripts/test_design_coverage.py"
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - "android/**"
+      - "engine/**"
       - "docs/design/**"
       - "scripts/check_design_coverage.py"
       - "scripts/test_design_coverage.py"
