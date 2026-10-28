@@ -157,6 +157,12 @@ class DesignCoverageGateTest(unittest.TestCase):
         self.assertGreaterEqual(workflow.count('"android/**"'), 2,
                                 "push and pull_request must both include android/**")
 
+    def test_design_coverage_runs_for_engine_only_changes(self):
+        """Engine-only changes can implement FN requirements and must run the design gate."""
+        workflow = (ROOT / ".github/workflows/design-coverage.yml").read_text(encoding="utf-8")
+        self.assertGreaterEqual(workflow.count('"engine/**"'), 2,
+                                "push and pull_request must both include engine/**")
+
     def test_normal_accepts_task_column_from_pr2(self):
         """A matriz de execucao do PR #2 acrescenta Tarefa sem alterar o gate."""
         with tempfile.TemporaryDirectory() as td:
