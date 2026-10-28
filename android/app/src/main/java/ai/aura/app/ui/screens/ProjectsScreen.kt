@@ -12,6 +12,13 @@ import ai.aura.app.ui.theme.AuraTheme
  * detalhe, artefatos) vive em ui/screens/projects e navega por estado local.
  */
 @Composable
-fun ProjectsScreen(gateway: EngineGateway, modifier: Modifier = Modifier, onReformApp: (() -> Unit)? = null) {
-    ProjectsHost(gateway, modifier, onReformApp = onReformApp)
+fun ProjectsScreen(
+    gateway: EngineGateway,
+    modifier: Modifier = Modifier,
+    onReformApp: (() -> Unit)? = null,
+    /** Ideia vinda do chat ("/projeto ideia"): abre o passo da ideia já preenchida. */
+    startIdea: String = "",
+    onStartIdeaHandled: () -> Unit = {},
+) {
+    ProjectsHost(gateway, modifier, onReformApp = onReformApp, startIdea = startIdea, onStartIdeaHandled = onStartIdeaHandled)
 }

@@ -141,6 +141,7 @@ fun AuraApp(
         var chatOpen by remember { mutableStateOf(false) }
         var pendingJobId by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingPrompt by rememberSaveable { mutableStateOf<String?>(null) }
+        var pendingProjectIdea by rememberSaveable { mutableStateOf("") }
         val stack = stackText.split(",").filter { id -> ROUTES.any { it.id == id && it.screen != null } }.ifEmpty { listOf("inicio") }
         val route = ROUTES.first { it.id == stack.last() }
         val link by linkState.collectAsState()
@@ -185,6 +186,9 @@ fun AuraApp(
             pendingPrompt = pendingPrompt,
             onPendingPromptHandled = { pendingPrompt = null },
             sendPrompt = { text -> pendingPrompt = text; go(tabStack(AuraTab.Home)) },
+            projectIdea = pendingProjectIdea,
+            onProjectIdeaHandled = { pendingProjectIdea = "" },
+            startProjectIdea = { idea -> pendingProjectIdea = idea; go(tabStack(AuraTab.Projects)) },
         )
         Column(
             Modifier

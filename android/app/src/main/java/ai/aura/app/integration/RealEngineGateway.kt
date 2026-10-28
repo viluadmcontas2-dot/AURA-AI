@@ -8,6 +8,15 @@ import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.engine.Capability
+import ai.aura.app.ui.engine.ChatAction
+import ai.aura.app.ui.engine.ChatEvent
+import ai.aura.app.ui.engine.ChatFailure
+import ai.aura.app.ui.engine.ChatLine
+import ai.aura.app.ui.engine.ChatStarted
+import ai.aura.app.ui.engine.ChatSummary
+import ai.aura.app.ui.engine.ChatUnsupportedException
+import ai.aura.app.ui.engine.IntentOption
+import ai.aura.app.ui.engine.IntentResult
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.EngineHealth
@@ -31,6 +40,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.shareIn
@@ -38,6 +49,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.Collections
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 
 /** Production EngineGateway. Never substitutes a fake for a missing Termux process. */
@@ -45,6 +57,8 @@ class RealEngineGateway(
     private val client: EngineApi,
     /** Escopo do polling de eventos: sem assinantes ele para (WhileSubscribed), então nada fica vivo. */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    /** Espera entre duas leituras de GET /v1/chat/{id} enquanto o motor responde. */
+    private val chatPollMillis: Long = 400L,
 ) : EngineGateway {
     // Só os últimos MAX_ROUTED comandos interpretados ficam guardados; o mais velho sai primeiro.
     private val routedRequests = Collections.synchronizedMap(object : LinkedHashMap<String, String>() {
@@ -402,6 +416,153 @@ class RealEngineGateway(
         null
     }
 
+    // ---- Conversa ------------------------------------------------------------------------
+
+    override suspend fun startChat(text: String, sessionId: String?, workspace: String): ChatStarted = try {
+        val raw = client.chat(text, sessionId, workspace)
+        val id = raw.text("chat_id") ?: throw AuraEngineException(502, "O motor não informou o chat_id.")
+        ChatStarted(id, raw.text("session_id"))
+    } catch (e: AuraEngineException) {
+        if (notExposed(e)) throw ChatUnsupportedException() else throw e
+    }
+
+    /**
+     * Junta os eventos chat.delta/chat.tool/chat.done/chat.error com a leitura de GET /v1/chat/{id}:
+     * o evento é mais rápido e traz as linhas de ferramenta; a leitura cobre evento perdido e
+     * motor que só informa o estado. O texto sai sempre inteiro e nunca encolhe.
+     */
+    override fun chatStream(chatId: String): Flow<ChatEvent> = channelFlow {
+        val pending = ConcurrentLinkedQueue<EngineEvent>()
+        val listener = launch {
+            try {
+                events.collect { if (it.type.startsWith("chat.") && it.payload["chat_id"] == chatId) pending.add(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // A leitura de estado abaixo continua acompanhando.
+            }
+        }
+        try {
+            var acc = ""
+            var lastSent = ""
+            var failures = 0
+            while (true) {
+                while (true) {
+                    val ev = pending.poll() ?: break
+                    when (ev.type) {
+                        "chat.delta" -> acc += ev.payload["text"].orEmpty()
+                        "chat.tool" -> {
+                            if (acc != lastSent) { send(ChatEvent.Text(acc)); lastSent = acc }
+                            ev.payload["summary"]?.takeIf { it.isNotBlank() }?.let { send(ChatEvent.Tool(it)) }
+                        }
+                        "chat.done" -> {
+                            send(ChatEvent.Done(ev.payload["text"]?.takeIf { it.isNotBlank() } ?: acc, ev.payload["session_id"]?.takeIf { it.isNotBlank() }))
+                            return@channelFlow
+                        }
+                        "chat.error" -> {
+                            send(ChatEvent.Failed(chatFailure(code = ev.payload["code"], message = ev.payload["message_pt"])))
+                            return@channelFlow
+                        }
+                    }
+                }
+                val state = try {
+                    client.chatState(chatId).also { failures = 0 }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failures++
+                    if ((e is AuraEngineException && e.httpStatus in 400..499) || failures >= MAX_CHAT_POLL_FAILURES) throw e
+                    delay(EventBackoff.delayMillis(failures))
+                    continue
+                }
+                val snapshot = state.text("text").orEmpty()
+                when (state.optString("state")) {
+                    "done" -> {
+                        send(ChatEvent.Done(snapshot.ifBlank { acc }, state.text("session_id")))
+                        return@channelFlow
+                    }
+                    "error" -> {
+                        val err = state.optJSONObject("error")
+                        send(ChatEvent.Failed(chatFailure(code = err?.text("code"), message = err?.text("message_pt"))))
+                        return@channelFlow
+                    }
+                    else -> {
+                        if (snapshot.length > acc.length) acc = snapshot
+                        if (acc != lastSent) { send(ChatEvent.Text(acc)); lastSent = acc }
+                    }
+                }
+                delay(chatPollMillis)
+            }
+        } finally {
+            listener.cancel()
+        }
+    }
+
+    override suspend fun stopChat(chatId: String) {
+        client.chatStop(chatId)
+    }
+
+    override suspend fun chats(): List<ChatSummary> {
+        val raw = client.chats()
+        val array = raw.optJSONArray("items") ?: raw.optJSONArray("chats") ?: return emptyList()
+        return array.mapObjects {
+            ChatSummary(it.getString("id"), it.text("title").orEmpty(), (it.optDouble("updated_at", 0.0) * 1000).toLong())
+        }.sortedByDescending { it.updatedAtMillis }
+    }
+
+    override suspend fun chatMessages(id: String): List<ChatLine> {
+        val raw = client.chatMessages(id)
+        val array = raw.optJSONArray("messages") ?: raw.optJSONArray("items") ?: return emptyList()
+        return array.mapObjects {
+            ChatLine(fromUser = it.optString("role") in listOf("user", "human"), text = it.getString("text"))
+        }.filter { it.text.isNotBlank() }
+    }
+
+    /** 404/erro do motor = conversa normal. Só a falta de motor (IOException) sobe, e o chat trata. */
+    override suspend fun intent(text: String): IntentResult = try {
+        intentFrom(client.intent(text), text)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: AuraEngineException) {
+        IntentResult.Chat
+    } catch (e: JSONException) {
+        IntentResult.Chat
+    } catch (e: UnsupportedOperationException) {
+        IntentResult.Chat
+    }
+
+    private fun intentFrom(raw: JSONObject, original: String): IntentResult {
+        val question = raw.text("question")
+        val options = raw.optJSONArray("options")?.mapObjects {
+            IntentOption(it.getString("label"), it.getString("kind"))
+        }.orEmpty()
+        if (question != null && options.size >= 2) return IntentResult.Ask(question, options.take(2))
+        val idea = raw.text("idea") ?: original
+        return when (raw.optString("kind")) {
+            "command" -> (raw.text("name") ?: raw.text("command"))?.let { IntentResult.Command(it) } ?: IntentResult.Chat
+            "reform" -> IntentResult.Reform(idea)
+            "project" -> IntentResult.Project(idea)
+            "task" -> IntentResult.Task(idea)
+            else -> IntentResult.Chat
+        }
+    }
+
+    /** Erro de conversa em português. Os botões são sempre os mesmos; o motor só diz qual. */
+    private fun chatFailure(code: String?, message: String?): ChatFailure {
+        val c = code ?: "chat_error"
+        val action = when {
+            c == "engine_down" -> ChatAction.StartEngine
+            listOf("login", "logged", "auth", "install", "missing").any { c.contains(it) } -> ChatAction.OpenConnections
+            else -> ChatAction.Retry
+        }
+        val fallback = when (action) {
+            ChatAction.OpenConnections -> "O AURA ainda não está conectado a uma conta de IA. Abra Conexões para entrar."
+            ChatAction.StartEngine -> "O motor está desligado."
+            ChatAction.Retry -> "Não consegui responder agora. Tente de novo."
+        }
+        return ChatFailure(c, message ?: fallback, action)
+    }
+
     // ---- Memória, skills, saúde e uso ----------------------------------------------------
 
     override suspend fun memory(): EngineResult<List<MemoryEntry>> = call("a memória") {
@@ -515,6 +676,7 @@ class RealEngineGateway(
 
     private companion object {
         const val MAX_ROUTED = 200
+        const val MAX_CHAT_POLL_FAILURES = 5
         const val WORKSPACE = "default"
     }
 }

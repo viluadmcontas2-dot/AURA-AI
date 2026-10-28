@@ -114,6 +114,8 @@ fun HomeContent(
     onEngineAction: ((OfflineReason) -> Unit)? = null,
     onOpenVoice: (() -> Unit)? = null,
     onOpenReform: (() -> Unit)? = null,
+    /** Nulo = os cartões de sugestão abrem o chat, como antes. */
+    onOpenActivity: (() -> Unit)? = null,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
@@ -138,6 +140,7 @@ fun HomeContent(
         onEngineAction = onEngineAction,
         onOpenVoice = onOpenVoice,
         onOpenReform = onOpenReform,
+        onOpenActivity = onOpenActivity,
     )
 }
 
@@ -155,6 +158,7 @@ internal fun HomeView(
     onEngineAction: ((OfflineReason) -> Unit)? = null,
     onOpenVoice: (() -> Unit)? = null,
     onOpenReform: (() -> Unit)? = null,
+    onOpenActivity: (() -> Unit)? = null,
 ) {
     // Sem motor, o aviso nasce do motivo do elo (ou de a consulta ter falhado) e traz UMA ação.
     val offlineReason = (link as? LinkState.Offline)?.reason
@@ -181,7 +185,7 @@ internal fun HomeView(
                 Spacer(Modifier.height(24.dp))
                 when {
                     offlineReason != null -> OfflineCard(offlineReason, onEngineAction, onRetry)
-                    data is HomeData.Ready -> SuggestionCard(data.jobs, onOpenChat)
+                    data is HomeData.Ready -> SuggestionCard(data.jobs, onOpenChat, onOpenActivity)
                 }
                 Spacer(Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -212,7 +216,10 @@ internal fun HomeView(
                 }, modifier = Modifier.align(Alignment.TopEnd).offset(x = 72.dp, y = (-6).dp),
             )
         }
-        AuraComposerField(value = draft, onValueChange = onDraftChange, onSend = onSend, onMic = onOpenVoice)
+        // O microfone é um jeito de digitar: o texto falado cai no campo e a pessoa confirma em enviar.
+        val listen = ai.aura.app.voice.LocalVoiceInput.current
+        val mic: (() -> Unit)? = if (listen != null) ({ listen { spoken -> onDraftChange((draft.trim() + " " + spoken.trim()).trim()) } }) else onOpenVoice
+        AuraComposerField(value = draft, onValueChange = onDraftChange, onSend = onSend, onMic = mic)
     }
 }
 
@@ -298,7 +305,7 @@ private fun VoiceOrb(available: Boolean, onClick: () -> Unit, modifier: Modifier
 
 /** Sugestão só nasce de tarefa real do engine: aguardando aprovação > andando > falhou. */
 @Composable
-private fun SuggestionCard(jobs: List<Job>, onOpenChat: (ChatEntry) -> Unit) {
+private fun SuggestionCard(jobs: List<Job>, onOpenChat: (ChatEntry) -> Unit, onOpenActivity: (() -> Unit)? = null) {
     var dismissedId by rememberSaveable { mutableStateOf("") }
     val awaiting = jobs.firstOrNull { it.status == JobStatus.AwaitingApproval }
     val active = jobs.firstOrNull { it.status == JobStatus.Running || it.status == JobStatus.Queued }
@@ -323,7 +330,7 @@ private fun SuggestionCard(jobs: List<Job>, onOpenChat: (ChatEntry) -> Unit) {
         Text(job.title, style = AuraType.Section, modifier = Modifier.padding(top = 6.dp).semantics { heading() })
         Text(body, style = AuraType.Secondary)
         Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AuraButtonPrimary(action, { onOpenChat(entry) })
+            AuraButtonPrimary(action, { if (onOpenActivity != null) onOpenActivity() else onOpenChat(entry) })
             AuraButtonText("Depois", { dismissedId = job.id })
         }
     }

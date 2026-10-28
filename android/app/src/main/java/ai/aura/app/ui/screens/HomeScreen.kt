@@ -4,6 +4,7 @@ import ai.aura.app.offline.LinkState
 import ai.aura.app.offline.LocalStore
 import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.engine.EngineGateway
+import ai.aura.app.ui.screens.chat.AppTarget
 import ai.aura.app.ui.screens.chat.ChatEntry
 import ai.aura.app.ui.screens.chat.ChatScreen
 import ai.aura.app.ui.screens.home.HomeContent
@@ -51,6 +52,8 @@ fun HomeScreen(
     onPendingPromptHandled: () -> Unit = {},
     onOpenVoice: (() -> Unit)? = null,
     onOpenReform: (() -> Unit)? = null,
+    /** Comandos "/" do chat abrem telas do app (o texto é o que veio depois do comando). */
+    onNavigate: (AppTarget, String) -> Unit = { _, _ -> },
 ) {
     var entry by rememberSaveable(stateSaver = ChatEntry.Saver) { mutableStateOf(ChatEntry.Closed) }
     var current by remember { mutableStateOf<String?>(null) } // null = ainda lendo o disco
@@ -68,7 +71,7 @@ fun HomeScreen(
     // Avisa o shell para esconder a barra inferior enquanto o chat estiver aberto.
     LaunchedEffect(entry.open) { onChatOpenChange(entry.open) }
     DisposableEffect(Unit) { onDispose { onChatOpenChange(false) } }
-    // Atividade pediu para reabrir uma tarefa no chat (o ChatController restaura por jobId).
+    // Atividade pediu para reabrir um trabalho: o chat mostra o resumo em texto.
     LaunchedEffect(openJobId) {
         if (!openJobId.isNullOrEmpty()) {
             entry = ChatEntry(open = true, jobId = openJobId)
@@ -90,6 +93,10 @@ fun HomeScreen(
             onClose = { entry = ChatEntry.Closed },
             onLeaveDraft = saveDraft,
             modifier = modifier,
+            link = link,
+            onNavigate = onNavigate,
+            onStartEngine = { reason -> onEngineAction?.invoke(reason) },
+            store = store,
         )
     } else {
         current?.let { start ->
@@ -97,6 +104,7 @@ fun HomeScreen(
                 gateway = gateway, onOpenChat = { entry = it }, modifier = modifier, onOpenSettings = onOpenSettings,
                 initialDraft = start, onDraftChange = saveDraft, link = link, onEngineAction = onEngineAction,
                 onOpenVoice = onOpenVoice, onOpenReform = onOpenReform,
+                onOpenActivity = { onNavigate(AppTarget.Activity, "") },
             )
         }
     }

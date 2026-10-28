@@ -18,7 +18,7 @@ import ai.aura.app.ui.engine.RouteResult
 import ai.aura.app.ui.screens.activity.activityBadgeCount
 import ai.aura.app.ui.screens.chat.ChatController
 import ai.aura.app.ui.screens.chat.ChatEntry
-import ai.aura.app.ui.screens.chat.ChatPhase
+import ai.aura.app.ui.screens.chat.ScriptedChatGateway
 import ai.aura.app.ui.screens.devices.DevicesTab
 import ai.aura.app.ui.screens.projects.Project
 import ai.aura.app.ui.screens.projects.ProjectsHost
@@ -114,22 +114,21 @@ class PersistenciaTest {
         assertFalse(ChatEntry.Saver.restore(listOf(1, null, 3.0, true, "x"))!!.open)
     }
 
-    @Test fun `historico do chat volta e o job em andamento e relido do motor`() {
-        val running = job("job_1", "Corrigir login", JobStatus.Running)
+    @Test fun `historico e conversa do chat voltam do disco mesmo sem motor`() {
         val scope = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
         try {
-            val first = ChatController(Gw(jobs = listOf(running)), scope, ChatEntry(open = true), store = LocalStore(tmp.root))
+            val first = ChatController(ScriptedChatGateway(), scope, ChatEntry(open = true), store = LocalStore(tmp.root))
             first.send("Corrigir o login")
-            waitFor { (LocalStore(tmp.root).read("chat-history")?.optJSONArray("items")?.length() ?: 0) >= 1 }
+            waitFor { first.messages.any { !it.fromUser && it.text == "Olá!" } }
+            waitFor { LocalStore(tmp.root).read("chat-session")?.optString("session_id") == "sess_1" }
+            waitFor { (LocalStore(tmp.root).read("chat-history")?.optJSONArray("items")?.length() ?: 0) == 2 }
 
-            val second = ChatController(
-                Gw(jobs = listOf(running)), scope,
-                ChatEntry(open = true, prompt = "Corrigir o login", requestId = "req_x", jobId = "job_1"),
-                store = LocalStore(tmp.root),
-            )
-            waitFor { second.phase is ChatPhase.Tracking }
-            assertEquals(JobStatus.Running, (second.phase as ChatPhase.Tracking).job.status)
-            assertEquals(1, second.messages.count { it.fromUser && it.text == "Corrigir o login" })
+            // Reabrir com o motor desligado: a conversa aparece do disco, sem erro e sem spinner.
+            val second = ChatController(ScriptedChatGateway(down = true), scope, ChatEntry(open = true), store = LocalStore(tmp.root))
+            waitFor { second.messages.size == 2 }
+            assertEquals(listOf("Corrigir o login", "Olá!"), second.messages.map { it.text })
+            assertNull(second.notice)
+            assertFalse(second.responding)
         } finally {
             scope.cancel()
         }
