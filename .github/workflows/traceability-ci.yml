@@ -1,0 +1,37 @@
+name: AURA traceability gate
+on:
+  push:
+    paths:
+      - "android/**"
+      - "engine/**"
+      - "docs/**"
+      - "scripts/check_traceability.py"
+      - "scripts/test_traceability.py"
+      - ".github/workflows/**"
+      - "AGENTS.md"
+      - "README.md"
+  pull_request:
+    paths:
+      - "android/**"
+      - "engine/**"
+      - "docs/**"
+      - "scripts/check_traceability.py"
+      - "scripts/test_traceability.py"
+      - ".github/workflows/**"
+      - "AGENTS.md"
+      - "README.md"
+permissions:
+  contents: read
+jobs:
+  traceability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Falsificar manifest inválido
+        run: python -m unittest discover -s scripts -p "test_traceability.py" -v
+      - name: Validar vínculos declarados
+        run: python scripts/check_traceability.py

@@ -1,0 +1,285 @@
+{
+  "schema": 1,
+  "note": "Vínculos para validação estática. Resultado verde só com Actions no SHA correspondente; cobertura do design e testes de aparelho são portões separados.",
+  "requirements": [
+    {
+      "id": "SEC-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/server.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SEC_01_authentication_required",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "SEC-02",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/server.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SEC_02_only_loopback",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "SEC-03",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/security.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SEC_03_paths_and_symlinks",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "SEC-04",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/security.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SEC_04_shell_requires_approval",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "SEC-05",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SEC_05_token_permissions",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "JOB-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/store.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_JOB_01_idempotency",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "JOB-02",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/store.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_JOB_02_idempotency_conflict",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "JOB-03",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/store.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_JOB_03_job_not_claimed_twice",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "JOB-04",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/store.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_JOB_04_restart_marks_running_interrupted",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "JOB-05",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_JOB_05_cancel_prevents_execution",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "JOB-06",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_PARALLEL_workers_do_not_share_process_state",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "EVT-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/store.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_EVT_01_events_durable_and_monotonic",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "ADB-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/adapters.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_ADB_01_missing_provider_truthful",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "ROUTE-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_ROUTE_01_local_adb",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "ROUTE-02",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_ROUTE_02_complex_request_model",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "ROUTE-03",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_ROUTE_skill_is_selected_from_natural_language",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "SCHEDULE-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/core.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SCHEDULE_01_approval_not_bypassed",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "FIN-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/security.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_FIN_01_api_needs_spend_approval",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "FILE-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/security.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_FILE_01_delete_is_critical",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "SKILLS-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/adapters.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_SKILL_discovery_of_builtin_manifest",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "CLI-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/adapters.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_PROVIDER_resume_uses_exact_session",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "AGY-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/adapters.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_PROVIDER_agy_non_success_must_fail",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "HTTP-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/server.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_HTTP_approval_and_cancel_without_body",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "COST-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/store.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_COST_usage_is_reported_without_inventing_prices",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "PAIR-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "engine/aura_engine/pair.py",
+      "test_file": "engine/tests/test_engine.py",
+      "test_symbol": "test_PAIR_token_is_stable_without_opening_engine_database",
+      "workflow": ".github/workflows/engine-ci.yml",
+      "job": "engine-tests"
+    },
+    {
+      "id": "AND-BACKOFF-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "android/app/src/main/java/ai/aura/app/integration/EventBackoff.kt",
+      "test_file": "android/app/src/test/java/ai/aura/app/integration/EventBackoffTest.kt",
+      "test_symbol": "EventBackoffTest",
+      "workflow": ".github/workflows/android-ci.yml",
+      "job": "android"
+    },
+    {
+      "id": "AND-SPEND-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "android/app/src/main/java/ai/aura/app/integration/SpendParser.kt",
+      "test_file": "android/app/src/test/java/ai/aura/app/integration/SpendParserTest.kt",
+      "test_symbol": "SpendParserTest",
+      "workflow": ".github/workflows/android-ci.yml",
+      "job": "android"
+    },
+    {
+      "id": "AND-PERM-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "android/app/src/main/java/ai/aura/app/permissions/AppPermissions.kt",
+      "test_file": "android/app/src/test/java/ai/aura/app/permissions/AppPermissionsTest.kt",
+      "test_symbol": "AppPermissionsTest",
+      "workflow": ".github/workflows/android-ci.yml",
+      "job": "android"
+    },
+    {
+      "id": "AND-SETUP-01",
+      "status": "coberto por teste, Actions pendente",
+      "source": "android/app/src/main/java/ai/aura/app/integration/TermuxBridge.kt",
+      "test_file": "android/app/src/test/java/ai/aura/app/ui/screens/onboarding/TermuxSetupRulesTest.kt",
+      "test_symbol": "TermuxSetupRulesTest",
+      "workflow": ".github/workflows/android-ci.yml",
+      "job": "android"
+    },
+    {
+      "id": "DEVICE-RUN-COMMAND",
+      "status": "somente aparelho",
+      "source": "android/app/src/main/java/ai/aura/app/integration/TermuxBridge.kt",
+      "reason": "Permissão RUN_COMMAND e pareamento precisam de Termux instalado no aparelho."
+    },
+    {
+      "id": "DEVICE-KEYSTORE",
+      "status": "somente aparelho",
+      "source": "android/app/src/main/java/ai/aura/app/integration/EngineCredentialStore.kt",
+      "reason": "Android Keystore exige teste de armazenamento nativo no aparelho."
+    },
+    {
+      "id": "DEVICE-IME-VOICE",
+      "status": "somente aparelho",
+      "source": "android/app/src/main/java/ai/aura/app/MainActivity.kt",
+      "reason": "Teclado, voz, rotação, lifecycle e background exigem Android físico."
+    }
+  ]
+}
