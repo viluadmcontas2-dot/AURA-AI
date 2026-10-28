@@ -73,9 +73,9 @@ jobs:
             echo "::warning::Release nao aprovado. APK debug permitido apenas para testes internos."
           fi
       - name: Upload debug APK for remote installation
-        # Artefato experimental para instalacao e testes internos.
-        # Nao representa aceite 66/66 nem release; manter o gate acima como diagnostico.
-        if: success()
+        # Falha fechada: checker valida estrutura, nao autenticidade de provas fisicas.
+        # Nao publicar APK antes de 66/66, validacao real e aceite independente.
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: aura-ai-debug-apk
