@@ -98,7 +98,8 @@ class TextoLongoEPrefixoTraco(ChatBase):
         self.assertEqual(self.args()[0][:2], ["-p", "Ola"])
         self.assertEqual(self.stdins()[0], "")
 
-    def test_PU4_gemini_com_texto_longo_tambem_usa_stdin(self):
+    def test_PU4_gemini_sozinho_nao_responde_o_chat(self):
+        # O chat é sempre do Claude (decisão do dono): sem Claude instalado vira "instalar o Claude", não Gemini.
         gemini = self.fake / "gemini"
         gemini.write_text(FAKE_GEMINI % {"py": sys.executable})
         gemini.chmod(0o755)
@@ -106,9 +107,8 @@ class TextoLongoEPrefixoTraco(ChatBase):
         texto = "-" + "a" * 20000
         _, started = self.call("POST", "/v1/chat", {"text": texto})
         final = self.wait_final(started["chat_id"])
-        self.assertEqual(final["type"], "chat.done")
-        self.assertTrue(all(len(a) < 1000 for a in self.args("gemini-args.log")[0]))
-        self.assertEqual(self.stdins("gemini-stdin.log")[0], texto)
+        self.assertEqual((final["type"], final["payload"]["code"]), ("chat.error", "no_executor"))
+        self.assertFalse((self.fake / "gemini-args.log").exists(), "o Gemini não pode ser executado pelo chat")
 
     def args(self, nome="args.log"):
         return [json.loads(x) for x in (self.fake / nome).read_text().splitlines()]
@@ -135,25 +135,26 @@ class SessaoDesconhecidaETimeout(ChatBase):
         path.chmod(0o755)
         os.environ["PATH"] = str(self.fake) + os.pathsep + str(self.root / "vazio")
 
-    def test_PU5_resume_de_sessao_desconhecida_recomeca_uma_vez_como_conversa_nova(self):
+    def test_PU5_sessao_desconhecida_nao_recomeca_escondido_vira_session_not_found(self):
+        # Antes (P1 mudou): a CLI dizia "No conversation found" e o motor recomeçava como conversa nova sem avisar.
+        # Agora a conversa que ninguém conhece é recusada de cara e nada é executado.
         self.install_claude_modos()
         (self.fake / "mode").write_text("noresume")
+        code, body = self.call("POST", "/v1/chat", {"text": "Ola", "session_id": UUID_DESCONHECIDO})
+        self.assertEqual((code, body["error"]["code"]), (404, "session_not_found"))
+        self.assertFalse((self.fake / "args.log").exists())
+        self.assertIsNone(self.engine.store.chat_conversation(UUID_DESCONHECIDO))
+
+    def test_PU5_conversa_conhecida_que_a_cli_esqueceu_pede_decisao_sem_trocar_de_sessao(self):
+        self.install_claude_modos()
+        (self.fake / "mode").write_text("noresume")
+        self.engine.store.chat_open(UUID_DESCONHECIDO, "Ola", "default", started=True)
         _, started = self.call("POST", "/v1/chat", {"text": "Ola", "session_id": UUID_DESCONHECIDO})
         final = self.wait_final(started["chat_id"])
-        self.assertEqual(final["type"], "chat.done", final)
-        self.assertTrue(final["payload"]["new_conversation"])
-        self.assertEqual(final["payload"]["session_id"], UUID_DESCONHECIDO)
-        primeira, segunda = self.args()
-        self.assertIn("--resume", primeira)
-        self.assertIn("--session-id", segunda)
-        self.assertNotIn("--resume", segunda)
-        # a proxima mensagem na mesma conversa retoma a sessao nova da CLI, sem novo recomeco
-        _, again = self.call("POST", "/v1/chat", {"text": "E agora?", "session_id": UUID_DESCONHECIDO})
-        done = self.wait_final(again["chat_id"])
-        self.assertEqual(done["type"], "chat.done", done)
-        self.assertNotIn("new_conversation", done["payload"])
-        terceira = self.args()[2]
-        self.assertEqual(terceira[terceira.index("--resume") + 1], segunda[segunda.index("--session-id") + 1])
+        self.assertEqual((final["type"], final["payload"]["code"]), ("chat.error", "resume_failed"))
+        self.assertEqual(len(self.args()), 1, "só a tentativa de retomar; nada de --session-id escondido")
+        self.assertIn("--resume", self.args()[0])
+        self.assertEqual(self.engine.store.chat_conversation(UUID_DESCONHECIDO)["started"], 1)
 
     def test_PU6_timeout_padrao_1h_e_configuravel(self):
         from aura_engine import chat

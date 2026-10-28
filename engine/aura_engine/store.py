@@ -58,6 +58,14 @@ class Store:
         with self.lock, self.db:
             if "cwd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(conversations)")}:
                 self.db.execute("ALTER TABLE conversations ADD COLUMN cwd TEXT")
+            if "origin" not in {r["name"] for r in self.db.execute("PRAGMA table_info(conversations)")}:
+                self.db.execute("ALTER TABLE conversations ADD COLUMN origin TEXT")
+            runs = {r["name"] for r in self.db.execute("PRAGMA table_info(chat_runs)")}
+            for name in ("request_id", "body_hash", "project_id"):
+                if name not in runs:
+                    self.db.execute("ALTER TABLE chat_runs ADD COLUMN %s TEXT" % name)
+            self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS chat_runs_request ON chat_runs(request_id)"
+                            " WHERE request_id IS NOT NULL")
         self._upgrade_memory()
         self.prune_events()
         with self.lock, self.db:
@@ -428,7 +436,7 @@ class Store:
                 (session_id, cli_session or session_id, 1 if started else 0, title[:60], workspace, now, now))
 
     def chat_update_conversation(self, session_id, **fields):
-        allowed = {"cli_session", "started", "cwd"}
+        allowed = {"cli_session", "started", "cwd", "origin"}
         sets = [(k, v) for k, v in fields.items() if k in allowed]
         with self.lock, self.db:
             for key, value in sets:
@@ -441,11 +449,33 @@ class Store:
                             (session_id, chat_id, role, text, time.time()))
             self.db.execute("UPDATE conversations SET updated=? WHERE id=?", (time.time(), session_id))
 
-    def chat_run_create(self, chat_id, session_id, state):
+    def chat_run_create(self, chat_id, session_id, state, request_id=None, body_hash=None, project_id=None):
         now = time.time()
         with self.lock, self.db:
-            self.db.execute("INSERT INTO chat_runs(id,session_id,state,created,updated) VALUES(?,?,?,?,?)",
-                            (chat_id, session_id, state, now, now))
+            self.db.execute(
+                "INSERT INTO chat_runs(id,session_id,state,created,updated,request_id,body_hash,project_id)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (chat_id, session_id, state, now, now, request_id, body_hash, project_id))
+
+    def chat_run_by_request(self, request_id):
+        """A execucao que ja aceitou este request_id (ou None). Base da idempotencia de POST /v1/chat."""
+        with self.lock:
+            row = self.db.execute("SELECT * FROM chat_runs WHERE request_id=?", (request_id,)).fetchone()
+            return dict(row) if row else None
+
+    def chat_stats(self, session_id):
+        """(numero de mensagens guardadas, ultimo id) de uma conversa do AURA: base da versao do historico."""
+        with self.lock:
+            row = self.db.execute("SELECT COUNT(*) AS n, COALESCE(MAX(id),0) AS last FROM chat_messages"
+                                  " WHERE session_id=?", (session_id,)).fetchone()
+            return row["n"], row["last"]
+
+    def chat_last_run(self, session_id):
+        """A execucao mais recente da conversa (dict cru) ou None."""
+        with self.lock:
+            row = self.db.execute("SELECT * FROM chat_runs WHERE session_id=? ORDER BY created DESC, rowid DESC"
+                                  " LIMIT 1", (session_id,)).fetchone()
+            return dict(row) if row else None
 
     def chat_run_set(self, chat_id, state, text=None, error=None):
         with self.lock, self.db:
@@ -459,7 +489,8 @@ class Store:
             if row is None:
                 return None
             out = {"chat_id": row["id"], "state": row["state"], "text": row["text"],
-                   "session_id": row["session_id"]}
+                   "session_id": row["session_id"], "request_id": row["request_id"],
+                   "created_at": row["created"], "updated_at": row["updated"]}
             if row["error"]:
                 out["error"] = json.loads(row["error"])
             return out
@@ -482,10 +513,11 @@ class Store:
     def chat_conversations(self):
         with self.lock:
             rows = self.db.execute(
-                "SELECT c.id,c.title,c.workspace,c.updated,"
+                "SELECT c.id,c.title,c.workspace,c.updated,c.cli_session,c.origin,"
                 " (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id=c.id) AS n FROM conversations c").fetchall()
             return [{"id": r["id"], "title": r["title"], "workspace": r["workspace"],
-                     "updated": r["updated"], "messages": r["n"]} for r in rows]
+                     "updated": r["updated"], "messages": r["n"], "cli_session": r["cli_session"],
+                     "origin": r["origin"]} for r in rows]
 
     def session_hidden_ids(self):
         with self.lock:

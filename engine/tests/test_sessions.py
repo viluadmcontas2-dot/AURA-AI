@@ -94,7 +94,10 @@ class Sessoes(SessoesBase):
         rows = body["sessions"]
         self.assertEqual([r["id"] for r in rows], [SID_AURA, SID_TERM])  # recente primeiro; ruins fora
         term = rows[1]
-        self.assertEqual(set(term), {"id", "title", "project", "updated_at", "messages", "source", "running"})
+        self.assertEqual(set(term), {"id", "title", "project", "updated_at", "messages", "source", "running",
+                                     "canonical_id", "history_complete", "active_chat_id"})
+        self.assertEqual((term["canonical_id"], term["history_complete"], term["active_chat_id"]),
+                         (SID_TERM, True, None))
         self.assertEqual((term["source"], rows[0]["source"]), ("terminal", "aura"))
         self.assertEqual(len(term["title"]), 80)
         self.assertTrue(term["title"].startswith("Arrume o login do app"))
@@ -171,6 +174,253 @@ class Sessoes(SessoesBase):
         self.assertEqual(self.call("POST", "/v1/processes/999999/stop")[0], 404)
         self.assertEqual(self.call("POST", "/v1/processes/%d/stop" % pid)[1], {"pid": pid, "stopped": True})
         self.assertEqual(self.wait_final(started["chat_id"])["type"], "chat.error")
+
+
+def msg_user(text, uid, ts="2026-10-01T10:00:00Z"):
+    return {"type": "user", "uuid": uid, "timestamp": ts, "message": {"role": "user", "content": text}}
+
+
+def msg_ai(text, uid, ts="2026-10-01T10:00:05Z"):
+    return {"type": "assistant", "uuid": uid, "timestamp": ts,
+            "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}
+
+
+class SessoesVivas(SessoesBase):
+    """Sincronização viva: /state barato, mensagens incrementais e paginadas, IDs estáveis, sem perder o final."""
+
+    def append(self, path, *events):
+        with open(str(path), "a", encoding="utf-8") as f:
+            f.write(jl(*events))
+
+    def new_file(self, sid, *events, folder="-grande"):
+        d = self.proj / folder
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / (sid + ".jsonl")
+        path.write_text(jl(*events), encoding="utf-8")
+        return path
+
+    def state(self, sid):
+        code, body = self.call("GET", "/v1/sessions/%s/state" % sid)
+        self.assertEqual(code, 200, body)
+        return body
+
+    def msgs(self, sid, query=""):
+        code, body = self.call("GET", "/v1/sessions/%s/messages%s" % (sid, query))
+        self.assertEqual(code, 200, body)
+        return body
+
+    # ---- estado barato ----
+    def test_state_traz_versao_contagem_e_muda_quando_o_jsonl_cresce(self):
+        a = self.state(SID_AURA)
+        self.assertEqual((a["session_id"], a["messages"], a["running"], a["active_chat_id"]), (SID_AURA, 2, False, None))
+        for campo in ("version", "updated_at", "total", "history_complete", "external_running", "last_chat"):
+            self.assertIn(campo, a)
+        self.assertEqual(self.state(SID_AURA)["version"], a["version"], "sem mudança, mesma versão")
+        self.append(self.aura_file, msg_user("Mais uma", "u2"), msg_ai("Feito", "a2"))
+        b = self.state(SID_AURA)
+        self.assertNotEqual(b["version"], a["version"])
+        self.assertEqual((b["messages"], b["total"]), (4, 4))
+        self.assertEqual(self.call("GET", "/v1/sessions/%s/state" % SID_BAD)[0], 404)
+        self.assertEqual(self.call("GET", "/v1/sessions/%s/state" % "44444444-4444-4444-8444-444444444444")[0], 404)
+
+    def test_mensagem_acrescentada_por_fora_vem_incremental_e_20_ciclos_nao_duplicam(self):
+        full = self.msgs(SID_AURA)
+        held = {m["id"]: m for m in full["messages"]}
+        order = [m["id"] for m in full["messages"]]
+        total = full["total"]
+        for n in range(20):
+            self.append(self.aura_file, msg_user("pergunta %d" % n, "ux%d" % n), msg_ai("resposta %d" % n, "ax%d" % n))
+            page = self.msgs(SID_AURA, "?after=%d" % max(0, total - 2))  # o cliente pede com uma folga
+            for m in page["messages"]:
+                if m["id"] not in held:
+                    order.append(m["id"])
+                held[m["id"]] = m
+            total = page["total"]
+        self.assertEqual(len(order), len(set(order)), "nenhum id repetido")
+        self.assertEqual(len(order), 2 + 40)
+        truth = [m["id"] for m in self.msgs(SID_AURA, "?limit=2000")["messages"]]
+        self.assertEqual(order, truth, "mesma lista e mesma ordem que o histórico completo")
+
+    def test_ids_sao_estaveis_por_origem_e_nao_dependem_do_recorte(self):
+        eventos = [e for n in range(30) for e in (msg_user("p%d" % n, "u%d" % n), msg_ai("r%d" % n, "a%d" % n))]
+        self.new_file("55555555-5555-4555-8555-555555555555", *eventos)
+        sid = "55555555-5555-4555-8555-555555555555"
+        todas = self.msgs(sid, "?limit=2000")["messages"]
+        cauda = self.msgs(sid, "?limit=10")["messages"]
+        self.assertEqual([m["id"] for m in cauda], [m["id"] for m in todas[-10:]])
+        self.assertEqual(todas[0]["id"], "claude:u0:0")
+        self.assertTrue(all(isinstance(m["id"], str) for m in todas))
+
+    # ---- arquivos grandes e paginação ----
+    def test_arquivo_maior_que_8MiB_mostra_o_final_e_nao_marca_parcial(self):
+        sid = "66666666-6666-4666-8666-666666666666"
+        enorme = "x" * 4000
+        eventos = [msg_user("antigo %d %s" % (n, enorme), "g%d" % n) for n in range(2600)]  # ~10,4 MiB
+        eventos += [msg_user("PENULTIMA", "u-fim"), msg_ai("A ULTIMA RESPOSTA", "a-fim")]
+        path = self.new_file(sid, *eventos)
+        self.assertGreater(path.stat().st_size, 8 * 1024 * 1024)
+        body = self.msgs(sid)
+        self.assertEqual(body["messages"][-1]["text"], "A ULTIMA RESPOSTA")
+        self.assertEqual(body["messages"][-2]["text"], "PENULTIMA")
+        self.assertTrue(body["history_complete"])
+        self.assertNotIn("warning_code", body)
+        self.assertEqual(body["total"], 2602)
+        self.assertEqual(self.state(sid)["messages"], 2602)
+
+    def test_mais_de_500_mensagens_paginam_sem_repetir_nem_pular(self):
+        sid = "77777777-7777-4777-8777-777777777777"
+        eventos = [e for n in range(300) for e in (msg_user("p%d" % n, "u%d" % n), msg_ai("r%d" % n, "a%d" % n))]
+        self.new_file(sid, *eventos)
+        page = self.msgs(sid, "?limit=100")
+        self.assertEqual((len(page["messages"]), page["has_more"], page["first_index"]), (100, True, 500))
+        got = [m["id"] for m in page["messages"]]
+        while page["has_more"]:
+            page = self.msgs(sid, "?limit=100&before=" + page["previous_cursor"])
+            got = [m["id"] for m in page["messages"]] + got
+        self.assertEqual(len(got), 600)
+        self.assertEqual(len(set(got)), 600)
+        self.assertEqual(got[0], "claude:u0:0")
+        self.assertEqual(got[-1], "claude:a299:0")
+        self.assertIsNone(page["previous_cursor"])
+        self.assertFalse(page["has_more"])
+        self.assertEqual(set(page), {"session_id", "messages", "previous_cursor", "has_more", "history_complete",
+                                     "source", "revision", "active_chat_id", "total", "first_index"})
+
+    def test_pagina_anterior_continua_valida_mesmo_com_mensagens_novas_no_fim(self):
+        sid = "77777777-7777-4777-8777-777777777778"
+        path = self.new_file(sid, *[e for n in range(60) for e in (msg_user("p%d" % n, "u%d" % n), msg_ai("r%d" % n, "a%d" % n))])
+        page = self.msgs(sid, "?limit=20")
+        self.append(path, msg_user("nova", "u-nova"), msg_ai("nova resposta", "a-nova"))
+        older = self.msgs(sid, "?limit=20&before=" + page["previous_cursor"])
+        ids = [m["id"] for m in older["messages"] + page["messages"]]
+        self.assertEqual(len(ids), len(set(ids)), "a atualização concorrente não duplica ids")
+        truth = [m["id"] for m in self.msgs(sid, "?limit=2000")["messages"]]
+        first = page["first_index"]
+        self.assertEqual([m["id"] for m in older["messages"]], truth[first - 20:first], "a página anterior continua a mesma")
+
+    def test_limite_de_leitura_da_fonte_marca_source_partial_sem_esconder(self):
+        from aura_engine import sessions
+        sid = "88888888-8888-4888-8888-888888888888"
+        self.new_file(sid, *[e for n in range(200) for e in (msg_user("pergunta %d" % n, "u%d" % n), msg_ai("resposta %d" % n, "a%d" % n))])
+        with unittest.mock.patch.object(sessions, "MAX_BYTES", 6000):
+            body = self.msgs(sid, "?limit=2000")
+        self.assertFalse(body["history_complete"])
+        self.assertEqual(body["warning_code"], "source_partial")
+        self.assertEqual(body["messages"][-1]["text"], "resposta 199", "o final nunca se perde")
+        self.assertLess(len(body["messages"]), 400)
+        row = [r for r in self.call("GET", "/v1/sessions")[1]["sessions"] if r["id"] == sid]
+        self.assertTrue(row == [] or row[0]["history_complete"] in (True, False))
+
+    def test_cursor_de_arquivo_reescrito_e_409_history_changed(self):
+        sid = "99999999-9999-4999-8999-999999999999"
+        path = self.new_file(sid, *[e for n in range(30) for e in (msg_user("p%d" % n, "u%d" % n), msg_ai("r%d" % n, "a%d" % n))])
+        page = self.msgs(sid, "?limit=10")
+        path.write_text(jl(msg_user("recomeço", "r0"), msg_ai("ok", "r1")), encoding="utf-8")  # arquivo foi reescrito
+        code, body = self.call("GET", "/v1/sessions/%s/messages?limit=10&before=%s" % (sid, page["previous_cursor"]))
+        self.assertEqual((code, body["error"]["code"]), (409, "history_changed"))
+        self.assertTrue(body["error"]["retryable"])
+        self.assertEqual(self.call("GET", "/v1/sessions/%s/messages?before=lixo" % sid)[0], 400)
+        fresh = self.msgs(sid)
+        self.assertEqual([m["text"] for m in fresh["messages"]], ["recomeço", "ok"])
+
+    # ---- identidade ----
+    def test_alias_de_cli_session_aparece_uma_vez_com_id_canonico(self):
+        alias = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        canon = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        self.new_file(alias, msg_user("conversa que a CLI renomeou", "u1"), msg_ai("ok", "a1"))
+        self.engine.store.chat_open(canon, "conversa", "default", cli_session=alias, started=True)
+        self.engine.store.chat_add_message(canon, "c1", "user", "conversa")
+        rows = self.call("GET", "/v1/sessions")[1]["sessions"]
+        ids = [r["id"] for r in rows]
+        self.assertIn(canon, ids)
+        self.assertNotIn(alias, ids, "o alias não vira uma segunda linha")
+        row = [r for r in rows if r["id"] == canon][0]
+        self.assertEqual(row["canonical_id"], canon)
+        texts = [m["text"] for m in self.msgs(canon)["messages"]]
+        self.assertEqual(texts, ["conversa que a CLI renomeou", "ok"])
+
+    def test_continuar_sessao_do_terminal_no_aura_preserva_a_origem_terminal(self):
+        self.install_fake()
+        _, started = self.call("POST", "/v1/chat", {"text": "continue", "session_id": SID_TERM})
+        self.wait_final(started["chat_id"])
+        rows = {r["id"]: r for r in self.call("GET", "/v1/sessions")[1]["sessions"]}
+        self.assertEqual(rows[SID_TERM]["source"], "terminal")
+        self.assertEqual(self.msgs(SID_TERM)["source"], "terminal")
+        self.assertEqual(self.msgs(SID_AURA)["source"], "aura")
+
+    def test_sessao_sem_jsonl_usa_o_historico_do_motor_com_ids_proprios(self):
+        sid = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        self.engine.store.chat_open(sid, "so no motor", "default")
+        self.engine.store.chat_add_message(sid, "c1", "user", "oi")
+        self.engine.store.chat_add_message(sid, "c1", "assistant", "olá")
+        body = self.msgs(sid)
+        self.assertEqual([m["text"] for m in body["messages"]], ["oi", "olá"])
+        self.assertTrue(all(m["id"].startswith("aura:") for m in body["messages"]))
+        v1 = self.state(sid)["version"]
+        self.engine.store.chat_add_message(sid, "c2", "user", "mais")
+        self.assertNotEqual(self.state(sid)["version"], v1)
+
+    # ---- o que acontece agora ----
+    def test_terminal_escrevendo_agora_marca_external_running(self):
+        self.assertFalse(self.state(SID_TERM)["external_running"])  # arquivo velho
+        self.append(self.term_file, msg_ai("continuando no terminal", "t1"))  # mtime = agora
+        st = self.state(SID_TERM)
+        self.assertTrue(st["external_running"])
+        self.assertFalse(st["running"], "running é só do que o motor executa")
+
+    def test_estado_mostra_a_resposta_em_andamento_do_motor_e_o_ultimo_chat(self):
+        self.install_fake()
+        (self.fake / "hang").write_text("1")
+        _, started = self.call("POST", "/v1/chat", {"text": "demora", "session_id": SID_TERM, "request_id": "11111111-1111-4111-8111-111111111111"})
+        self.wait_for(lambda: (self.fake / "pid").exists())
+        st = self.state(SID_TERM)
+        self.assertTrue(st["running"])
+        self.assertEqual(st["active_chat_id"], started["chat_id"])
+        self.assertEqual(st["last_chat"]["chat_id"], started["chat_id"])
+        self.assertEqual(st["last_chat"]["state"], "running")
+        self.call("POST", "/v1/chat/%s/stop" % started["chat_id"])
+        self.wait_final(started["chat_id"])
+        st = self.state(SID_TERM)
+        self.assertFalse(st["running"])
+        self.assertEqual((st["last_chat"]["state"], st["last_chat"]["chat_id"]), ("interrupted", started["chat_id"]))
+        self.assertIsNone(st["active_chat_id"])
+
+    def test_watch_faz_o_motor_avisar_session_updated_quando_o_arquivo_muda(self):
+        with unittest.mock.patch.dict(os.environ, {"AURA_SESSION_WATCH_SECS": "0.1"}):
+            code, body = self.call("POST", "/v1/sessions/%s/watch" % SID_AURA, {})
+            self.assertEqual((code, body["session_id"], body["expires_in"]), (200, SID_AURA, 60))
+            time.sleep(0.4)
+            before = [e for e in self.engine.store.events(0, 1000) if e["type"] == "session.updated"]
+            self.assertEqual(before, [], "sem mudança, sem evento")
+            self.append(self.aura_file, msg_user("de fora", "ux"), msg_ai("resposta de fora", "ax"))
+            evs = self.wait_for(lambda: [e for e in self.engine.store.events(0, 1000) if e["type"] == "session.updated"])
+        self.assertEqual(evs[0]["payload"]["session_id"], SID_AURA)
+        self.assertEqual(evs[0]["payload"]["version"], self.state(SID_AURA)["version"])
+        self.assertEqual(self.call("POST", "/v1/sessions/%s/watch" % SID_BAD, {})[0], 404)
+
+    def test_watch_sem_renovacao_expira_e_para_de_avisar(self):
+        from aura_engine import sessions_watch
+        with unittest.mock.patch.dict(os.environ, {"AURA_SESSION_WATCH_SECS": "0.1"}), \
+                unittest.mock.patch.object(sessions_watch, "TTL", 0.3):
+            self.call("POST", "/v1/sessions/%s/watch" % SID_AURA, {})
+            time.sleep(0.8)  # passou do prazo sem renovar
+            self.append(self.aura_file, msg_user("tarde demais", "ux"))
+            time.sleep(0.6)
+        self.assertEqual([e for e in self.engine.store.events(0, 1000) if e["type"] == "session.updated"], [])
+
+    def test_lista_pagina_com_limit_e_next_cursor(self):
+        for n in range(5):
+            self.new_file("dddddddd-dddd-4ddd-8ddd-ddddddddddd%d" % n, msg_user("s%d" % n, "u%d" % n), msg_ai("ok", "a%d" % n))
+        first = self.call("GET", "/v1/sessions?limit=3")[1]
+        self.assertEqual(len(first["sessions"]), 3)
+        self.assertTrue(first["next_cursor"])
+        rest = self.call("GET", "/v1/sessions?limit=3&cursor=" + first["next_cursor"])[1]
+        ids = [r["id"] for r in first["sessions"] + rest["sessions"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        everything = [r["id"] for r in self.call("GET", "/v1/sessions?limit=100")[1]["sessions"]]
+        self.assertEqual(ids, everything[:len(ids)])
+        self.assertIsNone(self.call("GET", "/v1/sessions?limit=100")[1]["next_cursor"])
+
 
 
 class FakeGemini(http.server.BaseHTTPRequestHandler):
