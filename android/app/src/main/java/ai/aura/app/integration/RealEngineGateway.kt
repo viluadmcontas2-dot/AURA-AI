@@ -64,6 +64,10 @@ class RealEngineGateway(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** Espera entre duas leituras de GET /v1/chat/{id} enquanto o motor responde. */
     private val chatPollMillis: Long = 400L,
+    /** Espera entre duas leituras de GET /v1/jobs/{id} enquanto uma CLI é instalada. */
+    private val installPollMillis: Long = 2_000L,
+    /** Quanto tempo o app acompanha uma instalação antes de mandar olhar a Atividade. */
+    private val installWaitMillis: Long = 15 * 60_000L,
 ) : EngineGateway {
     // Só os últimos MAX_ROUTED comandos interpretados ficam guardados; o mais velho sai primeiro.
     private val routedRequests = Collections.synchronizedMap(object : LinkedHashMap<String, String>() {
@@ -290,6 +294,48 @@ class RealEngineGateway(
     /** Ids do app -> ids do contrato de /v1/tools/install. */
     private fun toolId(provider: String) = when (provider) { "github" -> "gh"; "gdrive" -> "rclone"; else -> provider }
 
+    /** Segue o job de instalação até um estado final; erro passageiro de leitura não derruba o acompanhamento. */
+    private suspend fun followInstall(jobId: String): ToolActionResult {
+        var waited = 0L
+        var failures = 0
+        while (waited <= installWaitMillis) {
+            val job = try {
+                client.job(jobId).also { failures = 0 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (++failures >= 3) return ToolActionResult.Failed(
+                    "Perdi a conexão com o motor durante a instalação.",
+                    "Abra o Termux e toque em Instalar de novo.",
+                )
+                null
+            }
+            if (job != null) {
+                val result = job.optJSONObject("result")
+                when (job.optString("status")) {
+                    "completed" -> return when {
+                        result?.optString("state") == "waiting_wifi" -> ToolActionResult.Failed(
+                            "Estou em dados móveis e esperei o Wi-Fi.", "Conecte ao Wi-Fi e toque em Instalar de novo.",
+                        )
+                        result?.optBoolean("already_installed") == true -> ToolActionResult.Ok("Já estava instalado.")
+                        else -> ToolActionResult.Ok("Instalado. Agora toque em Conectar.")
+                    }
+                    "failed" -> return ToolActionResult.Failed(
+                        "Não consegui instalar este programa.", "Confira a internet e toque em Instalar de novo.",
+                    )
+                    "cancelled", "interrupted" -> return ToolActionResult.Failed(
+                        "A instalação foi interrompida.", "Toque em Instalar para tentar de novo.",
+                    )
+                }
+            }
+            delay(installPollMillis)
+            waited += installPollMillis
+        }
+        return ToolActionResult.Failed(
+            "A instalação está demorando mais que o normal.", "Veja o andamento na aba Atividade ou toque em Instalar de novo.",
+        )
+    }
+
     private fun toolFailure(e: Exception, doing: String): ToolActionResult.Failed = when {
         e is AuraEngineException && e.code == "indisponivel_no_termux" -> ToolActionResult.Failed(
             "Este programa não instala no Termux.",
@@ -307,16 +353,22 @@ class RealEngineGateway(
         else -> ToolActionResult.Failed("Não foi possível $doing.", "Tente de novo.")
     }
 
+    /**
+     * POST /v1/tools/install devolve 202 + job: o app acompanha o job até o fim e devolve o resultado em
+     * português (instalado, sem Wi-Fi ou falhou), em vez de mandar a pessoa procurar na Atividade.
+     */
     override suspend fun installTool(provider: String): ToolActionResult = try {
         val r = client.installTool(toolId(provider))
         val notices = r.optJSONArray("download_notices")?.length() ?: 0
-        ToolActionResult.Ok(
-            when {
-                r.optBoolean("already_installed") -> "Já estava instalado."
-                notices > 0 -> "Instalando. Há download grande (mais de 100 MB): prefira o Wi-Fi. Acompanhe em Atividade."
-                else -> "Instalando. Acompanhe em Atividade."
-            },
-        )
+        val jobId = r.text("id")
+        when {
+            r.optBoolean("already_installed") -> ToolActionResult.Ok("Já estava instalado.")
+            jobId == null -> ToolActionResult.Ok(
+                if (notices > 0) "Instalando. Há download grande (mais de 100 MB): prefira o Wi-Fi. Acompanhe em Atividade."
+                else "Instalando. Acompanhe em Atividade.",
+            )
+            else -> followInstall(jobId)
+        }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -465,7 +517,7 @@ class RealEngineGateway(
                             return@channelFlow
                         }
                         "chat.error" -> {
-                            send(ChatEvent.Failed(chatFailure(code = ev.payload["code"], message = ev.payload["message_pt"])))
+                            send(ChatEvent.Failed(chatFailureFor(ev.payload["code"], ev.payload["message_pt"])))
                             return@channelFlow
                         }
                     }
@@ -488,7 +540,7 @@ class RealEngineGateway(
                     }
                     "error" -> {
                         val err = state.optJSONObject("error")
-                        send(ChatEvent.Failed(chatFailure(code = err?.text("code"), message = err?.text("message_pt"))))
+                        send(ChatEvent.Failed(chatFailureFor(err?.text("code"), err?.text("message_pt"))))
                         return@channelFlow
                     }
                     else -> {
@@ -550,22 +602,6 @@ class RealEngineGateway(
             "task" -> IntentResult.Task(idea)
             else -> IntentResult.Chat
         }
-    }
-
-    /** Erro de conversa em português. Os botões são sempre os mesmos; o motor só diz qual. */
-    private fun chatFailure(code: String?, message: String?): ChatFailure {
-        val c = code ?: "chat_error"
-        val action = when {
-            c == "engine_down" -> ChatAction.StartEngine
-            listOf("login", "logged", "auth", "install", "missing").any { c.contains(it) } -> ChatAction.OpenConnections
-            else -> ChatAction.Retry
-        }
-        val fallback = when (action) {
-            ChatAction.OpenConnections -> "O AURA ainda não está conectado a uma conta de IA. Abra Conexões para entrar."
-            ChatAction.StartEngine -> "O motor está desligado."
-            ChatAction.Retry -> "Não consegui responder agora. Tente de novo."
-        }
-        return ChatFailure(c, message ?: fallback, action)
     }
 
     // ---- Sessões do Claude Code, processos, melhorar pedido e chave do Gemini ----------------
@@ -715,9 +751,10 @@ class RealEngineGateway(
         client.skills().getJSONArray("skills").mapObjects { skillFrom(it) }
     }
 
-    override suspend fun health(): EngineResult<EngineHealth> = call("o estado do motor") {
+    /** 401 vira `Rejected("unauthorized")`: o motor está vivo, só não aceita o nosso token. */
+    override suspend fun health(): EngineResult<EngineHealth> = call("o estado do motor", rejectOn = setOf(401)) {
         val raw = client.health()
-        EngineHealth(raw.getString("service"), raw.optInt("version"))
+        EngineHealth(raw.getString("service"), raw.optInt("version"), raw.text("engine_build"))
     }
 
     override suspend fun usage(): EngineResult<EngineUsage> = call("o uso") {
@@ -729,12 +766,18 @@ class RealEngineGateway(
     }
 
     /** [rejects]: o motor recusar (404, 409...) é a resposta, e a mensagem dele chega à tela. */
-    private suspend fun <T> call(what: String, rejects: Boolean = false, block: suspend () -> T): EngineResult<T> = try {
+    private suspend fun <T> call(
+        what: String,
+        rejects: Boolean = false,
+        rejectOn: Set<Int> = emptySet(),
+        block: suspend () -> T,
+    ): EngineResult<T> = try {
         EngineResult.Ok(block())
     } catch (e: CancellationException) {
         throw e
     } catch (e: AuraEngineException) {
-        if (rejects) EngineResult.Rejected(e.code, e.message ?: "O motor recusou o pedido.")
+        if (e.httpStatus in rejectOn) EngineResult.Rejected("unauthorized", e.message ?: "O motor recusou o pedido.")
+        else if (rejects) EngineResult.Rejected(e.code, e.message ?: "O motor recusou o pedido.")
         else EngineResult.Unavailable(reasonFor(e, what))
     } catch (e: Exception) {
         EngineResult.Unavailable(reasonFor(e, what))

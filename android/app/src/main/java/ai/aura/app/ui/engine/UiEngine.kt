@@ -211,7 +211,8 @@ data class MemoryEntry(val id: String, val kind: String, val text: String, val s
 
 data class SkillInfo(val id: String, val name: String, val description: String, val bundled: Boolean)
 
-data class EngineHealth(val service: String, val version: Int)
+/** [build]: engine_build do /v1/health (sha256 curto do código do motor); null = motor velho, que não informa. */
+data class EngineHealth(val service: String, val version: Int, val build: String? = null)
 
 data class EngineUsage(
     val inputTokens: Long,

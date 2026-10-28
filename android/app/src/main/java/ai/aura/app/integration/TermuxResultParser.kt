@@ -21,6 +21,7 @@ fun termuxResultFrom(
     if (exitCode != 0 || internalError != -1) return TermuxResult.Failed
     return when (operation) {
         "probe" -> if (stdout?.trim() == "aura-ok") TermuxResult.Ok else TermuxResult.Failed
+        "stop" -> TermuxResult.Ok
         "install" -> if (stdout?.contains(ENGINE_INSTALLED_MARK) == true) TermuxResult.Ok else TermuxResult.Failed
         "pair" -> try {
             val value = JSONObject(stdout.orEmpty().trim())

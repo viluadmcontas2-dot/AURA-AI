@@ -1,6 +1,7 @@
 package ai.aura.app.ui.screens.onboarding
 
 import ai.aura.app.offline.EngineLink
+import ai.aura.app.offline.EngineProbe
 import ai.aura.app.offline.TermuxPort
 import ai.aura.app.offline.TermuxResult
 import kotlinx.coroutines.CancellationException
@@ -39,6 +40,9 @@ fun proximoPasso(state: TermuxSetupState): Passo = when {
     else -> Passo.Pronto
 }
 
+/** Depois de duas recusas o botão "Permitir acesso ao Termux" abre os ajustes do app. */
+const val PERMISSION_BLOCKED = "Toque para abrir os ajustes e permitir."
+
 private const val SILENT = "O Termux ou o motor não respondeu. Abra o Termux, confira o comando e a instalação do motor e toque em Tentar de novo."
 
 /** Uma tentativa por vez; nenhuma espera fica sem prazo ou ignora cancelamento. */
@@ -48,20 +52,26 @@ class TermuxFlow(
     private val scope: CoroutineScope,
     private val limit: Duration = 60.seconds,
     private val installLimit: Duration = 10.minutes,
+    /** Espera curta antes de perguntar de novo a saúde do motor: lento não é morto. */
+    private val healthRetry: Duration = 1.seconds,
 ) {
     private val mutable = MutableStateFlow(TermuxSetupState())
     val state = mutable.asStateFlow()
     private var work: Job? = null
 
     fun refresh() = begin {
-        if (localState()) checkProbe()
+        if (localState()) checkProbe(retry = true)
     }
 
     fun confirmPasted() = begin(limit + installLimit) {
-        if (localState() && checkProbe()) connectAndStart()
+        if (localState() && checkProbe(retry = true)) connectAndStart()
     }
 
-    /** Chamado ao voltar do Termux: uma sonda a cada 2 s, por até 60 s. */
+    /**
+     * Chamado ao voltar do Termux: uma sonda a cada 2 s, por até 60 s. Se o motor já está sendo
+     * instalado, não faz nada: recomeçar cancelaria a instalação (minutos) e a segunda tentaria
+     * instalar por cima da primeira.
+     */
     fun resume() = begin(limit + installLimit) {
         val answered = withTimeoutOrNull(limit.inWholeMilliseconds) { waitForTermux() }
         if (answered == null) fail(SILENT)
@@ -86,7 +96,10 @@ class TermuxFlow(
     }
 
     fun startEngine() = begin(limit + installLimit) {
-        if (localState() && ensureEngine()) bounded { waitForEngine() }
+        if (localState()) {
+            link.starting()
+            if (ensureEngine() && ensurePaired()) bounded { waitForEngine() }
+        }
     }
 
     fun cancel() {
@@ -97,6 +110,7 @@ class TermuxFlow(
     }
 
     private fun begin(budget: Duration = limit, action: suspend () -> Unit) {
+        if (mutable.value.installing) return // instalação em andamento: só observa (o botão Cancelar é o único que para)
         work?.cancel()
         link.startFailed()
         work = scope.launch {
@@ -121,14 +135,17 @@ class TermuxFlow(
             paired = port.isPaired(), pageSize = port.pageSize())
         if (!installed || !permission) {
             mutable.value = mutable.value.copy(externalAppsAllowed = false, engineUp = false)
-            fail(proximoPasso(mutable.value).motivo)
+            // Depois de duas recusas o Android não pergunta mais: o botão passa a abrir os ajustes do app.
+            fail(if (installed && port.permissionBlocked()) PERMISSION_BLOCKED else proximoPasso(mutable.value).motivo)
             return false
         }
         return true
     }
 
-    private suspend fun checkProbe(): Boolean {
-        val result = port.probe()
+    /** [retry]: um Termux frio pode demorar mais que a sonda; se ela falhar, pergunta mais uma vez. */
+    private suspend fun checkProbe(retry: Boolean = false): Boolean {
+        var result = port.probe()
+        if (retry && result == TermuxResult.Failed) result = port.probe()
         mutable.value = mutable.value.copy(externalAppsAllowed = result == TermuxResult.Ok,
             notice = when (result) {
                 TermuxResult.Ok -> null
@@ -139,22 +156,58 @@ class TermuxFlow(
     }
 
     private suspend fun connectAndStart() {
-        if (!ensureEngine()) return
-        if (!port.isPaired()) {
-            if (port.pairAndWait() != TermuxResult.Ok) {
-                fail("Não foi possível conectar o Termux. Confira a instalação do motor no Termux e toque em Tentar de novo.")
-                return
-            }
-            mutable.value = mutable.value.copy(paired = true)
-        }
+        if (!ensureEngine() || !ensurePaired()) return
         bounded { waitForEngine() }
     }
 
-    /** Põe o motor embutido no Termux antes de parear ou ligar; sem isso `python -m aura_engine` não acha nada. */
+    private suspend fun ensurePaired(): Boolean {
+        if (port.isPaired()) return true
+        if (port.pairAndWait() != TermuxResult.Ok) {
+            fail("Não foi possível conectar o Termux. Confira a instalação do motor no Termux e toque em Tentar de novo.")
+            return false
+        }
+        mutable.value = mutable.value.copy(paired = true)
+        return true
+    }
+
+    /**
+     * Põe o motor embutido no Termux antes de parear ou ligar; sem isso `python -m aura_engine` não acha nada.
+     * - motor vivo e da mesma versão do APK: não mexe;
+     * - motor vivo mas sem engine_build (velho) ou com outro: para, reinstala (o fluxo religa);
+     * - motor vivo que recusa o token (401): token divergente, apaga a credencial e refaz o pareamento;
+     * - sem resposta: pergunta duas vezes (lento não é morto) antes de instalar.
+     */
     private suspend fun ensureEngine(): Boolean {
-        if (port.engineUp()) return true
-        mutable.value = mutable.value.copy(notice = "Instalando o motor no Termux. Pode levar alguns minutos na primeira vez.")
-        if (port.installEngine() == TermuxResult.Ok) {
+        var probe = port.engineProbe()
+        if (probe == EngineProbe.Down) {
+            delay(healthRetry)
+            probe = port.engineProbe()
+        }
+        when (probe) {
+            EngineProbe.Unauthorized -> {
+                port.forgetCredential()
+                mutable.value = mutable.value.copy(paired = false)
+                return true
+            }
+            is EngineProbe.Up -> {
+                val expected = port.expectedEngineBuild()
+                if (expected == null || probe.build == expected) return true
+                mutable.value = mutable.value.copy(engineUp = false, notice = "Atualizando o motor no Termux. Pode levar alguns minutos.")
+                port.stopEngine()
+            }
+            EngineProbe.Down -> Unit
+        }
+        return installEngine()
+    }
+
+    private suspend fun installEngine(): Boolean {
+        mutable.value = mutable.value.copy(installing = true, notice = "Instalando o motor no Termux. Pode levar alguns minutos na primeira vez.")
+        val result = try {
+            port.installEngine()
+        } finally {
+            mutable.value = mutable.value.copy(installing = false)
+        }
+        if (result == TermuxResult.Ok) {
             mutable.value = mutable.value.copy(notice = null)
             return true
         }

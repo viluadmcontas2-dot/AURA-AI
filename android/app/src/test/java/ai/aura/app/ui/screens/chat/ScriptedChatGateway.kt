@@ -46,12 +46,19 @@ internal class ScriptedChatGateway(
     val improved = CopyOnWriteArrayList<String>()
     /** Ids pedidos em GET /v1/sessions/{id}/messages. */
     val sessionsRead = CopyOnWriteArrayList<String>()
+    /** session_id que o motor "não conhece mais": o POST com ele recebe 404 session_not_found. */
+    @Volatile var unknownSession: String? = null
+    val rejected = CopyOnWriteArrayList<String?>()
     private var counter = 0
 
     override val events: Flow<EngineEvent> = emptyFlow()
 
     override suspend fun startChat(text: String, sessionId: String?, workspace: String): ChatStarted {
         if (down) throw IOException("Termux não responde")
+        if (sessionId != null && sessionId == unknownSession) {
+            rejected += sessionId
+            throw ai.aura.app.integration.AuraEngineException(404, "Conversa não encontrada.", "session_not_found")
+        }
         started += text to sessionId
         counter++
         return ChatStarted("chat_$counter", sessionId ?: "sess_1")

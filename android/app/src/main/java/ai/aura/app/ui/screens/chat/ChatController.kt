@@ -55,7 +55,10 @@ class ChatController(
     private var sessionId = initial.sessionId
     private var chatId = ""
     private var lastUserText = ""
-    private var pendingText = ""
+    /** Fila de mensagens que não saíram (motor desligado), em ordem. Saem juntas quando ele volta. */
+    private var pendingQueue: List<String> = emptyList()
+    /** As mensagens da tentativa em andamento (as guardadas + a nova). Se falhar por falta de motor, viram a fila. */
+    private var sending: List<String> = emptyList()
     private var engineReason = OfflineReason.EngineStopped
     private var nextMessageId = 0
     private var streamJob: kotlinx.coroutines.Job? = null
@@ -63,6 +66,10 @@ class ChatController(
     private var resending = false
     /** Aberta pela tela Sessões: o histórico vem do motor, nunca do disco (que é de outra conversa). */
     private var openedSession = false
+
+    /** Só uma volta por mensagem: a conversa salva sumiu no motor, então a próxima tentativa vai sem session_id. */
+    private var staleRetried = false
+    private var restartFresh = false
     // Uma fila só para o disco: as gravações saem na ordem em que foram pedidas e sobrevivem a sair da tela.
     private val disk = java.util.concurrent.ThreadPoolExecutor(
         0, 1, 5, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(),
@@ -79,7 +86,7 @@ class ChatController(
             when {
                 initial.jobId.isNotEmpty() -> { consumeEntry(); showJob(initial.jobId) }
                 initial.prompt.isNotEmpty() -> { consumeEntry(); send(initial.prompt) }
-                pendingText.isNotEmpty() -> {
+                pendingQueue.isNotEmpty() -> {
                     notice = ChatNotice("O motor está desligado.", ChatAction.StartEngine)
                     startWaiter()
                 }
@@ -94,13 +101,17 @@ class ChatController(
     fun send(raw: String): Boolean {
         val text = raw.trim()
         if (text.isEmpty() || live != null) return false
+        if (resending) { // tentativa silenciosa de reenvio em andamento: a nova mensagem toma o lugar, com as guardadas na frente
+            streamJob?.cancel()
+            resending = false
+        }
         if (ChatCommands.isCommandText(text)) {
             runCommand(text)
             return true
         }
-        setPending("")
         addMessage(true, text)
-        respond(text)
+        // As guardadas vão na frente, na ordem em que foram escritas; nenhuma se perde.
+        respond(pendingQueue + text)
         return true
     }
 
@@ -149,15 +160,15 @@ class ChatController(
 
     /** Tenta de novo a última mensagem, sem repetir a bolha da pessoa. */
     fun retry() {
-        val text = lastUserText
-        if (text.isEmpty() || live != null) return
-        respond(text)
+        val batch = sending
+        if (batch.isEmpty() || live != null) return
+        respond(batch)
     }
 
     /** O motor voltou (o aviso global ficou verde): manda o que estava guardado e, se faltou, carrega a sessão. */
     fun engineBack() {
         resendNow()
-        if (openedSession && messages.isEmpty() && live == null && pendingText.isEmpty() && notice?.action == ChatAction.StartEngine) {
+        if (openedSession && messages.isEmpty() && live == null && pendingQueue.isEmpty() && notice?.action == ChatAction.StartEngine) {
             scope.launch {
                 syncFromEngine()
                 if (messages.isNotEmpty() && notice?.action == ChatAction.StartEngine) notice = null
@@ -174,8 +185,9 @@ class ChatController(
         sessionId = ""
         chatId = ""
         lastUserText = ""
+        sending = emptyList()
         nextMessageId = 0
-        setPending("")
+        setPending(emptyList())
         entry = entry.copy(open = true, sessionId = "")
         onEntryChange(entry)
         persistMessages()
@@ -184,12 +196,14 @@ class ChatController(
 
     // ---- fluxo --------------------------------------------------------------------------
 
-    private fun respond(text: String) {
-        lastUserText = text
+    private fun respond(batch: List<String>) {
+        sending = batch
+        staleRetried = false
+        lastUserText = batch.joinToString(JOIN)
         notice = null
         chatId = ""
         live = LiveReply("", emptyList()) // síncrono: bloqueia envio duplicado
-        streamJob = scope.launch { converse(text, silent = false) }
+        streamJob = scope.launch { converse(lastUserText, silent = false) }
     }
 
     /** [silent]: reenvio de mensagem guardada; falhar de novo não muda a tela. */
@@ -199,10 +213,15 @@ class ChatController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            if (!silent) fail(e, text)
+            // Conversa que o motor não conhece mais: começa uma nova, uma vez, sem a pessoa perceber.
+            if (e is AuraEngineException && staleSession(e.code, e.httpStatus)) {
+                forgetSession()
+                return converse(text, silent)
+            }
+            if (!silent) fail(e)
             return
         }
-        setPending("")
+        setPending(emptyList())
         if (silent) {
             notice = null
             live = LiveReply("", emptyList())
@@ -216,6 +235,11 @@ class ChatController(
         } catch (e: Exception) {
             finishWithNotice(ChatNotice("Perdi a conexão com o motor no meio da resposta.", ChatAction.Retry))
             return
+        }
+        if (restartFresh) {
+            restartFresh = false
+            forgetSession()
+            return converse(text, silent)
         }
         // O fluxo acabou sem fim: guarda o que veio, sem fingir que terminou.
         if (live != null) finishWithNotice(ChatNotice("A resposta parou antes de terminar.", ChatAction.Retry))
@@ -235,9 +259,16 @@ class ChatController(
                 else addMessage(false, finalText)
             }
             is ChatEvent.Failed -> {
+                // Retomar a conversa falhou antes de qualquer texto: o fim do fluxo reenvia como conversa nova.
+                if (current.text.isBlank() && staleSession(event.failure.code, null)) {
+                    restartFresh = true
+                    return
+                }
                 if (current.text.isNotBlank()) addMessage(false, current.text)
                 live = null
-                notice = ChatNotice(event.failure.message, event.failure.action)
+                // "Parada" não é erro: se algo já chegou, fica o texto e nenhum aviso.
+                val calm = event.failure.code == "stopped" && current.text.isNotBlank()
+                notice = if (calm) null else ChatNotice(event.failure.message, event.failure.action)
             }
         }
     }
@@ -249,12 +280,12 @@ class ChatController(
         notice = n
     }
 
-    private fun fail(e: Exception, text: String) {
+    private fun fail(e: Exception) {
         live = null
         val n = noticeFor(e)
         notice = n
         if (n.action == ChatAction.StartEngine) {
-            setPending(text)
+            setPending(sending)
             startWaiter()
         }
     }
@@ -279,7 +310,7 @@ class ChatController(
     private fun startWaiter() {
         if (waiter?.isActive == true) return
         waiter = scope.launch {
-            while (pendingText.isNotEmpty()) {
+            while (pendingQueue.isNotEmpty()) {
                 delay(retryMillis)
                 resendNow()
             }
@@ -287,8 +318,11 @@ class ChatController(
     }
 
     private fun resendNow() {
-        val text = pendingText
-        if (text.isEmpty() || live != null || resending) return
+        val batch = pendingQueue
+        if (batch.isEmpty() || live != null || resending) return
+        sending = batch
+        staleRetried = false
+        val text = batch.joinToString(JOIN)
         resending = true
         streamJob = scope.launch {
             try {
@@ -299,10 +333,10 @@ class ChatController(
         }
     }
 
-    private fun setPending(text: String) {
-        pendingText = text
+    private fun setPending(items: List<String>) {
+        pendingQueue = items
         val s = store ?: return
-        writeLater { s.savePending(text) }
+        writeLater { s.savePending(items) }
     }
 
     // ---- disco e motor ------------------------------------------------------------------
@@ -326,7 +360,7 @@ class ChatController(
             nextMessageId = saved.first.maxOf { it.id } + 1
         }
         if (sessionId.isEmpty()) sessionId = saved.second
-        if (pendingText.isEmpty()) pendingText = saved.third
+        if (pendingQueue.isEmpty()) pendingQueue = saved.third
     }
 
     /** O motor é a fonte da verdade da conversa; sem ele vale o que está no disco. */
@@ -335,7 +369,7 @@ class ChatController(
             val id = sessionId.ifEmpty { if (messages.isEmpty()) gateway.chats().firstOrNull()?.id.orEmpty() else "" }
             if (id.isEmpty()) return
             val lines = historyOf(id)
-            if (lines.isEmpty() || live != null || pendingText.isNotEmpty()) return
+            if (lines.isEmpty() || live != null || pendingQueue.isNotEmpty()) return
             messages = lines
             nextMessageId = lines.size
             if (sessionId.isEmpty()) adoptSession(id)
@@ -388,6 +422,13 @@ class ChatController(
 
     // ---- util ---------------------------------------------------------------------------
 
+    private companion object {
+        /** Separador das mensagens guardadas quando saem juntas num único pedido ao motor. */
+        const val JOIN = "\n\n"
+        val STALE_STATUS = setOf(400, 404, 409, 422)
+        val STALE_CODES = setOf("session_not_found", "conversation_not_found", "resume_failed", "invalid_session", "session_expired")
+    }
+
     private fun addMessage(fromUser: Boolean, text: String) {
         messages = messages + ChatMessage(nextMessageId++, fromUser, text)
         persistMessages()
@@ -403,6 +444,21 @@ class ChatController(
         val s = store ?: return
         val id = sessionId
         writeLater { s.saveSessionId(id) }
+    }
+
+    /** Motor disse "não conheço essa conversa" (404/400/409 do POST, ou erro de --resume): vale uma volta só. */
+    private fun staleSession(code: String?, httpStatus: Int?): Boolean {
+        if (sessionId.isEmpty() || staleRetried) return false
+        val byStatus = httpStatus != null && httpStatus in STALE_STATUS
+        return byStatus || code in STALE_CODES
+    }
+
+    private fun forgetSession() {
+        staleRetried = true
+        sessionId = ""
+        entry = entry.copy(sessionId = "")
+        onEntryChange(entry)
+        persistSession()
     }
 
     private fun adoptSession(id: String) {

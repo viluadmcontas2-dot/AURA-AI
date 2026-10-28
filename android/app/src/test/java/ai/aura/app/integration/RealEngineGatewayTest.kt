@@ -44,6 +44,7 @@ private class FakeApi(val handler: (String, List<Any?>) -> JSONObject = { _, _ -
     override suspend fun authStatus() = call("authStatus")
     override suspend fun startAuth(provider: String) = call("startAuth", provider)
     override suspend fun installTool(provider: String) = call("installTool", provider)
+    override suspend fun job(id: String) = call("job", id)
     override suspend fun authCode(provider: String, code: String) = call("authCode", provider, code)
     override suspend fun authToken(provider: String, token: String) = call("authToken", provider, token)
     override suspend fun policy() = call("policy")
@@ -294,6 +295,51 @@ class RealEngineGatewayTest {
         assertEquals(listOf<Any?>("rclone"), api.calls.last { it.first == "installTool" }.second)
         val no = gateway.installTool("codex") as ToolActionResult.Failed
         assertTrue("Termux" in no.reason)
+    }
+
+    @Test fun `instalar acompanha o job ate o fim e conta o resultado em portugues`() = runTest {
+        var reads = 0
+        val api = FakeApi { name, args ->
+            when (name) {
+                "installTool" -> JSONObject().put("id", "job_9").put("status", "queued")
+                "job" -> {
+                    reads++
+                    val status = if (reads < 3) "running" else if (args[0] == "job_9") "completed" else "failed"
+                    JSONObject().put("id", "job_9").put("status", status)
+                        .put("result", JSONObject().put("state", "ready"))
+                }
+                else -> JSONObject()
+            }
+        }
+        val gateway = RealEngineGateway(api, backgroundScope)
+
+        val ok = gateway.installTool("claude") as ToolActionResult.Ok
+        assertEquals(3, reads)
+        assertTrue("Instalado" in ok.message)
+        assertTrue("Atividade" !in ok.message)
+    }
+
+    @Test fun `instalar sem Wi-Fi e instalar que falha viram erro com o que fazer`() = runTest {
+        var final = JSONObject().put("status", "completed").put("result", JSONObject().put("state", "waiting_wifi"))
+        val api = FakeApi { name, _ ->
+            when (name) {
+                "installTool" -> JSONObject().put("id", "job_1").put("status", "queued")
+                "job" -> final
+                else -> JSONObject()
+            }
+        }
+        val gateway = RealEngineGateway(api, backgroundScope)
+
+        val wifi = gateway.installTool("claude") as ToolActionResult.Failed
+        assertTrue("Wi-Fi" in wifi.reason + wifi.fix)
+
+        final = JSONObject().put("status", "failed").put("error", JSONObject().put("code", "process_failed"))
+        val failed = gateway.installTool("claude") as ToolActionResult.Failed
+        assertEquals("Não consegui instalar este programa.", failed.reason)
+        assertTrue("Instalar de novo" in failed.fix)
+
+        final = JSONObject().put("status", "interrupted")
+        assertTrue(gateway.installTool("claude") is ToolActionResult.Failed)
     }
 
     @Test fun `token so conecta quando o motor confirma conectado`() = runTest {
