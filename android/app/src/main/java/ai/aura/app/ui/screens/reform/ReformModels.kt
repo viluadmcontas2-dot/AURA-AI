@@ -21,7 +21,7 @@ data class ReformProblem(val title: String, val body: String, val fix: ReformFix
 /** Só decide o ícone; nunca muda regra. */
 enum class ReformAppKind { Music, Navigation, Radio, Camera, Generic }
 
-/** App do aparelho alvo, como o motor contou. Nada aqui é inventado: sem dado, sem etiqueta. */
+/** App listado no aparelho ou APK escolhido pelo usuário. Sem dado, sem etiqueta. */
 data class ReformApp(
     val id: String,
     val label: String,
@@ -29,16 +29,8 @@ data class ReformApp(
     val year: Int? = null,
     /** 0..1; null = o motor ainda não estimou (a linha "Potencial" some). */
     val potential: Float? = null,
-    val system: Boolean = false,
+    val apkUri: String? = null,
 ) {
-    /** Por que o AURA não mexe (câmera de ré vem antes de "sistema"); null = pode reformar. */
-    val protectedReason: String?
-        get() = when {
-            isReverseCamera() -> "Segurança do carro: o AURA não mexe"
-            system -> "App do sistema: o AURA não mexe"
-            else -> null
-        }
-
     val details: String?
         get() = listOfNotNull(
             version?.takeIf { it.isNotBlank() }?.let { if (it.startsWith("v", ignoreCase = true)) it else "v$it" },
@@ -74,22 +66,13 @@ fun reformPotentialLabel(potential: Float): String = when {
     else -> "Baixo"
 }
 
-/** Nada de "re" dentro de "resumo": palavras inteiras para as curtas, trecho para as longas. */
-private val CAMERA_TEXT = listOf("camera", "panoram")
-private val CAMERA_WORDS = setOf("re", "avm", "360", "rearview")
 private val NOT_ALNUM = Regex("[^a-z0-9]+")
 private val ACCENTS = Regex("\\p{Mn}+")
 
 private fun plain(text: String) = ACCENTS.replace(Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD), "")
 private fun tokens(plain: String) = plain.split(NOT_ALNUM)
 
-/** Câmera de ré e visão 360 nunca entram na reforma, nem por engano de seleção. */
-private fun ReformApp.isReverseCamera(): Boolean {
-    val text = plain("$id $label")
-    return CAMERA_TEXT.any { it in text } || tokens(text).any { it in CAMERA_WORDS }
-}
-
-/** Estado da tela 1. [selectedId] só pré-seleciona (ex.: ao voltar do Escopo); protegido nunca vale. */
+/** Estado da tela 1. [selectedId] pré-seleciona um app ao voltar do Escopo. */
 data class ReformAppsState(
     val apps: List<ReformApp> = emptyList(),
     val problem: ReformProblem? = null,
@@ -129,14 +112,14 @@ fun reformDurationLabel(minutes: Int): String = when {
     else -> "${minutes / 60} h ${(minutes % 60).toString().padStart(2, '0')}"
 }
 
-/** O que o Escopo entrega à tela 3: só sai com a confirmação explícita do dono do app. */
+/** O que o Escopo entrega à tela 3, incluindo o APK quando escolhido por arquivo. */
 data class ReformPlan(
     val appId: String,
     val appLabel: String,
     val scope: ReformScope,
     val carMode: Boolean,
     val fidelityTargetPercent: Int,
-    val ownerConfirmed: Boolean,
+    val apkUri: String? = null,
 )
 
 // ---------- Reformar 5 · Ferramentas ----------

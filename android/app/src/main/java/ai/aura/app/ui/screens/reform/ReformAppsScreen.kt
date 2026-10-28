@@ -1,5 +1,10 @@
 package ai.aura.app.ui.screens.reform
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -42,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.aura.app.ui.components.AuraButtonPrimary
+import ai.aura.app.ui.components.AuraButtonSecondary
 import ai.aura.app.ui.components.EmptyState
 import ai.aura.app.ui.components.auraFocusRing
 import ai.aura.app.ui.theme.AuraColors
@@ -49,10 +56,7 @@ import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraType
 import java.time.Year
 
-/**
- * Reformar 1 · Escolher o app. Recebe os apps do aparelho alvo por [state] (o motor entrega, esta tela não
- * procura nada). Sem apps ou com erro, mostra UMA ação em [onFix]; protegido (câmera de ré, sistema) nunca seleciona.
- */
+/** Reformar 1 · Escolher um APK ou usar a lista de apps como atalho. */
 @Composable
 fun ReformAppsScreen(
     state: ReformAppsState,
@@ -64,10 +68,30 @@ fun ReformAppsScreen(
     currentYear: Int = Year.now().value,
 ) {
     var chosenId by rememberSaveable(state.selectedId) { mutableStateOf(state.selectedId) }
-    val chosen = state.apps.firstOrNull { it.id == chosenId && it.protectedReason == null }
-        ?: state.apps.firstOrNull { it.protectedReason == null }
+    val chosen = state.apps.firstOrNull { it.id == chosenId } ?: state.apps.firstOrNull()
     val problem = state.problem
     val listing = problem == null && state.apps.isNotEmpty()
+    val context = LocalContext.current
+    var pickerError by rememberSaveable { mutableStateOf<String?>(null) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            // Alguns provedores só concedem acesso temporário; isso não impede a escolha.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val displayName = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+                }
+            }.getOrNull()?.takeIf { it.isNotBlank() }
+            onNext(ReformApp(
+                id = uri.toString(),
+                label = displayName ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "APK escolhido",
+                apkUri = uri.toString(),
+            ))
+        }
+    }
 
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         ReformKit.Header(
@@ -83,9 +107,28 @@ fun ReformAppsScreen(
                 Column {
                     Text("Reformar apps", style = AuraType.TabTitle, modifier = Modifier.semantics { heading() })
                     Text(
-                        "Escolha um app antigo da multimídia. O AURA estuda, refaz a tela e testa.",
+                        "Escolha o APK que você extraiu ou um app da lista. O AURA estuda, refaz a tela e testa.",
                         style = AuraType.Secondary, modifier = Modifier.padding(top = 4.dp),
                     )
+                }
+            }
+            item {
+                Column {
+                    AuraButtonSecondary(
+                        "Escolher APK",
+                        {
+                            pickerError = null
+                            try {
+                                picker.launch(arrayOf("application/vnd.android.package-archive"))
+                            } catch (_: ActivityNotFoundException) {
+                                pickerError = "Seletor de arquivos indisponível. Ative um app de arquivos e toque em Escolher APK novamente."
+                            } catch (_: SecurityException) {
+                                pickerError = "Não foi possível abrir os arquivos. Toque em Escolher APK para tentar de novo."
+                            }
+                        },
+                        Modifier.fillMaxWidth(),
+                    )
+                    pickerError?.let { Text(it, style = AuraType.Secondary, modifier = Modifier.padding(top = 8.dp)) }
                 }
             }
             when {
@@ -102,15 +145,7 @@ fun ReformAppsScreen(
                 else -> {
                     item { DeviceChip("$deviceLabel · ${if (state.apps.size == 1) "1 app" else "${state.apps.size} apps"}") }
                     items(state.apps, key = { it.id }) { app ->
-                        AppCard(app, selected = app.id == chosen?.id, currentYear = currentYear, onSelect = { chosenId = app.id })
-                    }
-                    if (chosen == null) {
-                        item {
-                            Text(
-                                "Todos os apps desta lista são protegidos. Não há nada para reformar aqui.",
-                                style = AuraType.Secondary,
-                            )
-                        }
+                        SelectableCard(app, selected = app.id == chosen?.id, currentYear = currentYear, onSelect = { chosenId = app.id })
                     }
                 }
             }
@@ -135,39 +170,6 @@ private fun DeviceChip(text: String) {
     ) {
         ReformKit.GlyphView(ReformKit.Glyph.Monitor, size = 14.dp)
         Text(text, style = AuraType.SecondarySmall.copy(color = AuraColors.Ink, fontWeight = FontWeight.SemiBold))
-    }
-}
-
-@Composable
-private fun AppCard(app: ReformApp, selected: Boolean, currentYear: Int, onSelect: () -> Unit) {
-    val reason = app.protectedReason
-    if (reason != null) ProtectedCard(app, reason) else SelectableCard(app, selected, currentYear, onSelect)
-}
-
-/** Protegido: sem clique, e o motivo está escrito no cartão (nada de cartão cinza mudo). */
-@Composable
-private fun ProtectedCard(app: ReformApp, reason: String) {
-    val tag = AuraColors.Neutral
-    Row(
-        Modifier.fillMaxWidth().clip(AuraShapes.Card).background(AuraColors.SurfaceSunken)
-            .border(1.dp, AuraColors.Line, AuraShapes.Card).padding(14.dp)
-            .semantics(mergeDescendants = true) { },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        AppIcon(app.kind, tile = AuraColors.Surface, tint = AuraColors.Ink2)
-        Column(Modifier.weight(1f)) {
-            Text(app.label, style = ReformKit.CardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(reason, style = AuraType.SecondarySmall)
-        }
-        Row(
-            Modifier.heightIn(min = 28.dp).clip(AuraShapes.Chip).background(tag.bg).padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            ReformKit.GlyphView(ReformKit.Glyph.Lock, tint = tag.fg, size = 14.dp)
-            Text("Protegido", style = AuraType.Chip.copy(fontSize = 12.sp, color = tag.fg))
-        }
     }
 }
 

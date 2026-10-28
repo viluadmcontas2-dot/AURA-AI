@@ -1,9 +1,17 @@
 package ai.aura.app.ui.screens.reform
 
 import ai.aura.app.ui.theme.AuraTheme
+import android.app.Activity
+import android.content.Intent
+import android.content.ActivityNotFoundException
+import android.net.Uri
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -20,8 +28,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityOptionsCompat
+import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -37,24 +47,7 @@ import org.robolectric.annotation.Config
 class ReformAppsScopeToolsLogicTest {
 
     @Test
-    fun `protegido, idade, potencial, tipo e escopos seguem as regras e nada e inventado sem dado`() {
-        val protegidos = listOf(
-            ReformApp("com.exemplo.cam", "Câmera de ré"),
-            ReformApp("com.syu.camera360", "Visão 360"),
-            ReformApp("com.exemplo.avm", "Panorâmica"),
-            ReformApp("com.exemplo.x", "Marcha à ré"),
-            ReformApp("com.android.settings", "Configurações", system = true),
-        )
-        protegidos.forEach { assertNotNull(it.label, it.protectedReason) }
-        assertEquals("Segurança do carro: o AURA não mexe", protegidos[0].protectedReason)
-        assertEquals("App do sistema: o AURA não mexe", protegidos.last().protectedReason)
-        listOf(
-            ReformApp("com.exemplo.player", "Player de música"),
-            ReformApp("com.exemplo.camada", "Camadas"),
-            ReformApp("com.exemplo.resumo", "Resumo do dia"),
-            ReformApp("com.exemplo.radio", "Rádio FM"),
-        ).forEach { assertNull(it.label, it.protectedReason) }
-
+    fun `idade, potencial, tipo e escopos seguem as regras e nada e inventado sem dado`() {
         assertEquals("Muito antigo", ReformApp("a", "A", year = 2016).ageLabel(2026))
         assertEquals("Antigo", ReformApp("a", "A", year = 2017).ageLabel(2026))
         assertNull(ReformApp("a", "A", year = 2024).ageLabel(2026))
@@ -114,7 +107,7 @@ class ReformAppsScopeToolsLogicTest {
 
 /**
  * As três telas e o fluxo, clicando de verdade na JVM (Robolectric), sem emulador e sem motor.
- * Cobre UI-40 (Apps), UI-41 (Escopo), UI-44 (Ferramentas) e, em parte, FN-15 (só a promessa "instala ao lado, como cópia").
+ * Cobre UI-40 (Apps), UI-41 (Escopo), UI-44 (Ferramentas).
  * A altura é grande de propósito: tudo cabe sem rolar, porque o teste clica e não rola.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -140,7 +133,7 @@ class ReformAppsScopeToolsScreensTest {
     }
 
     @Test
-    fun `apps - lista com dados, primeiro marcado, camera de re trancada, escolher e seguir`() {
+    fun `apps - lista com dados, primeiro marcado, todos selecionaveis, escolher e seguir`() {
         var next: ReformApp? = null
         var back = 0
         compose.setContent {
@@ -159,8 +152,11 @@ class ReformAppsScopeToolsScreensTest {
             .assertTextContains("Potencial de melhoria").assertTextContains("Alto")
         compose.onNodeWithText("Navegador GPS").assertIsNotSelected().assertTextContains("Antigo")
         compose.onNodeWithText("Rádio FM").assertTextContains("Médio")
-        compose.onNodeWithText("Câmera de ré").assertHasNoClickAction()
-            .assertTextContains("Segurança do carro: o AURA não mexe").assertTextContains("Protegido")
+        compose.onNodeWithText("Câmera de ré").assertIsEnabled().performClick()
+        compose.onNodeWithText("Câmera de ré").assertIsSelected()
+        compose.onNodeWithText("Escolher escopo").performClick()
+        assertEquals(rearCamera, next)
+        compose.onNodeWithText("Protegido").assertDoesNotExist()
         assertTapTargetsAtLeast44dp()
 
         compose.onNodeWithText("Navegador GPS").performClick()
@@ -173,19 +169,21 @@ class ReformAppsScopeToolsScreensTest {
     }
 
     @Test
-    fun `apps - vazio, erro e so protegidos mostram o que fazer`() {
+    fun `apps - vazio e erro mostram o que fazer e camera continua selecionavel`() {
         val state = mutableStateOf(ReformAppsState())
         val fixes = mutableListOf<ReformFix>()
         compose.setContent {
             AuraTheme { ReformAppsScreen(state.value, onBack = {}, onNext = {}, onFix = { fixes += it }, currentYear = 2026) }
         }
 
+        compose.onNodeWithText("Escolher APK").assertIsEnabled()
         compose.onNodeWithText("Nenhum app para mostrar").assertExists()
         compose.onNodeWithText("Escolher escopo").assertDoesNotExist()
         assertTapTargetsAtLeast44dp()
         compose.onNodeWithText("Procurar apps").assertIsEnabled().performClick()
 
         compose.runOnIdle { state.value = ReformAppsState(apps = apps, problem = motorOff) }
+        compose.onNodeWithText("Escolher APK").assertIsEnabled()
         compose.onNodeWithText("O motor está desligado").assertExists()
         compose.onNodeWithText("Player de música").assertDoesNotExist()
         compose.onNodeWithText("Escolher escopo").assertDoesNotExist()
@@ -194,12 +192,147 @@ class ReformAppsScopeToolsScreensTest {
         assertEquals(listOf(ReformFix.Search, ReformFix.StartEngine), fixes)
 
         compose.runOnIdle { state.value = ReformAppsState(apps = listOf(rearCamera)) }
-        compose.onNodeWithText("Todos os apps desta lista são protegidos. Não há nada para reformar aqui.").assertExists()
-        compose.onNodeWithText("Escolher escopo").assertIsNotEnabled()
+        compose.onNodeWithText("Todos os apps desta lista são protegidos. Não há nada para reformar aqui.").assertDoesNotExist()
+        compose.onNodeWithText("Câmera de ré").assertIsSelected()
+        compose.onNodeWithText("Escolher escopo").assertIsEnabled()
     }
 
     @Test
-    fun `escopo - recomendado ao abrir, garantias e meta, so comeca com o dono confirmado e entrega o plano`() {
+    fun `apps - camera, visao 360, avm, marcha a re e sistema podem ser escolhidos`() {
+        val candidates = listOf(
+            ReformApp("com.exemplo.cam", "Câmera de ré"),
+            ReformApp("com.syu.camera360", "Visão 360"),
+            ReformApp("com.exemplo.avm", "Panorâmica"),
+            ReformApp("com.exemplo.x", "Marcha à ré"),
+            ReformApp("com.android.settings", "Configurações"),
+        )
+        val state = mutableStateOf(ReformAppsState(apps = listOf(candidates.first())))
+        var next: ReformApp? = null
+        compose.setContent {
+            AuraTheme {
+                ReformAppsScreen(state.value, onBack = {}, onNext = { next = it }, onFix = {})
+            }
+        }
+        candidates.forEach { app ->
+            compose.runOnIdle { state.value = ReformAppsState(apps = listOf(app)); next = null }
+            compose.onNodeWithText(app.label).assertIsEnabled().performClick()
+            compose.onNodeWithText(app.label).assertIsSelected()
+            compose.onNodeWithText("Escolher escopo").assertIsEnabled().performClick()
+            assertEquals(app, next)
+        }
+    }
+
+    @Test
+    fun `apps - seletor indisponivel explica como corrigir e permite tentar novamente`() {
+        val registry = ApkPickerRegistry(ActivityNotFoundException())
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+        var next: ReformApp? = null
+        compose.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+                AuraTheme {
+                    ReformAppsScreen(ReformAppsState(), onBack = {}, onNext = { next = it }, onFix = {})
+                }
+            }
+        }
+        compose.onNodeWithText("Escolher APK").performClick()
+        compose.onNodeWithText(
+            "Seletor de arquivos indisponível. Ative um app de arquivos e toque em Escolher APK novamente.",
+        ).assertExists()
+        compose.onNodeWithText("Escolher APK").assertIsEnabled()
+        assertNull(next)
+        compose.runOnIdle { registry.failure = null }
+        compose.onNodeWithText("Escolher APK").performClick()
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, registry.intent?.action)
+    }
+
+    @Test
+    fun `apps - escolher APK abre documentos com filtro e entrega o arquivo ao escopo`() {
+        val registry = ApkPickerRegistry()
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+        var chosen: ReformApp? = null
+        var plan: ReformPlan? = null
+        val selected = mutableStateOf<ReformApp?>(null)
+        compose.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+                AuraTheme {
+                    if (selected.value == null) {
+                        ReformAppsScreen(
+                            ReformAppsState(problem = motorOff), onBack = {},
+                            onNext = { chosen = it; selected.value = it }, onFix = {},
+                        )
+                    } else {
+                        ReformScopeScreen(selected.value, onBack = {}, onStart = { plan = it })
+                    }
+                }
+            }
+        }
+
+        compose.onNodeWithText("Escolher APK").assertIsEnabled().performClick()
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, registry.intent?.action)
+        assertArrayEquals(
+            arrayOf("application/vnd.android.package-archive"),
+            registry.intent?.getStringArrayExtra(Intent.EXTRA_MIME_TYPES),
+        )
+        assertTrue(registry.intent?.hasCategory(Intent.CATEGORY_OPENABLE) == true)
+        assertNull(chosen)
+
+        val uri = Uri.parse("content://arquivos/document/meu-app.apk")
+        compose.runOnIdle { registry.finish(Activity.RESULT_OK, Intent().setData(uri)) }
+        compose.onNodeWithText("meu-app.apk").assertExists()
+        compose.onNodeWithText(start).assertIsEnabled().performClick()
+        assertEquals(uri.toString(), chosen?.apkUri)
+        assertEquals(uri.toString(), plan?.apkUri)
+        assertEquals("meu-app.apk", plan?.appLabel)
+    }
+
+    @Test
+    fun `apps - cancelar escolha de APK preserva lista e nao avanca`() {
+        val registry = ApkPickerRegistry()
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry: ActivityResultRegistry = registry
+        }
+        var next: ReformApp? = null
+        compose.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
+                AuraTheme {
+                    ReformAppsScreen(ReformAppsState(apps = apps), onBack = {}, onNext = { next = it }, onFix = {})
+                }
+            }
+        }
+        compose.onNodeWithText("Escolher APK").performClick()
+        compose.runOnIdle { registry.finish(Activity.RESULT_CANCELED, null) }
+        assertNull(next)
+        compose.onNodeWithText("Player de música").assertIsSelected()
+        compose.onNodeWithText("Escolher escopo").assertIsEnabled().performClick()
+        assertEquals(player, next)
+    }
+
+    private class ApkPickerRegistry(var failure: RuntimeException? = null) : ActivityResultRegistry() {
+        var intent: Intent? = null
+        private var launchedRequestCode: Int? = null
+
+        override fun <I, O> onLaunch(
+            requestCode: Int,
+            contract: ActivityResultContract<I, O>,
+            input: I,
+            options: ActivityOptionsCompat?,
+        ) {
+            failure?.let { throw it }
+            launchedRequestCode = requestCode
+            intent = contract.createIntent(ApplicationProvider.getApplicationContext(), input)
+        }
+
+        fun finish(resultCode: Int, data: Intent?) {
+            dispatchResult(checkNotNull(launchedRequestCode), resultCode, data)
+        }
+    }
+
+    @Test
+    fun `escopo - recomendado ao abrir, meta e inicio habilitado sem confirmacao entregam o plano`() {
         var plan: ReformPlan? = null
         var back = 0
         compose.setContent { AuraTheme { ReformScopeScreen(gps, onBack = { back++ }, onStart = { plan = it }) } }
@@ -212,15 +345,14 @@ class ReformAppsScopeToolsScreensTest {
         compose.onNodeWithText("Reconstrução completa").assertIsNotSelected()
             .assertTextContains("1 h 30").assertTextContains("Risco maior")
         listOf("O app original não é apagado", "O novo instala ao lado, como cópia", "Voltar ao original com 1 toque")
-            .forEach { compose.onNodeWithText(it).assertExists() }
+            .forEach { compose.onNodeWithText(it).assertDoesNotExist() }
         compose.onNodeWithContentDescription("Meta de 90 por cento").assertExists()
         compose.onNodeWithText("90%").assertExists()
         compose.onNodeWithText("Cerca de 25 min · usa só a sua assinatura").assertExists()
         assertTapTargetsAtLeast44dp()
 
-        compose.onNodeWithText(start).assertIsNotEnabled()
-        compose.onNodeWithText(owner).assertIsOff().performClick()
-        compose.onNodeWithText(owner).assertIsOn()
+        compose.onNodeWithText(start).assertIsEnabled()
+        compose.onNodeWithText(owner).assertDoesNotExist()
         compose.onNodeWithText("Reconstrução completa").performClick()
         compose.onNodeWithText("Reconstrução completa").assertIsSelected()
         compose.onNodeWithText("Visual + fluxos").assertIsNotSelected()
@@ -233,7 +365,7 @@ class ReformAppsScopeToolsScreensTest {
         assertEquals(
             ReformPlan(
                 "com.exemplo.gps", "Navegador GPS", ReformScope.FullRebuild,
-                carMode = false, fidelityTargetPercent = 90, ownerConfirmed = true,
+                carMode = false, fidelityTargetPercent = 90,
             ),
             plan,
         )
@@ -242,10 +374,11 @@ class ReformAppsScopeToolsScreensTest {
     }
 
     @Test
-    fun `escopo - sem app ou com app protegido explica e volta`() {
+    fun `escopo - sem app explica e volta mas camera e app do sistema permitem comecar`() {
         val app = mutableStateOf<ReformApp?>(null)
         var back = 0
-        compose.setContent { AuraTheme { ReformScopeScreen(app.value, onBack = { back++ }, onStart = {}) } }
+        var plan: ReformPlan? = null
+        compose.setContent { AuraTheme { ReformScopeScreen(app.value, onBack = { back++ }, onStart = { plan = it }) } }
 
         compose.onNodeWithText("Nenhum app escolhido").assertExists()
         compose.onNodeWithText(start).assertDoesNotExist()
@@ -253,9 +386,13 @@ class ReformAppsScopeToolsScreensTest {
         compose.onNodeWithText("Escolher app").performClick()
 
         compose.runOnIdle { app.value = rearCamera }
-        compose.onNodeWithText("Este app é protegido").assertExists()
-        compose.onNodeWithText(start).assertDoesNotExist()
-        compose.onNodeWithText("Escolher outro app").performClick()
+        compose.onNodeWithText("Este app é protegido").assertDoesNotExist()
+        compose.onNodeWithText(start).assertIsEnabled().performClick()
+        assertEquals(rearCamera.id, plan?.appId)
+        compose.runOnIdle { app.value = ReformApp("com.android.settings", "Configurações") }
+        compose.onNodeWithText(start).assertIsEnabled().performClick()
+        assertEquals("com.android.settings", plan?.appId)
+        compose.onNodeWithContentDescription("Voltar para a escolha do app").performClick()
         assertEquals(2, back)
     }
 
@@ -372,10 +509,9 @@ class ReformAppsScopeToolsScreensTest {
 
         compose.onNodeWithText("Navegador GPS").performClick()
         compose.onNodeWithText("Escolher escopo").performClick()
-        compose.onNodeWithText(owner).performClick()
         compose.onNodeWithText("Só visual").performClick()
         compose.onNodeWithText(start).performClick()
-        assertEquals(ReformPlan("com.exemplo.gps", "Navegador GPS", ReformScope.VisualOnly, true, 90, true), plan)
+        assertEquals(ReformPlan("com.exemplo.gps", "Navegador GPS", ReformScope.VisualOnly, true, 90), plan)
 
         compose.onNodeWithContentDescription("Voltar para a escolha do app").performClick()
         compose.runOnIdle {

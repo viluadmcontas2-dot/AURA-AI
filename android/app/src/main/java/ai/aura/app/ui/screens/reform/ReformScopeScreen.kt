@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,10 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -52,11 +48,7 @@ import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraType
 import ai.aura.app.ui.theme.StatusColors
 
-/**
- * Reformar 2 · Escopo. Nada começa sem a confirmação explícita de que o app é do usuário ou que ele tem
- * permissão; o plano sai por [onStart] (a tela 3 e o motor são do dono da rota). Sem app ou com app protegido
- * a tela explica e leva de volta com UMA ação.
- */
+/** Reformar 2 · Escopo. Com app ou APK escolhido, entrega o plano por [onStart]. */
 @Composable
 fun ReformScopeScreen(
     app: ReformApp?,
@@ -66,8 +58,6 @@ fun ReformScopeScreen(
 ) {
     var scope by rememberSaveable(app?.id) { mutableStateOf(ReformScope.default) }
     var carMode by rememberSaveable(app?.id) { mutableStateOf(true) }
-    var owner by rememberSaveable(app?.id) { mutableStateOf(false) }
-    val reason = app?.protectedReason
 
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         ReformKit.Header(
@@ -78,23 +68,17 @@ fun ReformScopeScreen(
         when {
             app == null -> Blocked(
                 "Nenhum app escolhido",
-                "Volte e escolha um app antigo da multimídia para definir o escopo.",
+                "Volte e escolha um app ou APK para definir o escopo.",
                 "Escolher app", onBack, glyph = "✦",
-            )
-            reason != null -> Blocked(
-                "Este app é protegido", "$reason. Escolha outro app para reformar.",
-                "Escolher outro app", onBack, glyph = "!",
             )
             else -> {
                 Column(
                     Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    OwnerRow(owner) { owner = it }
                     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ReformScope.entries.forEach { ScopeCard(it, selected = it == scope) { scope = it } }
                     }
-                    Guarantees()
                     CardRow(Modifier.heightIn(min = 56.dp).padding(start = 16.dp, end = 12.dp)) {
                         Text("Modo carro: botões grandes e texto maior", style = ROW_TEXT, modifier = Modifier.weight(1f))
                         AuraSwitch(carMode, { carMode = it }, "Modo carro")
@@ -129,11 +113,11 @@ fun ReformScopeScreen(
                             onStart(
                                 ReformPlan(
                                     appId = app.id, appLabel = app.label, scope = scope, carMode = carMode,
-                                    fidelityTargetPercent = REFORM_FIDELITY_TARGET_PERCENT, ownerConfirmed = owner,
+                                    fidelityTargetPercent = REFORM_FIDELITY_TARGET_PERCENT, apkUri = app.apkUri,
                                 ),
                             )
                         },
-                        Modifier.fillMaxWidth(), enabled = owner, large = true,
+                        Modifier.fillMaxWidth(), large = true,
                     )
                 }
             }
@@ -160,37 +144,6 @@ private fun CardRow(modifier: Modifier = Modifier, content: @Composable androidx
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )
-}
-
-/** A linha inteira é o alvo de toque (44 dp ou mais); a caixa só mostra o estado. */
-@Composable
-private fun OwnerRow(confirmed: Boolean, onChange: (Boolean) -> Unit) {
-    val source = remember { MutableInteractionSource() }
-    val box = RoundedCornerShape(8.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(AuraShapes.Card).background(AuraColors.Surface)
-            .border(1.dp, AuraColors.Line, AuraShapes.Card)
-            .auraFocusRing(source, AuraShapes.Card)
-            .toggleable(
-                value = confirmed, interactionSource = source, indication = null,
-                role = Role.Checkbox, onValueChange = onChange,
-            )
-            .padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier.size(24.dp).clip(box)
-                    .background(if (confirmed) AuraColors.Ink else AuraColors.Surface)
-                    .border(2.dp, if (confirmed) AuraColors.Ink else AuraColors.Ink3, box),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (confirmed) ReformKit.GlyphView(ReformKit.Glyph.Check, tint = Color.White, size = 16.dp, stroke = 2.25f)
-            }
-        }
-        Text("Sou dono do app ou tenho permissão para modificá-lo.", style = ROW_TEXT)
-    }
 }
 
 @Composable
@@ -237,26 +190,6 @@ private fun riskColors(risk: ReformRisk): StatusColors = when (risk) {
     ReformRisk.Low -> AuraColors.Ready
     ReformRisk.Medium -> AuraColors.NeedsYou
     ReformRisk.High -> AuraColors.Risk
-}
-
-@Composable
-private fun Guarantees() {
-    Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("GARANTIAS", style = AuraType.Caption, modifier = Modifier.semantics { heading() })
-        listOf(
-            "O app original não é apagado",
-            "O novo instala ao lado, como cópia",
-            "Voltar ao original com 1 toque",
-        ).forEach {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(
-                    Modifier.size(20.dp).clip(AuraShapes.Circle).background(AuraColors.Ready.bg),
-                    contentAlignment = Alignment.Center,
-                ) { ReformKit.GlyphView(ReformKit.Glyph.Check, tint = AuraColors.Ready.fg, size = 12.dp, stroke = 2.25f) }
-                Text(it, style = AuraType.SecondarySmall.copy(fontSize = 15.sp, lineHeight = 20.sp, color = AuraColors.Ink))
-            }
-        }
-    }
 }
 
 /** Meta, não progresso: barra com marcador no valor; o leitor de tela lê "Meta de 90 por cento". */

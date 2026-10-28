@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -55,7 +54,7 @@ internal object ReformKit {
     /** 17/22, 700: título de linha e de cabeçalho. */
     val CardTitle: TextStyle = AuraType.Section.copy(fontSize = 17.sp, lineHeight = 22.sp)
 
-    enum class Glyph { Back, Check, Lock, Clock, Warning, Monitor, Music, Navigation, Radio, Camera }
+    enum class Glyph { Back, Check, Clock, Warning, Monitor, Music, Navigation, Radio, Camera }
 
     /** Ícone de traço 24x24 (1,75) em Canvas; decorativo, o nome fica no elemento que o contém. */
     @Composable
@@ -92,16 +91,6 @@ internal object ReformKit {
             when (glyph) {
                 Glyph.Back -> poly(15f, 18f, 9f, 12f, 15f, 6f)
                 Glyph.Check -> poly(20f, 6f, 9f, 17f, 4f, 12f)
-                Glyph.Lock -> {
-                    rect(3f, 11f, 18f, 11f, 2f)
-                    val shackle = Path().apply {
-                        moveTo(7f * s, 11f * s)
-                        lineTo(7f * s, 7f * s)
-                        arcTo(Rect(7f * s, 2f * s, 17f * s, 12f * s), 180f, 180f, false)
-                        lineTo(17f * s, 11f * s)
-                    }
-                    drawPath(shackle, tint, style = st)
-                }
                 Glyph.Clock -> { circle(12f, 12f, 10f); poly(12f, 6f, 12f, 12f, 16f, 14f) }
                 Glyph.Warning -> {
                     poly(12f, 3.5f, 21.2f, 19.5f, 2.8f, 19.5f, closed = true)

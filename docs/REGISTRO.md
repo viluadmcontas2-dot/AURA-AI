@@ -98,3 +98,17 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Evidência: arquivos relidos e `git diff --check` sem erros; testes adicionados para retorno/limite do Termux e login com motor indisponível. Isso não comprova compilação nem testes verdes.
 - Bloqueio: sem SDK Android; Gradle não executado por instrução explícita do dono.
 - Próximo item: CI compilar e executar testes; confirmar os três fluxos no aparelho. Nenhum APK gerado ou entregue.
+
+## 2026-10-28 — ReformLedger: contrato local sem travas jurídicas
+- Objetivo: ledger JSONL encadeado com índice SQLite, métricas auditáveis, retomada idempotente e roteamento de modelos, somente stdlib.
+- Estado verificado: lock_scope(apk_path, mode, goal) aceita qualquer APK sem aceite; ferramentas são apenas registradas, sem aprovação especial; custo pago mantém aprovação específica. Resumo vincula métricas ao seq; fidelidade exige test_run_id.
+- Evidência TDD: testes alterados antes da implementação; RED: 17 testes, 6 falhas e 14 erros (assinatura antiga e aceite obrigatório). GREEN: 17 testes do ledger passaram, incluindo adulteração, concorrência, recuperação do índice e 16 combinações de choose_model. Comando: cd engine && python3 -m unittest discover -s tests -p test_reform_ledger.py.
+- Bloqueio: suíte completa executada (166 testes), com 119 erros PermissionError ao criar sockets locais no ambiente restrito; saída em /tmp/aura-engine-tests.log. Sem rede externa, Gradle, APK ou alterações Android nesta tarefa. Branch encontrada: claude/aura-enxuto; sem push por instrução de não usar rede. Cofre Obsidian não disponibilizado no workspace.
+- Próximo item: executar a suíte completa em ambiente que permita sockets locais. A validação completa não está verde.
+
+## 2026-10-28 — Reformar apps sem travas de proteção ou confirmação
+- Objetivo: permitir qualquer app e APK escolhido pelo dono nas telas Apps e Escopo.
+- Estado verificado: removidos bloqueios, confirmação, garantias e ícone de cadeado sem uso; seletor OpenDocument com filtro APK entrega URI ao escopo e ao plano. Modo carro e meta preservados.
+- Evidência: revisão dos arquivos alterados, buscas por símbolos removidos e `git diff --check`; testes ajustados para seleção livre, início sem confirmação, escolha de APK e cancelamento.
+- Bloqueio: ambiente sem SDK; Gradle e testes Android não executados por instrução do dono. A revisão estática não comprova compilação nem testes verdes.
+- Próximo item: CI compilar e executar os testes. Nenhum APK gerado.
