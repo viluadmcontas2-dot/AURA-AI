@@ -146,14 +146,39 @@ class ReformProgressScreensTest {
         compose.onNodeWithText("Checkpoint salvo há 2 min. Se o Android pausar, eu retomo daqui.").assertExists()
 
         compose.onNodeWithContentDescription("Voltar para o escopo").assertWidthIsAtLeast(44.dp).performClick()
-        compose.onNodeWithText("Pausar").assertHeightIsAtLeast(44.dp).performClick()
+        compose.onNodeWithText("Pausar próximas etapas").assertHeightIsAtLeast(44.dp).performClick()
+        compose.onNodeWithText("A etapa já iniciada pode continuar no motor.").assertExists()
         compose.onNodeWithText("Ver bastidores").assertHeightIsAtLeast(44.dp).performClick()
         compose.onNodeWithText("Ver o projeto").assertHeightIsAtLeast(44.dp).performClick()
 
         compose.runOnIdle { p = p.copy(paused = true) }
-        compose.onNodeWithText("Pausar").assertDoesNotExist()
-        compose.onNodeWithText("Retomar").performClick()
+        compose.onNodeWithText("Pausar próximas etapas").assertDoesNotExist()
+        // Pausar só impede etapas novas: o texto não finge que o motor parou.
+        compose.onNodeWithText("Próximas etapas pausadas. A etapa que já começou pode continuar no motor.").assertExists()
+        compose.onNodeWithText("Retomar etapas").performClick()
         assertEquals(listOf("voltar", "pausar", "bastidores", "projeto", "retomar"), cliques)
+    }
+
+    @Test fun `depois da analise o limite atual e dito e o escopo segue no chat sem prometer APK`() {
+        var p by mutableStateOf(rodando().copy(analysisDone = true))
+        compose.setContent {
+            AuraTheme {
+                ReformReversionScreen(
+                    progress = p, nowMillis = AGORA, onBack = on("voltar"), onPause = on("pausar"), onResume = on("retomar"),
+                    onOpenBackstage = on("bastidores"), onOpenProject = on("projeto"), onChooseApp = on("escolher"), onRetry = on("tentar"),
+                    onContinueInChat = on("chat"),
+                )
+            }
+        }
+        compose.onNodeWithText("Análise concluída. A reconstrução ainda não está disponível neste fluxo.").assertIsDisplayed()
+        compose.onNodeWithText("Continuar no chat").assertHeightIsAtLeast(44.dp).performClick()
+        compose.onNodeWithText("Ver o projeto").performClick()
+        assertEquals(listOf("chat", "projeto"), cliques)
+
+        // Etapa travada por falta de decisão sobre instalar: aviso com a ação, sem fingir erro.
+        compose.runOnIdle { p = p.copy(analysisDone = false, blocked = "Faltam as ferramentas de análise. Nada foi instalado; toque em Retomar etapas para ver o pedido.") }
+        compose.onNodeWithText("Faltam as ferramentas de análise. Nada foi instalado; toque em Retomar etapas para ver o pedido.").assertExists()
+        compose.onNodeWithText("Continuar no chat").assertDoesNotExist()
     }
 
     @Test fun `fidelidade sem teste diz ainda nao medida e depois do teste mostra numero e comparador`() {
@@ -166,14 +191,18 @@ class ReformProgressScreensTest {
         compose.setContent {
             AuraTheme {
                 ReformFidelityScreen(
-                    progress = p, details = detalhes, onBack = on("voltar"), onRunTest = on("testar"), onInstall = on("instalar"),
+                    progress = p, details = detalhes, onBack = on("voltar"), onInstall = on("instalar"),
                     onFixDifferences = on("corrigir"), onChooseApp = on("escolher"), onRetry = on("tentar"),
                 )
             }
         }
         compose.onNodeWithText("Ainda não medida").assertIsDisplayed()
+        compose.onNodeWithText("Ainda não foi testado neste aparelho.").assertIsDisplayed()
         compose.onNodeWithText("Instalar ao lado do original").assertDoesNotExist()
-        compose.onNodeWithText("Testar no aparelho").assertHeightIsAtLeast(44.dp).performClick()
+        compose.onNodeWithText("Testar no aparelho").assertDoesNotExist() // "Testar" que só relê o motor não existe mais
+        compose.onNodeWithText("Ver como testar").assertHeightIsAtLeast(44.dp).performClick()
+        compose.onNodeWithText("O AURA ainda não executa esse teste sozinho", substring = true).assertExists()
+        assertEquals(emptyList<String>(), cliques) // explicar o teste não chama o motor nem muda nada
 
         compose.runOnIdle { p = p.copy(fidelityPct = 91) }
         compose.onNodeWithContentDescription("Fidelidade: 91 por cento, medida no teste real no aparelho").assert(faixa(91f))
@@ -187,7 +216,7 @@ class ReformProgressScreensTest {
         compose.onNodeWithText("Lista").assertIsSelected()
         compose.onNodeWithText("Instalar ao lado do original").performClick()
         compose.onNodeWithText("Corrigir diferenças").performClick()
-        assertEquals(listOf("testar", "instalar", "corrigir"), cliques)
+        assertEquals(listOf("instalar", "corrigir"), cliques)
     }
 
     @Test fun `projeto mostra medidores, artefatos e pecas e chama as acoes`() {
@@ -231,7 +260,7 @@ class ReformProgressScreensTest {
                         onOpenBackstage = on("bastidores"), onOpenProject = on("projeto"), onChooseApp = on("escolher"), onRetry = on("tentar"),
                     )
                     1 -> ReformFidelityScreen(
-                        progress = p, details = ReformFidelityDetails(), onBack = on("voltar"), onRunTest = on("testar"),
+                        progress = p, details = ReformFidelityDetails(), onBack = on("voltar"),
                         onInstall = on("instalar"), onFixDifferences = on("corrigir"), onChooseApp = on("escolher"), onRetry = on("tentar"),
                     )
                     else -> ReformProjectScreen(

@@ -1,6 +1,7 @@
 package ai.aura.app.integration
 
 import ai.aura.app.offline.EngineProbe
+import ai.aura.app.offline.NetworkKind
 import ai.aura.app.offline.TermuxPort
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.EngineResult
@@ -34,6 +35,20 @@ class RealTermuxPort(
     override suspend fun pairAndWait() = bridge.pairAndWait()
     override suspend fun runEngine() = bridge.runEngine()
     override suspend fun installEngine() = bridge.installEngine()
+
+    /** Já preparado por este app, ou já pareado (o pareamento só existe com o motor instalado). */
+    override fun engineInstalled() = bridge.engineMarked() || EngineCredentialStore(activity).read() != null
+    override fun markEngineInstalled() = bridge.markEngineInstalled()
+    override fun engineAssetBytes() = bridge.engineAssetBytes()
+    override fun networkKind(): NetworkKind {
+        val cm = activity.getSystemService(android.net.ConnectivityManager::class.java) ?: return NetworkKind.Unknown
+        val caps = runCatching { cm.getNetworkCapabilities(cm.activeNetwork) }.getOrNull() ?: return NetworkKind.Unknown
+        return when {
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> NetworkKind.Wifi
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> NetworkKind.Mobile
+            else -> NetworkKind.Unknown
+        }
+    }
     override suspend fun engineUp(): Boolean {
         val result = gateway.health()
         return result is EngineResult.Ok && result.value.service == "aura-engine"

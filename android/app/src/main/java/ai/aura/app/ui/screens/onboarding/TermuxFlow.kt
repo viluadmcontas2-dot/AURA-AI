@@ -1,9 +1,15 @@
 package ai.aura.app.ui.screens.onboarding
 
+import ai.aura.app.integration.InstallPlan
 import ai.aura.app.offline.EngineLink
 import ai.aura.app.offline.EngineProbe
 import ai.aura.app.offline.TermuxPort
 import ai.aura.app.offline.TermuxResult
+import ai.aura.app.ui.screens.connections.ConsentHandler
+import ai.aura.app.ui.screens.connections.InstallConsentGate
+import ai.aura.app.ui.screens.connections.InstallText
+import ai.aura.app.ui.screens.connections.LocalEnginePlan
+import ai.aura.app.ui.screens.connections.RejectReason
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -25,6 +31,7 @@ enum class Passo(val botao: String?, val motivo: String) {
     PedirPermissao("Permitir acesso ao Termux", "Toque em Permitir acesso ao Termux e autorize o AURA."),
     ColarComando("Copiar comando", "Toque em Copiar comando, abra o Termux, cole e toque em Enter."),
     Incompativel("Abrir Termux", "Este Android usa páginas de 16 KB e o Termux atual não roda aqui. Toque em Abrir Termux para conferir; instale uma versão compatível ou pule por agora."),
+    PrepararMotor("Preparar motor", "Toque em Preparar motor. Antes de instalar qualquer coisa eu peço a sua confirmação."),
     Parear("Conectar Termux", "Toque em Conectar Termux para guardar a autorização no aparelho."),
     IniciarMotor("Iniciar motor", "Toque em Iniciar motor e aguarde a resposta."),
     Pronto(null, "Termux conectado e motor respondendo."),
@@ -35,6 +42,7 @@ fun proximoPasso(state: TermuxSetupState): Passo = when {
     !state.permissionGranted -> Passo.PedirPermissao
     !state.externalAppsAllowed && state.pageSize == 16_384 -> Passo.Incompativel
     !state.externalAppsAllowed -> Passo.ColarComando
+    state.engineInstalled == false && !state.engineUp -> Passo.PrepararMotor
     !state.paired -> Passo.Parear
     !state.engineUp -> Passo.IniciarMotor
     else -> Passo.Pronto
@@ -45,7 +53,14 @@ const val PERMISSION_BLOCKED = "Toque para abrir os ajustes e permitir."
 
 private const val SILENT = "O Termux ou o motor não respondeu. Abra o Termux, confira o comando e a instalação do motor e toque em Tentar de novo."
 
-/** Uma tentativa por vez; nenhuma espera fica sem prazo ou ignora cancelamento. */
+/**
+ * Uma tentativa por vez; nenhuma espera fica sem prazo ou ignora cancelamento.
+ *
+ * Consentimento (docs/FLUXOS_DE_USO.md, seção 7): este fluxo NUNCA instala por conta própria. Se falta preparar
+ * o motor (ou atualizá-lo), ele só propõe um plano em [consent]; a instalação roda dentro de `onAccepted`, depois do
+ * toque em Instalar, com o plano ainda válido e igual ao que a pessoa viu. Voltar do Termux, reabrir o app e
+ * reconectar (resume/refresh) nunca propõem nem instalam: só dizem o que falta.
+ */
 class TermuxFlow(
     private val port: TermuxPort,
     private val link: EngineLink,
@@ -54,6 +69,8 @@ class TermuxFlow(
     private val installLimit: Duration = 10.minutes,
     /** Espera curta antes de perguntar de novo a saúde do motor: lento não é morto. */
     private val healthRetry: Duration = 1.seconds,
+    /** Onde a pessoa decide sobre instalar. O mesmo gate vale para o app inteiro (diálogo no topo). */
+    val consent: InstallConsentGate = InstallConsentGate(),
 ) {
     private val mutable = MutableStateFlow(TermuxSetupState())
     val state = mutable.asStateFlow()
@@ -64,8 +81,11 @@ class TermuxFlow(
     }
 
     fun confirmPasted() = begin(limit + installLimit) {
-        if (localState() && checkProbe(retry = true)) connectAndStart()
+        if (localState() && checkProbe(retry = true)) connectAndStart(initiated = true)
     }
+
+    /** "Preparar motor": o toque da pessoa. Se falta instalar, abre o pedido de confirmação; não instala sozinho. */
+    fun prepareEngine(): Unit = startEngine()
 
     /**
      * Chamado ao voltar do Termux: uma sonda a cada 2 s, por até 60 s. Se o motor já está sendo
@@ -75,7 +95,7 @@ class TermuxFlow(
     fun resume() = begin(limit + installLimit) {
         val answered = withTimeoutOrNull(limit.inWholeMilliseconds) { waitForTermux() }
         if (answered == null) fail(SILENT)
-        else if (answered) connectAndStart()
+        else if (answered) connectAndStart(initiated = false)
     }
 
     private suspend fun waitForTermux(): Boolean {
@@ -98,7 +118,7 @@ class TermuxFlow(
     fun startEngine() = begin(limit + installLimit) {
         if (localState()) {
             link.starting()
-            if (ensureEngine() && ensurePaired()) bounded { waitForEngine() }
+            if (ensureEngine(initiated = true) && ensurePaired()) bounded { waitForEngine() }
         }
     }
 
@@ -132,7 +152,7 @@ class TermuxFlow(
         val installed = port.installed()
         val permission = port.hasPermission()
         mutable.value = mutable.value.copy(termuxFound = installed, permissionGranted = permission,
-            paired = port.isPaired(), pageSize = port.pageSize())
+            paired = port.isPaired(), pageSize = port.pageSize(), engineInstalled = port.engineInstalled())
         if (!installed || !permission) {
             mutable.value = mutable.value.copy(externalAppsAllowed = false, engineUp = false)
             // Depois de duas recusas o Android não pergunta mais: o botão passa a abrir os ajustes do app.
@@ -155,8 +175,8 @@ class TermuxFlow(
         return result == TermuxResult.Ok
     }
 
-    private suspend fun connectAndStart() {
-        if (!ensureEngine() || !ensurePaired()) return
+    private suspend fun connectAndStart(initiated: Boolean) {
+        if (!ensureEngine(initiated) || !ensurePaired()) return
         bounded { waitForEngine() }
     }
 
@@ -171,13 +191,15 @@ class TermuxFlow(
     }
 
     /**
-     * Põe o motor embutido no Termux antes de parear ou ligar; sem isso `python -m aura_engine` não acha nada.
+     * Garante que o motor certo está no Termux SEM instalar nada por conta própria:
      * - motor vivo e da mesma versão do APK: não mexe;
-     * - motor vivo mas sem engine_build (velho) ou com outro: para, reinstala (o fluxo religa);
+     * - motor vivo mas sem engine_build (velho) ou com outro: atualizar é outro pedido de confirmação;
      * - motor vivo que recusa o token (401): token divergente, apaga a credencial e refaz o pareamento;
-     * - sem resposta: pergunta duas vezes (lento não é morto) antes de instalar.
+     * - sem resposta: pergunta duas vezes (lento não é morto); se o app já preparou o motor, só liga (sem instalar);
+     *   se nunca preparou, falta a confirmação da pessoa.
+     * Devolve true quando dá para seguir (parear/ligar); false quando falta a decisão de instalar.
      */
-    private suspend fun ensureEngine(): Boolean {
+    private suspend fun ensureEngine(initiated: Boolean): Boolean {
         var probe = port.engineProbe()
         if (probe == EngineProbe.Down) {
             delay(healthRetry)
@@ -192,12 +214,67 @@ class TermuxFlow(
             is EngineProbe.Up -> {
                 val expected = port.expectedEngineBuild()
                 if (expected == null || probe.build == expected) return true
-                mutable.value = mutable.value.copy(engineUp = false, notice = "Atualizando o motor no Termux. Pode levar alguns minutos.")
-                port.stopEngine()
+                // Atualizar é outro pedido. Sem a pessoa pedir, o motor que está no ar continua servindo.
+                mutable.value = mutable.value.copy(updateAvailable = true)
+                return if (initiated) requestInstall(update = true, initiated = true) else true
             }
-            EngineProbe.Down -> Unit
+            EngineProbe.Down -> if (port.engineInstalled()) return true
         }
-        return installEngine()
+        return requestInstall(update = false, initiated = initiated)
+    }
+
+    private fun localPlan(update: Boolean): InstallPlan =
+        LocalEnginePlan.build(update, port.engineAssetBytes(), port.networkKind(), consent.now())
+
+    /** Propõe o plano (se foi a pessoa que tocou) e para aqui. Nunca baixa nem instala. */
+    private fun requestInstall(update: Boolean, initiated: Boolean): Boolean {
+        mutable.value = mutable.value.copy(awaitingConsent = true, engineInstalled = update)
+        if (update) {
+            // O motor atual segue no ar: pedir a atualização não derruba a conexão.
+            link.online()
+            consent.propose(localPlan(true), consentHandler(true))
+            mutable.value = mutable.value.copy(notice = "Falta a sua decisão para atualizar. Nada será alterado antes disso.")
+            return false
+        }
+        mutable.value = mutable.value.copy(engineUp = false)
+        if (!initiated) {
+            fail("Falta preparar o assistente. Toque em Preparar motor; nada é instalado sem a sua confirmação.")
+            return false
+        }
+        consent.propose(localPlan(false), consentHandler(false))
+        fail("Falta a sua decisão para continuar. Nada será instalado antes disso.")
+        return false
+    }
+
+    /** "Atualizar motor": a pessoa pede; abre o pedido de confirmação. Não troca nada antes do aceite. */
+    fun updateEngine(): Unit = begin(limit) {
+        if (localState()) requestInstall(update = true, initiated = true)
+    }
+
+    private fun consentHandler(update: Boolean): ConsentHandler = object : ConsentHandler {
+        override fun onAccepted(plan: InstallPlan) = installAccepted(plan, update)
+
+        override fun onDeclined(plan: InstallPlan) {
+            mutable.value = mutable.value.copy(awaitingConsent = false, notice = InstallText.DECLINED)
+        }
+
+        override fun onRejected(plan: InstallPlan, reason: RejectReason) {
+            mutable.value = mutable.value.copy(awaitingConsent = false, notice = InstallText.rejected(reason))
+        }
+    }
+
+    /** Roda DEPOIS do aceite. Se o plano de agora não é igual ao aceito, não instala: propõe de novo. */
+    private fun installAccepted(accepted: InstallPlan, update: Boolean): Unit = begin(limit + installLimit) {
+        val current = localPlan(update)
+        if (current.manifestHash != accepted.manifestHash) {
+            consent.propose(current, consentHandler(update))
+            fail("O que seria instalado mudou. Confira o pedido novo; nada foi instalado.")
+            return@begin
+        }
+        mutable.value = mutable.value.copy(awaitingConsent = false, updateAvailable = false)
+        link.starting()
+        if (update) port.stopEngine()
+        if (installEngine() && ensurePaired()) bounded { waitForEngine() }
     }
 
     private suspend fun installEngine(): Boolean {
@@ -208,7 +285,8 @@ class TermuxFlow(
             mutable.value = mutable.value.copy(installing = false)
         }
         if (result == TermuxResult.Ok) {
-            mutable.value = mutable.value.copy(notice = null)
+            port.markEngineInstalled()
+            mutable.value = mutable.value.copy(notice = null, engineInstalled = true)
             return true
         }
         fail("Não foi possível instalar o motor no Termux. Confira a internet e toque em Tentar de novo.")

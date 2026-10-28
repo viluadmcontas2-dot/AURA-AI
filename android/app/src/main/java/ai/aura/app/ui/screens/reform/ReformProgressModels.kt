@@ -31,6 +31,10 @@ data class ReformProgress(
     val checkpointAtMillis: Long? = null,
     val paused: Boolean = false,
     val error: String? = null,
+    /** A análise terminou (cobertura medida). A reconstrução ainda não existe neste fluxo: a tela diz isso. */
+    val analysisDone: Boolean = false,
+    /** Algo impede a próxima etapa sem ser erro (ex.: falta decidir sobre instalar). Texto com a ação. */
+    val blocked: String? = null,
 )
 
 private fun Map<String, String>.text(key: String): String? =

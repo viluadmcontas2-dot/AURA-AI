@@ -83,6 +83,8 @@ import ai.aura.app.ui.screens.onboarding.AccountState
 import ai.aura.app.ui.screens.onboarding.OnboardingFlow
 import ai.aura.app.ui.screens.settings.AccountsPromptSlot
 import ai.aura.app.ui.screens.settings.rememberAccountsAuth
+import ai.aura.app.ui.screens.connections.InstallConsentHost
+import ai.aura.app.ui.screens.connections.LocalInstallConsent
 import ai.aura.app.ui.screens.onboarding.LocalTermuxFlow
 import ai.aura.app.ui.screens.onboarding.TermuxSetupState
 import ai.aura.app.ui.screens.onboarding.termuxSetupFrom
@@ -216,6 +218,8 @@ fun AuraApp(
                 AuraBottomBar(route.tab, onSelect = env.openTab)
             }
         }
+        // Consentimento de instalação (C4): o pedido "Instalar programas necessários?" aparece em qualquer tela.
+        LocalInstallConsent.current?.let { gate -> InstallConsentHost(gate) }
     }
 }
 

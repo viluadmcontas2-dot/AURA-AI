@@ -7,6 +7,9 @@ import ai.aura.app.integration.ReformDownloadNotice
 import ai.aura.app.integration.sharedApkName
 import ai.aura.app.offline.EngineUnreachableException
 import ai.aura.app.offline.OfflineReason
+import ai.aura.app.ui.screens.connections.FakeSetupGateway
+import ai.aura.app.ui.screens.connections.InstallConsentGate
+import ai.aura.app.ui.screens.connections.fakePlan
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -220,6 +223,88 @@ class ReformControllerTest {
         val c = controller()
         c.continueReform(); scope.runCurrent()
         assertTrue(gateway.calls.contains("step:a1b2c3d4e5f6:inventory"))
+    }
+
+    // ---------- Ferramentas pedem consentimento (C4) ----------
+
+    private val setup = FakeSetupGateway()
+    private val gate = InstallConsentGate { 1_000L }
+    private fun controllerComConsentimento() = ReformController(
+        gateway, sharer, store, scope, beforeInstall = { networkFlushes++ }, clockLabel = { "10:00" },
+        setup = setup, consent = gate, installPollMillis = 1_000,
+    )
+    private val semAceite = AuraEngineException(403, "Falta a sua decisão.", "consent_required")
+
+    @Test
+    fun `o passo tools recusado por falta de consentimento abre o pedido e nao instala nada`() {
+        store.reformId = "a1b2c3d4e5f6"
+        var consentido = false
+        gateway.onStep = { if (consentido) FakeReformGateway.ready("tools") else throw semAceite }
+        val c = controllerComConsentimento()
+        c.installTools(); scope.runCurrent()
+
+        assertEquals(listOf(Triple("reform_tools", null, null)), setup.created)
+        assertEquals(emptyList<String>(), setup.decisions)          // zero instalação antes do aceite
+        assertEquals("plan-1", gate.pending.value!!.plan.planId)
+        assertTrue(c.tools.value.waitMessage!!.contains("Nada foi baixado"))
+        assertNull(c.tools.value.problem)
+        assertEquals(1, gateway.calls.count { it.startsWith("step:") })
+
+        consentido = true // o motor passa a aceitar depois que a pessoa aceita o plano
+        val plano = gate.pending.value!!.plan
+        gate.accept(plano.planId, plano.manifestHash); scope.runCurrent()
+        assertEquals(listOf("plan-1:install:sha256:h1"), setup.decisions)
+        assertTrue(c.tools.value.rows.all { it.status == ReformToolStatus.Ready })
+        assertEquals(2, gateway.calls.count { it.startsWith("step:") }) // só repete o passo depois do aceite
+    }
+
+    @Test
+    fun `recusar mantem o escopo e as telas e nada e instalado`() {
+        store.reformId = "a1b2c3d4e5f6"
+        gateway.onStep = { throw semAceite }
+        gateway.onSummary = { FakeReformGateway.summary(stepsDone = emptyList()) }
+        val c = controllerComConsentimento()
+        c.continueReform(); scope.runCurrent()
+        assertTrue(c.progress.value.blocked!!.contains("Nada foi instalado"))
+        gate.decline("plan-1"); scope.runCurrent()
+
+        assertEquals("a1b2c3d4e5f6", store.reformId)               // o escopo continua guardado
+        assertEquals(emptyList<String>(), setup.decisions)
+        assertEquals("Nada foi instalado", c.tools.value.problem!!.title)
+        assertNull(c.progress.value.error)                          // não é erro: a pessoa decidiu
+        assertTrue(c.hasReform)
+    }
+
+    @Test
+    fun `sem reforma ainda, Instalar o que falta pede o plano direto e nunca vira pedido ao chat`() {
+        val c = controllerComConsentimento()
+        assertTrue(c.installTools()); scope.runCurrent()
+        assertEquals(listOf(Triple("reform_tools", null, null)), setup.created)
+        assertEquals(emptyList<String>(), setup.decisions)
+        assertTrue(gateway.calls.isEmpty())
+        val plano = gate.pending.value!!.plan
+        gate.accept(plano.planId, plano.manifestHash); scope.runCurrent()
+        assertEquals(1, setup.decisions.size)
+        assertTrue(c.tools.value.rows.all { it.status == ReformToolStatus.Ready })
+    }
+
+    @Test
+    fun `consultar o progresso nunca executa verificacao`() {
+        store.reformId = "a1b2c3d4e5f6"
+        val c = controllerComConsentimento()
+        repeat(3) { c.refreshProgress(); scope.runCurrent() }
+        assertTrue(gateway.calls.all { it.startsWith("summary:") })
+        assertTrue(gateway.calls.none { it.startsWith("verify:") })
+    }
+
+    @Test
+    fun `analise concluida diz o limite atual e nao promete APK`() {
+        store.reformId = "a1b2c3d4e5f6"
+        gateway.onSummary = { FakeReformGateway.summary(stepsDone = listOf("tools", "inventory", "coverage")) }
+        val c = controllerComConsentimento()
+        c.refreshProgress(); scope.runCurrent()
+        assertTrue(c.progress.value.analysisDone)
+        assertNull(c.progress.value.fidelityPct)
     }
 
     @Test

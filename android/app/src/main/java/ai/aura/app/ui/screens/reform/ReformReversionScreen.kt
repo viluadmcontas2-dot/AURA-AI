@@ -51,6 +51,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Limite atual do fluxo: a análise termina, a reconstrução ainda não existe aqui. Sem promessa de APK. */
+internal const val REFORM_ANALYSIS_LIMIT = "Análise concluída. A reconstrução ainda não está disponível neste fluxo."
+
 /** Dito quando o motor não manda o dado: a tela nunca preenche com número inventado. */
 internal const val REFORM_PROGRESS_NOT_REPORTED = "O motor ainda não informa"
 
@@ -118,6 +121,8 @@ fun ReformReversionScreen(
     onChooseApp: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Limite atual: depois da análise a reconstrução ainda não roda aqui; o resto segue no chat. */
+    onContinueInChat: () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize()) {
         ReformProgressHeader(
@@ -169,17 +174,38 @@ fun ReformReversionScreen(
             Text(
                 when {
                     ago == null -> if (progress.paused) "Pausada. O motor ainda não informa o checkpoint." else "Checkpoint: o motor ainda não informa."
-                    progress.paused -> "Pausada. Checkpoint salvo $ago. Toque em Retomar para continuar daqui."
+                    progress.paused -> "Pausada. Checkpoint salvo $ago. Toque em Retomar etapas para continuar daqui."
                     else -> "Checkpoint salvo $ago. Se o Android pausar, eu retomo daqui."
                 },
                 style = AuraType.SecondarySmall.copy(fontWeight = FontWeight.SemiBold, color = AuraColors.Info.fg),
                 modifier = Modifier.fillMaxWidth().clip(AuraShapes.Chip).background(AuraColors.Info.bg).padding(horizontal = 12.dp, vertical = 10.dp),
             )
-            AuraButtonPrimary("Ver o projeto", onOpenProject, Modifier.fillMaxWidth(), large = true)
+            progress.blocked?.let { blocked ->
+                Text(
+                    blocked, style = AuraType.SecondarySmall.copy(fontWeight = FontWeight.SemiBold, color = AuraColors.NeedsYou.fg),
+                    modifier = Modifier.fillMaxWidth().clip(AuraShapes.Chip).background(AuraColors.NeedsYou.bg).padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
+            if (progress.analysisDone) {
+                Text(
+                    REFORM_ANALYSIS_LIMIT, style = AuraType.SecondarySmall.copy(fontWeight = FontWeight.SemiBold, color = AuraColors.Info.fg),
+                    modifier = Modifier.fillMaxWidth().clip(AuraShapes.Chip).background(AuraColors.Info.bg).padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+                AuraButtonPrimary("Continuar no chat", onContinueInChat, Modifier.fillMaxWidth(), large = true)
+                AuraButtonSecondary("Ver o projeto", onOpenProject, Modifier.fillMaxWidth())
+            } else {
+                AuraButtonPrimary("Ver o projeto", onOpenProject, Modifier.fillMaxWidth(), large = true)
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                if (progress.paused) AuraButtonSecondary("Retomar", onResume) else AuraButtonSecondary("Pausar", onPause)
+                if (progress.paused) AuraButtonSecondary("Retomar etapas", onResume) else AuraButtonSecondary("Pausar próximas etapas", onPause)
                 if (onOpenBackstage != null) AuraButtonText("Ver bastidores", onOpenBackstage)
             }
+            // Pausar só impede NOVAS etapas: a que já começou pode seguir no motor. Nunca se declara parada sem confirmação.
+            Text(
+                if (progress.paused) "Próximas etapas pausadas. A etapa que já começou pode continuar no motor."
+                else "A etapa já iniciada pode continuar no motor.",
+                style = AuraType.SecondarySmall,
+            )
         }
     }
 }

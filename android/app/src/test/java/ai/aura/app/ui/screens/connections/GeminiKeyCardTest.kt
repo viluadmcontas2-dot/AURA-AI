@@ -74,6 +74,8 @@ class GeminiKeyCardTest {
                 ConnectionsScreen(gw, LinkState.Online, onEngineAction = {}, onOpenUrl = {}, onBack = {}, authPollMillis = 50)
             }
         }
+        // "Melhorar pedidos" é opcional e fica recolhido até a pessoa abrir.
+        rule.onNodeWithText("Melhorar pedidos (opcional)").performScrollTo().performClick()
     }
 
     private fun has(text: String, substring: Boolean = false) =
