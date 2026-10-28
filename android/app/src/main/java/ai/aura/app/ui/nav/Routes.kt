@@ -98,11 +98,38 @@ val ROUTES: List<Route> = listOf(
         DevicesScreen(env.gateway, Modifier.fillMaxSize())
     },
     Route("dispositivo-detalhe", "Dispositivo-Detalhe", AuraTab.Devices, true, listOf("reformar-apps")),
-    Route("reformar-apps", "Reformar-1-Apps", AuraTab.Devices, true, listOf("reformar-escopo")),
-    Route("reformar-escopo", "Reformar-2-Escopo", AuraTab.Devices, true, listOf("reformar-reversao")),
+    Route("reformar-apps", "Reformar-1-Apps", AuraTab.Devices, true, listOf("reformar-escopo", "reformar-ferramentas")) { env ->
+        // Sem lista de apps vinda do motor ainda: abre vazio e "Procurar apps" leva às ferramentas (o adb vem delas).
+        // Pendente no shell: sem argumento entre rotas, o app escolhido ainda não chega ao Escopo.
+        ai.aura.app.ui.screens.reform.ReformAppsScreen(
+            ai.aura.app.ui.screens.reform.ReformAppsState(), env.back,
+            onNext = { env.open("reformar-escopo") },
+            onFix = { env.open("reformar-ferramentas") },
+            modifier = Modifier.fillMaxSize(),
+        )
+    },
+    Route("reformar-escopo", "Reformar-2-Escopo", AuraTab.Devices, true, listOf("reformar-reversao")) { env ->
+        // Sem app escolhido (nota da tela 1): abre explicando e volta à escolha. O plano segue para a Reversão (tela 3).
+        ai.aura.app.ui.screens.reform.ReformScopeScreen(
+            null, env.back, onStart = { env.open("reformar-reversao") }, modifier = Modifier.fillMaxSize(),
+        )
+    },
     Route("reformar-reversao", "Reformar-3-Reversao", AuraTab.Devices, true, listOf("reformar-fidelidade", "reformar-projeto", "bastidores")),
     Route("reformar-fidelidade", "Reformar-4-Fidelidade", AuraTab.Devices, true, listOf("reformar-projeto")),
-    Route("reformar-ferramentas", "Reformar-5-Ferramentas", AuraTab.Devices, true, listOf("reformar-projeto")),
+    Route("reformar-ferramentas", "Reformar-5-Ferramentas", AuraTab.Devices, true, listOf("reformar-projeto")) { env ->
+        // Sem estado das ferramentas vindo do motor ainda: as seis aparecem "Não verificado". Instalar vira um pedido no
+        // chat (acrescentado ao rascunho, sem apagar o que o usuário digitou) até o motor entregar ação e progresso.
+        val pedir = {
+            val pedido = "Instalar as ferramentas da reforma de apps que faltam no Termux"
+            env.onDraftChange(if (env.draft.isBlank()) pedido else env.draft + "\n" + pedido)
+            env.openTab(AuraTab.Home)
+        }
+        ai.aura.app.ui.screens.reform.ReformToolsScreen(
+            ai.aura.app.ui.screens.reform.ReformToolsState(), env.back,
+            onInstall = pedir, onResume = pedir, onFix = { pedir() },
+            modifier = Modifier.fillMaxSize(),
+        )
+    },
     Route("reformar-projeto", "Reformar-6-Projeto", AuraTab.Devices, true, listOf("reformar-ferramentas")),
 
     Route("atividade", "Atividade", AuraTab.Activity, true, listOf("chat-aprovacao", "intercorrencias", "vazios")) { env ->
