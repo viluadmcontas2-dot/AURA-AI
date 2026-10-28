@@ -21,6 +21,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
+        self.db.execute("PRAGMA secure_delete=ON")  # esquecer zera o texto nas paginas, nao so some da lista
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS jobs(
                 id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
@@ -221,15 +222,24 @@ class Store:
 
     def forget(self, memory_id):
         """Esquece uma lembranca pelo id. False se nao existe (ja esquecida ou id errado)."""
-        with self.lock, self.db:
-            return self.db.execute("DELETE FROM memory WHERE id=?", (memory_id,)).rowcount > 0
+        with self.lock:
+            with self.db:
+                gone = self.db.execute("DELETE FROM memory WHERE id=?", (memory_id,)).rowcount
+            if gone:  # o log -wal ainda guarda as paginas antigas: o checkpoint as leva ao arquivo e o esvazia
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            return gone > 0
 
     def forget_all(self, workspace=None):
         """Esquece tudo (de um workspace, se informado). Devolve quantas lembrancas sairam."""
-        with self.lock, self.db:
-            if workspace is None:
-                return self.db.execute("DELETE FROM memory").rowcount
-            return self.db.execute("DELETE FROM memory WHERE workspace=?", (workspace,)).rowcount
+        with self.lock:
+            with self.db:
+                if workspace is None:
+                    gone = self.db.execute("DELETE FROM memory").rowcount
+                else:
+                    gone = self.db.execute("DELETE FROM memory WHERE workspace=?", (workspace,)).rowcount
+            if gone:
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            return gone
 
     def usage(self):
         """Summarise reported tokens only; never fabricate monetary costs."""
