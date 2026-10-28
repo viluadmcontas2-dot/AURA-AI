@@ -10,7 +10,7 @@ import java.nio.file.StandardCopyOption
  * Guarda um JSON por nome na pasta [dir] (`<nome>.json`). Feito para dados pequenos: ler e gravar
  * são síncronos, na thread de quem chama.
  *
- * A gravação é atômica: escreve em `<nome>.json.tmp`, força para o disco e só então troca o arquivo
+ * A gravação é atômica: escreve em `<nome>.json.<n>.tmp` (nome único por gravação), força para o disco e só então troca o arquivo
  * de verdade. Se o app morrer no meio, sobra um `.tmp` que a leitura ignora e a próxima gravação
  * sobrescreve; o último valor bom continua lá. Arquivo corrompido lê como `null`, nunca lança.
  *
@@ -30,15 +30,30 @@ class LocalStore(private val dir: File) {
 
     fun write(name: String, value: JSONObject) {
         val file = fileOf(name)
-        // Um cadeado só para o processo: duas gravações do mesmo nome não misturam o temporário.
+        val bytes = value.toString().toByteArray(Charsets.UTF_8)
+        // Um cadeado só para o processo: duas gravações do mesmo nome não se atropelam. Cada gravação usa
+        // um temporário de nome próprio, então nada compartilha o mesmo `.tmp`. Se a pasta sumir no meio
+        // (limpeza do sistema), recria e tenta mais uma vez.
         synchronized(lock) {
-            dir.mkdirs()
-            val tmp = File(dir, file.name + ".tmp")
+            try {
+                writeAtomic(file, bytes)
+            } catch (_: java.nio.file.NoSuchFileException) {
+                writeAtomic(file, bytes)
+            }
+        }
+    }
+
+    private fun writeAtomic(file: File, bytes: ByteArray) {
+        dir.mkdirs()
+        val tmp = File(dir, "${file.name}.${System.nanoTime()}.tmp")
+        try {
             FileOutputStream(tmp).use { out ->
-                out.write(value.toString().toByteArray(Charsets.UTF_8))
+                out.write(bytes)
                 out.fd.sync()
             }
             Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            tmp.delete() // depois do move já não existe; se algo falhou, não deixa lixo
         }
     }
 
@@ -47,7 +62,7 @@ class LocalStore(private val dir: File) {
         val file = fileOf(name)
         synchronized(lock) {
             file.delete()
-            File(dir, file.name + ".tmp").delete()
+            dir.listFiles { f -> f.name.startsWith(file.name + ".") && f.name.endsWith(".tmp") }?.forEach { it.delete() }
         }
     }
 
