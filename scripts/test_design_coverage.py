@@ -151,6 +151,12 @@ class DesignCoverageGateTest(unittest.TestCase):
         self.assertRegex(upload_block, r"(?m)^\s*if: false(?:\s*#.*)?$")
 
 
+    def test_design_coverage_runs_for_android_only_changes(self):
+        """An Android-only PR must exercise the design gate on that exact SHA."""
+        workflow = (ROOT / ".github/workflows/design-coverage.yml").read_text(encoding="utf-8")
+        self.assertGreaterEqual(workflow.count('"android/**"'), 2,
+                                "push and pull_request must both include android/**")
+
     def test_normal_accepts_task_column_from_pr2(self):
         """A matriz de execucao do PR #2 acrescenta Tarefa sem alterar o gate."""
         with tempfile.TemporaryDirectory() as td:
