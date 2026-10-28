@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "android/**"
+      - "engine/**"
       - ".github/workflows/android-ci.yml"
       - "AGENTS.md"
       - "README.md"
@@ -15,9 +16,11 @@ on:
       - "docs/design/**"
       - "docs/superpowers/plans/**"
       - "scripts/check_design_coverage.py"
+      - "scripts/test_design_coverage.py"
   pull_request:
     paths:
       - "android/**"
+      - "engine/**"
       - ".github/workflows/android-ci.yml"
       - "AGENTS.md"
       - "README.md"
@@ -30,6 +33,7 @@ on:
       - "docs/design/**"
       - "docs/superpowers/plans/**"
       - "scripts/check_design_coverage.py"
+      - "scripts/test_design_coverage.py"
 permissions:
   contents: read
 jobs:
@@ -61,8 +65,19 @@ jobs:
           path: android/app/build/test-results/testDebugUnitTest/**/*.xml
           if-no-files-found: ignore
           retention-days: 7
+      - name: Check release readiness without hiding missing evidence
+        id: release_coverage
+        run: |
+          if python3 scripts/check_design_coverage.py --release; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release nao aprovado. APK debug permitido apenas para testes internos."
+          fi
       - name: Upload debug APK for remote installation
-        if: success()
+        # Falha fechada: checker valida estrutura, nao autenticidade de provas fisicas.
+        # Nao publicar APK antes de 66/66, validacao real e aceite independente.
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: aura-ai-debug-apk

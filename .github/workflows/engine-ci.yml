@@ -1,9 +1,9 @@
 name: Engine contract CI
 on:
   push:
-    paths: ["engine/**", ".github/workflows/engine-ci.yml", "AGENTS.md", "README.md", "docs/ENGINE_CONTRACT.md", "docs/CONSTRAINTS.md", "docs/ENGINE_IMPLEMENTATION_STATE.md", "docs/TRACEABILITY.md", "docs/MATRIZ_DE_TESTES.md", "docs/superpowers/plans/**"]
+    paths: ["android/**", "docs/design/**", ".github/workflows/android-ci.yml", "scripts/check_design_coverage.py", "scripts/test_design_coverage.py", "engine/**", ".github/workflows/engine-ci.yml", "AGENTS.md", "README.md", "docs/ENGINE_CONTRACT.md", "docs/CONSTRAINTS.md", "docs/ENGINE_IMPLEMENTATION_STATE.md", "docs/TRACEABILITY.md", "docs/MATRIZ_DE_TESTES.md", "docs/superpowers/plans/**"]
   pull_request:
-    paths: ["engine/**", ".github/workflows/engine-ci.yml", "AGENTS.md", "README.md", "docs/ENGINE_CONTRACT.md", "docs/CONSTRAINTS.md", "docs/ENGINE_IMPLEMENTATION_STATE.md", "docs/TRACEABILITY.md", "docs/MATRIZ_DE_TESTES.md", "docs/superpowers/plans/**"]
+    paths: ["android/**", "docs/design/**", ".github/workflows/android-ci.yml", "scripts/check_design_coverage.py", "scripts/test_design_coverage.py", "engine/**", ".github/workflows/engine-ci.yml", "AGENTS.md", "README.md", "docs/ENGINE_CONTRACT.md", "docs/CONSTRAINTS.md", "docs/ENGINE_IMPLEMENTATION_STATE.md", "docs/TRACEABILITY.md", "docs/MATRIZ_DE_TESTES.md", "docs/superpowers/plans/**"]
 permissions:
   contents: read
 jobs:
