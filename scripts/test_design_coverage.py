@@ -139,8 +139,8 @@ class DesignCoverageGateTest(unittest.TestCase):
                            "scripts/check_design_coverage.py", "scripts/test_design_coverage.py"):
             self.assertGreaterEqual(workflow.count('"' + dependency + '"'), 2, dependency)
 
-    def test_debug_apk_upload_remains_disabled_until_independent_physical_acceptance(self):
-        """A synthetic 66/66 matrix can pass structure checks without real device proof."""
+    def test_debug_apk_is_available_for_internal_testing_only(self):
+        """Debug artifact is not a release and must retain independent coverage reporting."""
         workflow = ANDROID_CI.read_text(encoding="utf-8")
         gate = "python3 scripts/check_design_coverage.py --release"
         upload = "- name: Upload debug APK"
@@ -148,7 +148,7 @@ class DesignCoverageGateTest(unittest.TestCase):
         self.assertIn(upload, workflow)
         self.assertLess(workflow.index(gate), workflow.index(upload))
         upload_block = workflow.split(upload, 1)[1].split("\n      - name:", 1)[0]
-        self.assertRegex(upload_block, r"(?m)^\s*if: false(?:\s*#.*)?$")
+        self.assertRegex(upload_block, r"(?m)^\s*if: success()\s*$")
 
 
     def test_design_coverage_runs_for_android_only_changes(self):
