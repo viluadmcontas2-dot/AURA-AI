@@ -135,7 +135,7 @@ class RealEngineE2ETest {
 
     @Test
     fun tarefa_shell_pede_aprovacao_e_roda_de_verdade() = runBlocking {
-        val created = client.submit(echo("aura-e2e-ok"))
+        val created = client.submit(echo("aura-e2e-ok"), "e2e-" + System.nanoTime())
         val id = created.getString("id")
         // Política padrão (autônomo): shell é crítico e espera o dono aprovar.
         assertEquals("awaiting_approval", created.getString("status"))
@@ -181,7 +181,7 @@ class RealEngineE2ETest {
         assertTrue(File(home, ".aura/engine/policy.json").exists())
 
         // Efeito real: no modo total o shell roda sem pedir aprovação.
-        val job = client.submit(echo("sem-pergunta"))
+        val job = client.submit(echo("sem-pergunta"), "e2e-" + System.nanoTime())
         assertNotEquals("awaiting_approval", job.getString("status"))
 
         // Valor fora do contrato é recusado e nada é gravado.
