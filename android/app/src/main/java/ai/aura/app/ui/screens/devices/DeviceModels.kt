@@ -13,6 +13,9 @@ enum class ConnectionState(val label: String, val kind: StatusKind) {
     NeedsLogin("Precisa de login", StatusKind.NeedsYou),
     NotInstalled("Não instalado", StatusKind.Neutral),
     Offline("Offline", StatusKind.Risk),
+
+    /** O motor não respondeu: o estado de agora é desconhecido. Nunca se mostra o "Conectado" de uma vez que já passou. */
+    Unknown("Estado desconhecido", StatusKind.Neutral),
 }
 
 enum class DeviceGroup { ThisPhone, Device, Tool }
@@ -21,6 +24,7 @@ enum class DeviceActionKind(val label: String) {
     SignIn("Abrir Conexões"),
     InstallTool("Instalar"),
     Reconnect("Reconectar"),
+    Verify("Verificar conexão"),
     Capture("Capturar tela"),
     Battery("Ver bateria"),
     InstallApp("Instalar app"),
@@ -32,6 +36,7 @@ enum class DeviceActionKind(val label: String) {
         SignIn -> "Conectar $device"
         InstallTool -> "Instalar $device"
         Reconnect -> "Reconectar $device"
+        Verify -> "Verificar conexão de $device"
         Capture -> "Capturar tela de $device"
         Battery -> "Ver bateria de $device"
         InstallApp -> "Instalar app em $device"
@@ -46,6 +51,8 @@ data class DeviceEntry(
     val group: DeviceGroup,
     val state: ConnectionState,
     val detail: String?,
+    /** Última vez que o motor confirmou este aparelho conectado (catálogo local). null = nunca. */
+    val lastConnectedAtMillis: Long? = null,
 ) {
     /** Texto do chip: nunca só cor, nunca vazio. */
     val chipText: String
@@ -93,6 +100,7 @@ fun ConnectionState.repairAction(group: DeviceGroup): DeviceActionKind? = when (
     ConnectionState.NeedsLogin -> DeviceActionKind.SignIn
     ConnectionState.NotInstalled -> DeviceActionKind.InstallTool
     ConnectionState.Offline -> DeviceActionKind.Reconnect
+    ConnectionState.Unknown -> DeviceActionKind.Verify
 }
 
 /** Ações disponíveis em aparelho conectado (grupo decide). */
