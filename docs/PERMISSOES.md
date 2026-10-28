@@ -1,6 +1,6 @@
 # Permissões do AURA AI
 
-O app declara só 4 permissões. Cada uma está aqui com o motivo, o momento em que o app pede e o que acontece se você negar.
+O app declara só 5 permissões. Cada uma está aqui com o motivo, o momento em que o app pede e o que acontece se você negar.
 O teste `ManifestTest` compara esta tabela com o `AndroidManifest.xml` e com o manifesto final do APK: permissão nova só entra se for escrita aqui primeiro.
 
 Regra de pedido (Tarefa 7 do plano): o Android não pergunta nada antes da sua primeira ação. Antes de cada pedido do sistema, o app mostra uma folha própria com o que é, por que precisa, e os botões "Permitir" e "Agora não". Negou duas vezes? O app não insiste e leva você às configurações do app.
@@ -10,6 +10,7 @@ Regra de pedido (Tarefa 7 do plano): o Android não pergunta nada antes da sua p
 | Permissão | Por que | Quando pede | Se negar |
 |---|---|---|---|
 | `android.permission.INTERNET` | Falar com o motor do AURA, que roda no seu próprio celular (endereço `127.0.0.1`). O app não conversa com nenhum outro endereço. | Nunca: é uma permissão "normal", o Android concede sozinho na instalação e não mostra pedido. | Não dá para negar. |
+| `android.permission.ACCESS_NETWORK_STATE` | Saber se a rede é Wi-Fi ou dados móveis (medida) e avisar o motor local, para o Termux nunca baixar pacote grande no seu plano de dados. Só lê o tipo de rede; não vê o que passa por ela. | Nunca: é uma permissão "normal", o Android concede sozinho na instalação e não mostra pedido. | Não dá para negar. |
 | `android.permission.RECORD_AUDIO` | Microfone, para falar com o AURA (telas de Voz). | Só na primeira vez que você toca no microfone, depois da folha do app. | A voz fica desligada e o app diz isso com uma ação ("Abrir configurações"). Digitar continua igual. |
 | `android.permission.POST_NOTIFICATIONS` | Avisar quando o AURA terminar, precisar de uma aprovação sua ou estiver trabalhando. Só existe no Android 13 ou mais novo. | Só quando você liga os avisos (Ajustes, Notificações), depois da folha do app. | Nenhum aviso fora do app. Tudo continua na aba Atividade. |
 | `com.termux.permission.RUN_COMMAND` | Permissão criada pelo Termux (nível "perigosa"). Deixa o AURA pedir ao Termux que ligue o motor e faça o pareamento. O Termux também precisa de `allow-external-apps=true`. | No passo do Termux da abertura (Onb-2) e ao tocar em "Iniciar o motor". | O app abre e toda tela funciona. O que depende do motor mostra "Iniciar o motor" e explica o que falta. |
@@ -25,7 +26,7 @@ Ficaram de fora porque nenhuma tela nem código do app usa. Pedir o que não usa
 | `android.permission.READ_MEDIA_IMAGES`, `android.permission.READ_MEDIA_VIDEO`, `android.permission.READ_MEDIA_AUDIO` | Nenhuma tela lê fotos, vídeos ou músicas. Mesmo caminho: seletor do sistema. |
 | `android.permission.CAMERA` | Nenhuma tela usa a câmera. |
 | `android.permission.NEARBY_WIFI_DEVICES`, `android.permission.ACCESS_FINE_LOCATION`, `android.permission.BLUETOOTH_CONNECT`, `android.permission.BLUETOOTH_SCAN`, `android.permission.BLUETOOTH`, `android.permission.BLUETOOTH_ADMIN` | O app não procura aparelhos pelo rádio do celular. A multimídia do carro e a TV são controladas pelo motor, por ADB. |
-| `android.permission.ACCESS_NETWORK_STATE`, `android.permission.ACCESS_WIFI_STATE`, `android.permission.CHANGE_WIFI_STATE` | Nenhum código olha o estado da rede nem mexe no Wi-Fi: o motor fica no próprio aparelho. |
+| `android.permission.ACCESS_WIFI_STATE`, `android.permission.CHANGE_WIFI_STATE` | Nenhum código olha detalhes do Wi-Fi nem mexe nele (só o tipo de rede, por ACCESS_NETWORK_STATE). |
 | `android.permission.REQUEST_INSTALL_PACKAGES` | "Instalar APK" no design é instalar na multimídia do carro, e quem faz isso é o motor, por ADB. O app nunca instala nada no próprio celular. |
 | `android.permission.FOREGROUND_SERVICE`, `android.permission.WAKE_LOCK` | Hoje não existe serviço no app. Voltam, junto com uma linha na tabela de cima, quando entrar o serviço de avisos (Tarefa 12) e o microfone em segundo plano (Tarefa 16). |
 

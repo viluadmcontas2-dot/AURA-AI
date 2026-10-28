@@ -14,6 +14,7 @@ import ai.aura.app.integration.AuraEngineClient
 import ai.aura.app.integration.EngineCredentialStore
 import ai.aura.app.integration.RealEngineGateway
 import ai.aura.app.integration.RealTermuxPort
+import ai.aura.app.integration.asReformTransport
 import ai.aura.app.ui.screens.onboarding.LocalTermuxFlow
 import ai.aura.app.ui.screens.onboarding.TermuxFlow
 import androidx.compose.runtime.rememberCoroutineScope
@@ -88,8 +89,33 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            // Reforma de apps: ponte com o motor, rede (dados móveis nunca baixam pacote) e cópia do APK para o Termux.
+            val reformGateway = remember { ai.aura.app.integration.RealReformGateway(engineClient.asReformTransport()) }
+            val networkReporter = remember {
+                getSystemService(android.net.ConnectivityManager::class.java)?.let { cm ->
+                    ai.aura.app.integration.NetworkReporter(cm, scope, { reformGateway.reportNetwork(it.metered, it.transport) })
+                }
+            }
+            androidx.compose.runtime.DisposableEffect(networkReporter) {
+                networkReporter?.start()
+                onDispose { networkReporter?.stop() }
+            }
+            val reformController = remember {
+                ai.aura.app.ui.screens.reform.ReformController(
+                    reformGateway, ai.aura.app.integration.SharedApkCopier(applicationContext),
+                    object : ai.aura.app.ui.screens.reform.ReformIdStore {
+                        override var reformId: String?
+                            get() = prefs.getString("reform_id", null)
+                            set(value) { prefs.edit().putString("reform_id", value).apply() }
+                    },
+                    scope, beforeInstall = { networkReporter?.flush() },
+                )
+            }
             var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
-            androidx.compose.runtime.CompositionLocalProvider(LocalVoiceInput provides voiceHook, LocalTermuxFlow provides termuxFlow) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                LocalVoiceInput provides voiceHook, LocalTermuxFlow provides termuxFlow,
+                ai.aura.app.ui.screens.reform.LocalReformController provides reformController,
+            ) {
             AuraApp(
                 lastCrash = lastCrash,
                 onDismissCrash = {

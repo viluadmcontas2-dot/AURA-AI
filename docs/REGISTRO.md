@@ -118,3 +118,10 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Estado verificado: só leitura estática; testes escritos antes (SettingsGatewayTest, AutonomyStateTest, AutonomySectionTest, QueueGatewayTest, HomeVoiceEntryTest). Sem SDK: Gradle não rodado, RED/GREEN real fica para a CI.
 - Bloqueio: nenhuma compilação nem teste Android executado neste ambiente.
 - Próximo item: CI compilar e rodar os testes novos; conferir no aparelho a troca offline/online da autonomia.
+
+## 2026-10-28 — Ponte da Reforma com o motor (ledger) e aviso de rede
+- Objetivo: ligar as telas Reformar às rotas /v1/reform e /v1/network do motor; dados móveis nunca baixam pacote; aviso de download grande discreto.
+- Estado verificado: só leitura estática. Novos: `integration/ReformGateway.kt` (interface + cliente real sobre o MESMO `AuraEngineClient.request`), `NetworkReporter.kt` (NetworkCallback, só ACCESS_NETWORK_STATE, documentada em docs/PERMISSOES.md), `SharedApkCopier.kt` (copia o content:// para Download/AURA, legível pelo Termux), `ReformController.kt` (cola das telas). Telas: Ferramentas mostra "Aguardando Wi-Fi" sem erro e o aviso >100 MB (toque mostra os MB, "Entendi" fecha, nada bloqueia); Escopo trava no motor; Reversão, Fidelidade e Projeto leem o resumo (Fidelidade nula = "Ainda não medida").
+- Testes escritos antes (sem SDK, RED/GREEN real fica para a CI): ReformGatewayTest, NetworkReporterTest, ReformControllerTest, ReformToolsWifiNoticeTest.
+- Bloqueio: nenhuma compilação nem teste Android executado neste ambiente. O passo `tools` exige uma reforma já criada (Escopo); antes disso "Instalar o que falta" cai no pedido pelo chat.
+- Próximo item: CI compilar e rodar; motor aceitar `tools` sem reforma (ou rota própria); teste real que chame POST /verify.

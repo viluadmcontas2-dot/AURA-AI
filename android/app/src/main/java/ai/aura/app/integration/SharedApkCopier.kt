@@ -11,7 +11,7 @@ import java.io.File
 import java.io.IOException
 
 /** Leva o APK escolhido para um lugar onde o Termux consegue ler. Devolve o caminho de arquivo. */
-fun interface ApkSharer {
+interface ApkSharer {
     suspend fun share(uri: String, displayName: String): String
 }
 
@@ -32,6 +32,7 @@ fun sharedApkName(displayName: String): String {
  *  - Android 8/9: `getExternalFilesDir` (legível no armazenamento compartilhado desses sistemas).
  * O AURA só trabalha sobre esta cópia; o original e o aparelho não são tocados (contrato, invariante 2).
  */
+@Suppress("DEPRECATION") // MediaColumns.DATA: único jeito de saber o caminho real para o Termux
 class SharedApkCopier(private val context: Context) : ApkSharer {
 
     override suspend fun share(uri: String, displayName: String): String = withContext(Dispatchers.IO) {
@@ -68,7 +69,6 @@ class SharedApkCopier(private val context: Context) : ApkSharer {
                     throw e
                 }
                 val real = runCatching {
-                    @Suppress("DEPRECATION")
                     resolver.query(target, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use {
                         if (it.moveToFirst()) it.getString(0) else null
                     }

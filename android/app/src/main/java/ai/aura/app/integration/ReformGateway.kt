@@ -79,13 +79,16 @@ data class ReformLedgerEntry(val seq: Long, val kind: String, val payload: JSONO
 data class ReformLedgerPage(val entries: List<ReformLedgerEntry>, val lastSeq: Long)
 
 /** O que o gateway pede ao HTTP. [AuraEngineClient] cumpre; os testes usam um falso. */
-fun interface ReformTransport {
+interface ReformTransport {
     suspend fun request(path: String, method: String, body: JSONObject?, readTimeoutMs: Int): JSONObject
 }
 
 /** Liga o transporte ao cliente autenticado que o app já usa. */
 fun AuraEngineClient.asReformTransport(): ReformTransport =
-    ReformTransport { path, method, body, timeout -> request(path, method, body, timeout) }
+    object : ReformTransport {
+        override suspend fun request(path: String, method: String, body: JSONObject?, readTimeoutMs: Int): JSONObject =
+            this@asReformTransport.request(path, method, body, readTimeoutMs)
+    }
 
 class RealReformGateway(private val http: ReformTransport) : ReformGateway {
 

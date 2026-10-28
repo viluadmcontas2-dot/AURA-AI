@@ -73,7 +73,9 @@ class NetworkReporter(
 
     /** Reenvia a rede atual mesmo se igual (use depois de o motor voltar ou antes de instalar). */
     suspend fun flush() {
-        val snap = synchronized(lock) { latest } ?: return
+        val snap = synchronized(lock) { latest }
+            ?: runCatching { snapshotOf(connectivity.getNetworkCapabilities(connectivity.activeNetwork)) }.getOrNull()
+            ?: return
         send(snap)
         synchronized(lock) { if (latest == snap) lastSent = snap }
     }
