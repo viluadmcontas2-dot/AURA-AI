@@ -118,11 +118,18 @@ out({"type": "result", "subtype": "success", "is_error": False, "session_id": si
 
     private fun has(text: String) = rule.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty()
 
+    /** Deixa o tempo passar de verdade: o relógio do looper principal do Robolectric só anda se o teste mandar. */
+    private fun pass(millis: Long = 60) {
+        rule.waitForIdle()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(millis))
+        Thread.sleep(20)
+    }
+
     private fun waitText(text: String) {
         val end = System.currentTimeMillis() + 30_000
         while (!has(text)) {
             check(System.currentTimeMillis() < end) { "não apareceu na tela: $text" }
-            rule.waitForIdle(); Thread.sleep(30)
+            pass()
         }
     }
 
@@ -131,7 +138,7 @@ out({"type": "result", "subtype": "success", "is_error": False, "session_id": si
         val end = System.currentTimeMillis() + 30_000
         while (rule.onAllNodesWithContentDescription("Parar resposta").fetchSemanticsNodes().isNotEmpty()) {
             check(System.currentTimeMillis() < end) { "a resposta não terminou" }
-            rule.waitForIdle(); Thread.sleep(30)
+            pass()
         }
     }
 
