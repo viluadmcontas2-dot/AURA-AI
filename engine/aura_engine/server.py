@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import adapters, triage
+from . import adapters, reform_http, triage
 from .config import ConfigError, VersionConflict
 from .security import workspace_name
 
@@ -69,6 +69,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
             params = parse_qs(parsed.query, keep_blank_values=False)
             try:
                 routed = triage.http(engine, method, path, self.body)
+                if routed is not None:
+                    return self.send(*routed)
+                routed = reform_http.http(engine, method, path, self.body, parsed.query)
                 if routed is not None:
                     return self.send(*routed)
                 if method == "DELETE":

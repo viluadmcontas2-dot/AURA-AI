@@ -16,8 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ai.aura.app.ui.theme.AuraColors
@@ -27,6 +29,9 @@ private val OrbBase = Color(0xFFEADFFB)
 private val OrbApricot = Color(0xFFFFA98A)
 private val OrbMint = Color(0xFF79E6CF)
 private val OrbPeriwinkle = Color(0xFF8C9DFF)
+
+/** Estado do orbe: Parado é só enfeite; os outros três são lidos pelo leitor de tela. */
+enum class OrbState(val label: String) { Parado("Parado"), Ouvindo("Ouvindo"), Pensando("Pensando"), Erro("Erro") }
 
 /**
  * Orbe do AURA (Main.dc.html): base lilás + 3 manchas radiais + brilho. [glow] desenha o halo
@@ -38,6 +43,7 @@ fun AuraOrb(
     modifier: Modifier = Modifier,
     glow: Boolean = false,
     breathing: Boolean = false,
+    state: OrbState = OrbState.Parado,
 ) {
     val reduced = rememberReducedMotion()
     val transition = rememberInfiniteTransition(label = "orb")
@@ -47,7 +53,7 @@ fun AuraOrb(
         animationSpec = infiniteRepeatable(tween(3000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "breath",
     )
-    val animate = breathing && !reduced
+    val animate = (breathing || state == OrbState.Ouvindo || state == OrbState.Pensando) && !reduced
     Canvas(
         modifier
             .graphicsLayer {
@@ -55,12 +61,12 @@ fun AuraOrb(
                 scaleX = s
                 scaleY = s
             }
-            .clearAndSetSemantics { },
+            .clearAndSetSemantics { if (state != OrbState.Parado) stateDescription = state.label },
     ) {
         val w = size.width
         val r = w / 2f
         val center = Offset(r, r)
-        if (glow) {
+        if (glow || state == OrbState.Ouvindo) {
             drawCircle(
                 brush = Brush.radialGradient(
                     0f to AuraColors.Periwinkle.copy(alpha = 0.5f),
@@ -86,6 +92,9 @@ fun AuraOrb(
         spot(0.16f, 0.82f, OrbMint, 0.55f)
         spot(0.80f, 0.78f, OrbApricot, 0.58f)
         spot(0.30f, 0.24f, Color.White, 0.32f, alpha = 0.96f)
+        if (state == OrbState.Erro) {
+            drawCircle(color = AuraColors.RiskSolid, radius = r - 1.5f, center = center, style = Stroke(width = 3f))
+        }
     }
 }
 

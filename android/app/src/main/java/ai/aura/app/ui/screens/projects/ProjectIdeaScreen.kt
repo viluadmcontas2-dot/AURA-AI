@@ -27,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -37,6 +39,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.aura.app.ui.components.AuraButtonPrimary
+import ai.aura.app.ui.components.AuraButtonSecondary
+import ai.aura.app.voice.LocalVoiceInput
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraSpacing
@@ -57,6 +61,8 @@ fun ProjectIdeaScreen(
     modifier: Modifier = Modifier,
 ) {
     var voiceHint by remember { mutableStateOf(false) }
+    val voice = LocalVoiceInput.current
+    val fieldFocus = remember { FocusRequester() }
     Column(modifier.fillMaxSize().imePadding()) {
         ProjHeader("Novo aplicativo", onBack, backDescription = "Voltar para Projetos")
         Column(
@@ -76,7 +82,7 @@ fun ProjectIdeaScreen(
                     textStyle = AuraType.Body.copy(fontSize = 19.sp, lineHeight = 28.sp),
                     cursorBrush = SolidColor(AuraColors.Link),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).semantics { contentDescription = "Sua ideia de aplicativo" },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).focusRequester(fieldFocus).semantics { contentDescription = "Sua ideia de aplicativo" },
                     decorationBox = { inner ->
                         Box {
                             if (idea.isEmpty()) Text("Ex.: um app para controlar meus gastos do mês", style = AuraType.Body.copy(fontSize = 19.sp, lineHeight = 28.sp, color = AuraColors.Ink3))
@@ -88,16 +94,22 @@ fun ProjectIdeaScreen(
                     Text("Pode falar ou escrever", style = AuraType.SecondarySmall.copy(fontSize = 13.sp, lineHeight = 18.sp))
                     Box(
                         Modifier.heightIn(min = AuraSpacing.TouchTarget).clip(AuraShapes.Circle).background(AuraColors.SurfaceSunken)
-                            .clickable(role = Role.Button) { voiceHint = true }
+                            .clickable(role = Role.Button) {
+                                if (voice != null) {
+                                    // Fala pelo reconhecimento do Android; o texto entra no campo e o usuário ainda confirma.
+                                    voiceHint = false
+                                    voice { spoken -> onIdeaChange(if (idea.isBlank()) spoken else "$idea $spoken") }
+                                } else voiceHint = true
+                            }
                             .semantics { contentDescription = "Falar a ideia" }
                             .padding(11.dp),
                         contentAlignment = Alignment.Center,
                     ) { PIconView(PIcon.Mic, size = 22.dp) }
                 }
-                if (voiceHint) Text(
-                    "Falar ainda não está disponível neste aparelho. Escreva a ideia no campo acima.",
-                    style = AuraType.SecondarySmall.copy(color = AuraColors.Risk.fg), modifier = Modifier.padding(top = 4.dp),
-                )
+                if (voiceHint) Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Falar ainda não está disponível neste aparelho.", style = AuraType.SecondarySmall.copy(color = AuraColors.Risk.fg))
+                    AuraButtonSecondary("Escrever a ideia", { voiceHint = false; fieldFocus.requestFocus() })
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SectionLabel("Sem ideia ainda? Toque em uma")

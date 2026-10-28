@@ -241,6 +241,16 @@ class ReformLedger:
     def rebuild_pct(self):
         return _percent(self._latest('rebuild_progress'))
 
+    def entries(self, since=0):
+        """Entradas com seq > since, em ordem. Cadeia inválida levanta invalid_chain."""
+        with self._transaction():
+            return [entry for entry in self._read() if entry['seq'] > since]
+
+    def find(self, idempotency_key):
+        """Entrada gravada com essa chave, ou None (não grava nada)."""
+        with self._transaction():
+            return next((e for e in self._read() if e['idempotency_key'] == idempotency_key), None)
+
     def resume_point(self):
         """Entrada step_done inteira, incluindo seq e prova; None se não existe."""
         return self._latest('step_done')

@@ -47,15 +47,16 @@ def last_done(home):
     return next((name for name, _ in reversed(steps(home)) if name in done), None)
 
 
-def list_tools(home, timeout=60):
-    """tools/list de verdade: JSON-RPC por stdio, uma mensagem por linha (sem paginacao)."""
+def _exchange(home, calls, timeout):
+    """JSON-RPC por stdio, uma mensagem por linha. calls = [(id, method, params)] depois do initialize.
+
+    Devolve {id: resposta}. Sobe o servidor MCP, fala e encerra (uma conversa por chamada)."""
     messages = [
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
             "protocolVersion": "2025-06-18", "capabilities": {},
             "clientInfo": {"name": "aura-engine", "version": "1"}}},
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
-    ]
+    ] + [{"jsonrpc": "2.0", "id": i, "method": m, "params": p} for i, m, p in calls]
     env = dict(os.environ, REA_JADX_MCP_JAR=str(home / "rea" / JAR_NAME))
     try:
         proc = subprocess.Popen(MCP_ARGV, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -67,14 +68,43 @@ def list_tools(home, timeout=60):
     except subprocess.TimeoutExpired:
         proc.kill()
         out, _ = proc.communicate()
+    replies = {}
     for line in (out or "").splitlines():
         try:
             reply = json.loads(line)
         except ValueError:
             continue
-        if isinstance(reply, dict) and reply.get("id") == 2 and isinstance(reply.get("result"), dict):
-            return [t for t in reply["result"].get("tools", []) if isinstance(t, dict)]
+        if isinstance(reply, dict) and "id" in reply:
+            replies[reply["id"]] = reply
+    return replies
+
+
+def list_tools(home, timeout=60):
+    """tools/list de verdade (sem paginacao)."""
+    reply = _exchange(home, [(2, "tools/list", {})], timeout).get(2)
+    if isinstance(reply, dict) and isinstance(reply.get("result"), dict):
+        return [t for t in reply["result"].get("tools", []) if isinstance(t, dict)]
     raise adapters.ActionError("mcp_failed", "O servidor MCP não respondeu ao tools/list")
+
+
+def call_tool(home, name, arguments, timeout=900):
+    """tools/call: devolve o resultado estruturado (dict). Erro da ferramenta vira ActionError tool_failed."""
+    reply = _exchange(home, [(2, "tools/call", {"name": name, "arguments": arguments})], timeout).get(2)
+    if not isinstance(reply, dict):
+        raise adapters.ActionError("mcp_failed", "O servidor MCP não respondeu à ferramenta %s" % name)
+    result = reply.get("result")
+    if not isinstance(result, dict) or result.get("isError") or "error" in reply:
+        raise adapters.ActionError("tool_failed", "A ferramenta %s falhou" % name)
+    if isinstance(result.get("structuredContent"), dict):
+        return result["structuredContent"]
+    for item in result.get("content") or []:
+        try:
+            parsed = json.loads(item.get("text", ""))
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
 
 
 def tool_risk(tool):
