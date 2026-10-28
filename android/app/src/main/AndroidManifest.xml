@@ -27,6 +27,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- "Compartilhar para o AURA": só arquivo .apk; abre a Reforma de apps no Escopo. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.android.package-archive" />
+            </intent-filter>
         </activity>
         <receiver android:name=".integration.PairResultReceiver" android:exported="false" />
         <!-- O AndroidX traz este receptor aberto (só para medir desempenho por adb). Sai: só a tela inicial fica exportada. -->
