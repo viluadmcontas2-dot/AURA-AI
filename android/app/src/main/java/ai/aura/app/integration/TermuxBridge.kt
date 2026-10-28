@@ -1,5 +1,6 @@
 package ai.aura.app.integration
 
+import ai.aura.app.offline.TermuxProbe
 import android.Manifest
 import android.app.Activity
 import android.app.PendingIntent
@@ -13,7 +14,7 @@ import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Secure Android -> Termux command boundary. Never shell-interpolate user or model text. */
-class TermuxBridge(private val context: Context) {
+class TermuxBridge(private val context: Context) : TermuxProbe {
     companion object {
         private const val TERMUX_PACKAGE = "com.termux"
         private const val SERVICE = "com.termux.app.RunCommandService"
@@ -23,13 +24,13 @@ class TermuxBridge(private val context: Context) {
         const val PERMISSION = "com.termux.permission.RUN_COMMAND"
     }
 
-    fun installed(): Boolean = try {
+    override fun installed(): Boolean = try {
         @Suppress("DEPRECATION")
         context.packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
         true
     } catch (_: PackageManager.NameNotFoundException) { false }
 
-    fun hasPermission(): Boolean =
+    override fun hasPermission(): Boolean =
         context.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED
 
     fun askPermission(activity: Activity) {

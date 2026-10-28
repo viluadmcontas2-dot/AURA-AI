@@ -55,6 +55,7 @@ internal fun phaseOf(project: Project, jobs: Map<String, Job>): ProjectPhase {
         JobStatus.Completed -> ProjectPhase(PhaseKind.Ready, "Pronto", job.result ?: job.title, job)
         JobStatus.Failed -> ProjectPhase(PhaseKind.Failed, "Falhou", "Toque para ver o que fazer", job)
         JobStatus.Queued -> ProjectPhase(PhaseKind.Queued, "Na fila", job.title, job)
+        JobStatus.WaitingEngine -> ProjectPhase(PhaseKind.Queued, "Aguardando o motor", job.title, job)
         JobStatus.Cancelled, JobStatus.Interrupted -> ProjectPhase(PhaseKind.Stopped, "Interrompido", job.title, job)
     }
 }

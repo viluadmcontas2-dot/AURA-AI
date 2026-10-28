@@ -17,7 +17,7 @@ enum class ActivityFilter(val label: String) {
 fun Job.matches(f: ActivityFilter): Boolean = when (f) {
     ActivityFilter.All -> true
     ActivityFilter.NeedsYou -> status == JobStatus.AwaitingApproval
-    ActivityFilter.Running -> status == JobStatus.Running || status == JobStatus.Queued
+    ActivityFilter.Running -> status == JobStatus.Running || status == JobStatus.Queued || status == JobStatus.WaitingEngine
     ActivityFilter.Done -> status == JobStatus.Completed
     ActivityFilter.Stopped -> status == JobStatus.Failed || status == JobStatus.Cancelled ||
         status == JobStatus.Interrupted
@@ -25,7 +25,7 @@ fun Job.matches(f: ActivityFilter): Boolean = when (f) {
 
 fun Job.statusKind(): StatusKind = when (status) {
     JobStatus.Queued, JobStatus.Cancelled -> StatusKind.Neutral
-    JobStatus.AwaitingApproval, JobStatus.Interrupted -> StatusKind.NeedsYou
+    JobStatus.AwaitingApproval, JobStatus.Interrupted, JobStatus.WaitingEngine -> StatusKind.NeedsYou
     JobStatus.Running -> StatusKind.Info
     JobStatus.Completed -> StatusKind.Ready
     JobStatus.Failed -> StatusKind.Risk
@@ -33,6 +33,7 @@ fun Job.statusKind(): StatusKind = when (status) {
 
 fun Job.statusLabel(): String = when (status) {
     JobStatus.Queued -> "Na fila"
+    JobStatus.WaitingEngine -> "Aguardando o motor"
     JobStatus.AwaitingApproval -> "Aprovar"
     JobStatus.Running -> "Rodando"
     JobStatus.Completed -> "Pronto"
@@ -70,6 +71,8 @@ fun Job.evidence(): Pair<String, String?> = when (status) {
         (result?.let { "Resultado parcial: $it" } ?: "Nada foi marcado como concluído.")
     JobStatus.Interrupted -> "O trabalho parou no meio (o Android encerrou o AURA ou o app reiniciou)." to
         "Nada foi repetido sozinho. Confira o que já foi feito e peça de novo se precisar."
+    JobStatus.WaitingEngine -> "O pedido está guardado neste celular. O motor está desligado e ainda não recebeu." to
+        "Ele segue sozinho quando o motor ligar. Se não quiser mais, cancele o pedido."
     else -> risk.consequence() to null
 }
 

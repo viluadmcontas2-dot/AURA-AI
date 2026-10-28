@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import adapters
 from .config import ConfigError, VersionConflict
+from .security import workspace_name
 
 
 class LocalOnlyHTTP(ThreadingHTTPServer):
@@ -35,6 +36,13 @@ def make_server(engine, host="127.0.0.1", port=8765):
             self.end_headers()
             self.wfile.write(raw)
 
+        def no_content(self):
+            # 204 nao leva corpo nem Content-Length (RFC 9110).
+            self.send_response(204)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+
         def authenticate(self):
             expected = "Bearer " + engine.token
             supplied = self.headers.get("Authorization", "")
@@ -60,6 +68,22 @@ def make_server(engine, host="127.0.0.1", port=8765):
             parts = path.split("/")
             params = parse_qs(parsed.query, keep_blank_values=False)
             try:
+                if method == "DELETE":
+                    # So o caminho CRU "/v1/memory" apaga tudo: "/v1/memory/" (id vazio de um cliente com
+                    # defeito) e "/v1/memory;x" (urlparse separa ";params") caem no 404.
+                    if self.path.partition("?")[0] == "/v1/memory":
+                        query = parse_qs(parsed.query, keep_blank_values=True)
+                        if set(query) - {"workspace"}:
+                            raise ValueError("unknown query parameter")
+                        scope = workspace_name(query["workspace"][0]) if "workspace" in query else None
+                        return self.send(200, {"deleted": engine.store.forget_all(scope)})
+                    if len(parts) == 4 and parts[:3] == ["", "v1", "memory"]:
+                        if engine.store.forget(parts[3]):
+                            return self.no_content()
+                        return self.send(404, {"error": {
+                            "code": "not_found",
+                            "message": "Lembrança não encontrada. Talvez já tenha sido esquecida."}})
+                    return self.send(404, {"error": {"code": "not_found", "message": "Unknown endpoint"}})
                 if method == "GET":
                     if path == "/v1/health":
                         return self.send(200, {"service": "aura-engine", "version": 1})
@@ -118,7 +142,6 @@ def make_server(engine, host="127.0.0.1", port=8765):
                             preferred_provider=data.get("preferred_provider", "auto")))
                     if path == "/v1/memory":
                         data = self.body()
-                        from .security import workspace_name
                         ws = workspace_name(data.get("workspace", "default"))
                         key = data.get("key")
                         value = data.get("value")
@@ -126,7 +149,7 @@ def make_server(engine, host="127.0.0.1", port=8765):
                             raise ValueError("invalid memory key")
                         if not isinstance(value, str) or len(value) > 50000:
                             raise ValueError("invalid memory value")
-                        engine.store.remember(ws, key, value)
+                        engine.store.remember(ws, key, value, data.get("kind"), data.get("source"))
                         return self.send(200, {"stored": True})
                     if path == "/v1/schedules":
                         data = self.body()
@@ -162,5 +185,8 @@ def make_server(engine, host="127.0.0.1", port=8765):
 
         def do_PUT(self):
             self.perform("PUT")
+
+        def do_DELETE(self):
+            self.perform("DELETE")
 
     return LocalOnlyHTTP((host, int(port)), Handler)

@@ -11,7 +11,10 @@ import kotlinx.coroutines.flow.asSharedFlow
  */
 
 enum class JobStatus(val wire: String) {
-    Queued("queued"), AwaitingApproval("awaiting_approval"), Running("running"),
+    Queued("queued"),
+    /** Só existe no celular: o pedido ficou guardado porque o motor não respondeu e vai sozinho quando ele voltar. */
+    WaitingEngine("waiting_engine"),
+    AwaitingApproval("awaiting_approval"), Running("running"),
     Completed("completed"), Failed("failed"), Cancelled("cancelled"), Interrupted("interrupted");
 
     val isTerminal: Boolean get() = this == Completed || this == Failed || this == Cancelled || this == Interrupted
