@@ -156,6 +156,13 @@ class MemoryItems(MemoryBase):
         self.assertEqual([e["text"] for e in self.entries("default", q="idio")], ["pt-BR"])
         self.assertEqual([e["text"] for e in self.entries("default", q="curt")], ["curto"])
 
+    def test_MEM_contract_lists_the_source_vocabulary(self):
+        # a tela (T11) mapeia estes valores para as frases de origem: o contrato tem de nomea-los
+        contract = pathlib.Path(__file__).resolve().parents[2] / "docs" / "ENGINE_CONTRACT.md"
+        (line,) = [l for l in contract.read_text(encoding="utf-8").splitlines() if l.startswith("- `source`")]
+        for value in ("user", "repository", "device"):
+            self.assertIn("`%s`" % value, line)
+
     def test_MEM_get_and_post_still_require_the_token(self):
         self.make_engine()
         self.assertEqual(self.call("GET", "/v1/memory", auth=False)[0], 401)

@@ -100,7 +100,7 @@ GET `/v1/memory?workspace=default&q=` -> `{"entries":[ITEM, ...]}`. No maximo 50
 - `id` (texto): unico e estavel (UUID, 36 caracteres: letras minusculas, digitos e `-`; cabe em `[a-zA-Z0-9_-]{1,100}`, o que o app aceita na URL). Nao muda ao atualizar a lembranca nem ao reiniciar o motor.
 - `kind` (texto): `preference|project|device|rule`. Sem informar, vale `preference`.
 - `text` (texto): a lembranca, para mostrar na tela. E o mesmo texto de `value`.
-- `source` (texto, nunca `null`): de onde veio a lembranca, 1 a 60 caracteres, texto livre que o motor nao interpreta (a tela decide a frase e trata valor desconhecido). Sem informar, vale `user`.
+- `source` (texto, nunca `null`): de onde veio a lembranca, 1 a 60 caracteres, texto livre que o motor nao valida nem interpreta. Valores que o app usa: `user` (o dono pediu ou escreveu), `repository` (aprendida lendo o repositorio), `device` (aprendida ao conectar o aparelho). A tela mapeia para a frase de origem: `user` -> "você disse em <data de `createdAt`>" (com `kind` `rule`: "você definiu"), `repository` -> "aprendido no repositório", `device` -> "aprendido ao conectar"; valor fora da lista: mostra o texto cru. Sem informar, vale `user`.
 - `createdAt` (numero): epoch em segundos, com fracao, UTC, como `created_at` dos jobs. Quando a lembranca nasceu; nao muda ao atualizar.
 - `key`, `value`, `updated`: campos de antes, com os mesmos valores (`updated` = ultima gravacao). Codigo novo usa `id`, `kind`, `text`, `source` e `createdAt`.
 
