@@ -1,7 +1,6 @@
 package ai.aura.app.integration
 
 import ai.aura.app.offline.TermuxProbe
-import android.Manifest
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -10,7 +9,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.json.JSONObject
+import ai.aura.app.offline.TermuxResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Secure Android -> Termux command boundary. Never shell-interpolate user or model text. */
@@ -49,7 +51,14 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
         val pending = PendingIntent.getBroadcast(context, id, callback, flags)
         val command = baseIntent(arrayOf("-m", "aura_engine.pair", "--emit-token"))
         command.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pending)
-        context.startService(command)
+        TermuxReplies.pending[id] = TermuxReply("pair")
+        try {
+            checkNotNull(context.startService(command))
+        } catch (error: Exception) {
+            TermuxReplies.pending.remove(id)
+            pending.cancel()
+            throw error
+        }
         PairState.message.value = "Verificando autorização do Termux..."
     }
 
@@ -58,6 +67,47 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
         require(hasPermission()) { "Permissão Termux pendente" }
         context.startService(baseIntent(arrayOf("-m", "aura_engine")))
         PairState.message.value = "Motor solicitado. Conferindo a conexão..."
+    }
+
+    suspend fun probe(): TermuxResult = withTimeoutOrNull(1_500L) {
+        awaitCommand("probe", baseIntent(arrayOf("aura-ok")).apply {
+            putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/echo")
+            putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home")
+        })
+    } ?: TermuxResult.Failed
+
+    suspend fun pairAndWait(): TermuxResult = withTimeoutOrNull(15_000L) {
+        awaitCommand("pair", baseIntent(arrayOf("-m", "aura_engine.pair", "--emit-token")))
+    } ?: TermuxResult.Failed
+
+    // O processo do motor só responde ao callback quando termina; o fluxo confere a saúde em paralelo.
+    suspend fun runEngine(): TermuxResult =
+        awaitCommand("start", baseIntent(arrayOf("-m", "aura_engine")))
+
+    private suspend fun awaitCommand(operation: String, command: Intent): TermuxResult {
+        if (!installed()) return TermuxResult.Failed
+        if (!hasPermission()) return TermuxResult.NotAllowed
+        val id = nextRequestId.getAndIncrement()
+        val reply = TermuxReply(operation)
+        TermuxReplies.pending[id] = reply
+        val flags = PendingIntent.FLAG_ONE_SHOT or
+            (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+        val pending = PendingIntent.getBroadcast(context, id,
+            Intent(context, PairResultReceiver::class.java).putExtra("pairId", id), flags)
+        try {
+            command.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pending)
+            try {
+                if (context.startService(command) == null) return TermuxResult.Failed
+            } catch (_: SecurityException) {
+                return TermuxResult.NotAllowed
+            } catch (_: Exception) {
+                return TermuxResult.Failed
+            }
+            return reply.result.await()
+        } finally {
+            TermuxReplies.pending.remove(id)
+            pending.cancel()
+        }
     }
 
     private fun baseIntent(arguments: Array<String>): Intent =
@@ -76,26 +126,32 @@ object PairState {
     val paired = MutableStateFlow(false)
 }
 
-/** Receives one-shot Termux result; never writes the raw token to logs or UI. */
+private class TermuxReply(val operation: String) {
+    val result = CompletableDeferred<TermuxResult>()
+}
+
+private object TermuxReplies {
+    val pending = ConcurrentHashMap<Int, TermuxReply>()
+}
+
+/** Só aceita respostas de pedidos em andamento; cancelamentos descartam callbacks tardios. */
 class PairResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val reply = TermuxReplies.pending.remove(intent.getIntExtra("pairId", -1)) ?: return
         val bundle = intent.getBundleExtra("result")
-        val exit = bundle?.getInt("exitCode", -999) ?: -999
-        val internalError = bundle?.getInt("err", -1) ?: -999
-        if (exit != 0 || internalError != -1) {
-            PairState.message.value = "Termux não concluiu o pareamento. Verifique a permissão e o diretório AURA-AI."
-            return
+        val exit = if (bundle?.containsKey("exitCode") == true) bundle.getInt("exitCode") else null
+        val result = termuxResultFrom(
+            reply.operation, exit, bundle?.getInt("err", -1) ?: -999,
+            bundle?.getString("errmsg"), bundle?.getString("stdout"),
+        ) { EngineCredentialStore(context).save(it) }
+        if (reply.operation == "pair") {
+            PairState.paired.value = result == TermuxResult.Ok
+            PairState.message.value = when (result) {
+                TermuxResult.Ok -> "Termux conectado. Credencial protegida no Android."
+                TermuxResult.NotAllowed -> "O Termux recusou comandos. Copie o comando e cole no Termux."
+                TermuxResult.Failed -> "Pareamento falhou. Confira o Python e a pasta AURA-AI no Termux e tente de novo."
+            }
         }
-        val stdout = bundle?.getString("stdout", "") ?: ""
-        try {
-            val obj = JSONObject(stdout.trim())
-            require(obj.getString("service") == "aura-engine")
-            val token = obj.getString("token")
-            EngineCredentialStore(context).save(token)
-            PairState.paired.value = true
-            PairState.message.value = "Termux conectado. Credencial protegida no Android."
-        } catch (_: Exception) {
-            PairState.message.value = "Resposta de pareamento inválida. O token não foi armazenado."
-        }
+        reply.result.complete(result)
     }
 }

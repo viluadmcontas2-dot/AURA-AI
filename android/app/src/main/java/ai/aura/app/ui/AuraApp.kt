@@ -33,10 +33,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +67,6 @@ import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.components.EngineBanner
 import ai.aura.app.ui.components.auraFocusRing
 import ai.aura.app.ui.engine.AuthState
-import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.nav.ROUTES
 import ai.aura.app.ui.nav.ScreenEnv
@@ -83,6 +80,8 @@ import ai.aura.app.ui.screens.ProjectsScreen
 import ai.aura.app.ui.screens.onboarding.AccountId
 import ai.aura.app.ui.screens.onboarding.AccountState
 import ai.aura.app.ui.screens.onboarding.OnboardingFlow
+import ai.aura.app.ui.screens.settings.officialAccountLoginUrl
+import ai.aura.app.ui.screens.onboarding.LocalTermuxFlow
 import ai.aura.app.ui.screens.onboarding.TermuxSetupState
 import ai.aura.app.ui.screens.onboarding.termuxSetupFrom
 import ai.aura.app.ui.screens.onboarding.defaultAccounts
@@ -184,7 +183,7 @@ fun AuraApp(
 
 /**
  * Cola do onboarding com o motor: Termux pelo estado real (capabilities) e contas por authStatus.
- * Login só pelo navegador: o link vem do evento auth.prompt e sai por [onOpenUrl]; nunca pede token.
+ * Login abre a página oficial por [onOpenUrl], inclusive com o motor desligado; nunca pede token.
  * Os ganchos onRequestTermuxPermission / onOpenTermux vêm da MainActivity (RUN_COMMAND, intent do Termux).
  */
 @Composable
@@ -198,8 +197,10 @@ internal fun OnboardingHost(
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
+    val flow = LocalTermuxFlow.current
     var termux by remember { mutableStateOf(TermuxSetupState()) }
+    LaunchedEffect(flow) { flow?.state?.collect { termux = it } }
+    DisposableEffect(flow) { onDispose { flow?.cancel() } }
     var accounts by remember { mutableStateOf(defaultAccounts()) }
     var tick by remember { mutableIntStateOf(0) }
 
@@ -218,9 +219,13 @@ internal fun OnboardingHost(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(gateway, tick) {
-        val caps = runCatching { gateway.capabilities() }.getOrNull()
-        val engineUp = caps?.any { it.id == "termux" && it.available } == true
-        termux = termuxSetupFrom(termuxInstalled(), termuxPermissionGranted(), engineUp)
+        if (flow != null) {
+            flow.resume()
+        } else {
+            val caps = runCatching { gateway.capabilities() }.getOrNull()
+            val engineUp = caps?.any { it.id == "termux" && it.available } == true
+            termux = termuxSetupFrom(termuxInstalled(), termuxPermissionGranted(), engineUp)
+        }
         val statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList())
         accounts = AccountId.entries.map { id ->
             val st = statuses.firstOrNull { it.provider == providerOf(id) }
@@ -248,18 +253,12 @@ internal fun OnboardingHost(
         // Depois do callback da Activity, reconfere capabilities (tick).
         onRequestTermuxPermission = { onRequestTermuxPermission(); tick++ },
         onOpenTermux = { onOpenTermux(); tick++ },
+        onCheckTermux = { flow?.confirmPasted() ?: onOpenTermux() },
+        onInstallTermux = { onOpenUrl("https://f-droid.org/packages/com.termux/") },
         onSignIn = { id ->
-            accounts = accounts.map { if (it.id == id) it.copy(connecting = true, detail = null) else it }
-            scope.launch {
-                val r = runCatching { gateway.startAuth(providerOf(id)) }
-                    .getOrElse { AuthStartResult.Failed("Não consegui falar com o motor.", "Abra o Termux e confirme que o motor está rodando.") }
-                accounts = accounts.map { a ->
-                    if (a.id != id) a else when (r) {
-                        is AuthStartResult.Started -> a.copy(connecting = false, detail = "Abra o link e digite o código.")
-                        is AuthStartResult.Failed -> a.copy(connecting = false, detail = "${r.reason} ${r.fix}")
-                    }
-                }
-                if (r !is AuthStartResult.Started) tick++
+            officialAccountLoginUrl(providerOf(id))?.let(onOpenUrl)
+            accounts = accounts.map {
+                if (it.id == id) it.copy(connecting = false, detail = "Entre no navegador e volte ao AURA") else it
             }
         },
         onFinish = onFinished,

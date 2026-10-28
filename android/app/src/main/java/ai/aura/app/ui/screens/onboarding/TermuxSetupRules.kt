@@ -11,4 +11,6 @@ fun termuxSetupFrom(installed: Boolean, permissionGranted: Boolean, engineUp: Bo
         termuxFound = installed || engineUp,
         permissionGranted = permissionGranted || engineUp,
         externalAppsAllowed = engineUp,
+        paired = engineUp,
+        engineUp = engineUp,
     )

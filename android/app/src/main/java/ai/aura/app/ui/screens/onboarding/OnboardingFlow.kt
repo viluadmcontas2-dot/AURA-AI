@@ -73,8 +73,12 @@ data class TermuxSetupState(
     val permissionGranted: Boolean = false,
     val externalAppsAllowed: Boolean = false,
     val testing: Boolean = false,
+    val paired: Boolean = false,
+    val engineUp: Boolean = false,
+    val pageSize: Int = 4096,
+    val notice: String? = null,
 ) {
-    val ready: Boolean get() = termuxFound && permissionGranted && externalAppsAllowed
+    val ready: Boolean get() = termuxFound && permissionGranted && externalAppsAllowed && paired && engineUp
 }
 
 enum class AccountId(val label: String, val subtitle: String, val isBrain: Boolean) {
@@ -109,6 +113,8 @@ fun OnboardingFlow(
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
     onHelp: () -> Unit = {},
+    onCheckTermux: () -> Unit = onOpenTermux,
+    onInstallTermux: () -> Unit = onOpenTermux,
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
     BackHandler(enabled = step > 0) { step -= 1 }
@@ -117,6 +123,7 @@ fun OnboardingFlow(
         1 -> OnboardingTermuxScreen(
             state = termux, onRequestPermission = onRequestTermuxPermission, onOpenTermux = onOpenTermux,
             onContinue = { step = 2 }, onHelp = onHelp, modifier = modifier,
+            onCheckTermux = onCheckTermux, onInstallTermux = onInstallTermux,
         )
         else -> OnboardingAccountsScreen(
             accounts = accounts, onSignIn = onSignIn, onFinish = onFinish, modifier = modifier,
@@ -195,6 +202,8 @@ fun OnboardingTermuxScreen(
     onContinue: () -> Unit,
     onHelp: () -> Unit,
     modifier: Modifier = Modifier,
+    onCheckTermux: () -> Unit = onOpenTermux,
+    onInstallTermux: () -> Unit = onOpenTermux,
 ) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
@@ -210,7 +219,9 @@ fun OnboardingTermuxScreen(
             Spacer(Modifier.height(4.dp))
 
             SetupStep("Termux encontrado", done = state.termuxFound,
-                hint = if (state.termuxFound) null else "Instale o Termux (pela F-Droid) e volte aqui.")
+                hint = if (state.termuxFound) null else "Instale o Termux (pela F-Droid) e volte aqui.") {
+                if (!state.termuxFound) AuraButtonSecondary("Instalar Termux", onInstallTermux)
+            }
 
             SetupStep(
                 "Permitir que o AURA use o Termux", done = state.permissionGranted, doneLabel = "Permitido",
@@ -242,6 +253,19 @@ fun OnboardingTermuxScreen(
                         AuraButtonSecondary("Abrir Termux", onOpenTermux, Modifier.weight(1f), enabled = state.termuxFound)
                     }
                     if (copied) Text("Copiado. Cole no Termux e toque em Enter.", style = AuraType.SecondarySmall)
+                }
+            }
+
+            if (!state.ready) {
+                Text(state.notice ?: proximoPasso(state).motivo, style = AuraType.SecondarySmall,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                if (state.termuxFound && state.permissionGranted && !state.testing) {
+                    val label = when (proximoPasso(state)) {
+                        Passo.Parear -> "Conectar Termux"
+                        Passo.IniciarMotor -> "Iniciar motor"
+                        else -> "Tentar de novo"
+                    }
+                    AuraButtonSecondary(label, onCheckTermux)
                 }
             }
 

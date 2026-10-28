@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -33,6 +34,7 @@ private class PortaFalsa : TermuxPort {
     /** null = o processo do motor fica vivo (o normal); senão ele acaba logo com este resultado. */
     var processoDoMotor: TermuxResult? = null
     var pareamentos = 0
+    var sondagens = 0
 
     override fun installed() = instalado
     override fun hasPermission() = permissao
@@ -41,7 +43,10 @@ private class PortaFalsa : TermuxPort {
     override fun requestPermission() = Unit
     override fun openInstaller() = Unit
     override fun openTermux() = Unit
-    override suspend fun probe() = sonda
+    override suspend fun probe(): TermuxResult {
+        sondagens++
+        return sonda
+    }
     override suspend fun pairAndWait(): TermuxResult {
         pareamentos++
         if (pareamento == TermuxResult.Ok) pareado = true
@@ -181,6 +186,34 @@ class TermuxFlowTest {
         assertFalse(e.testing)
         assertTrue("acabou antes do limite", currentTime < 10_000)
         assertEquals(LinkState.Offline(OfflineReason.NoTermux), c.link.state.value)
+    }
+
+    @Test fun `voltar do Termux confere a cada dois segundos e avanca sozinho`() = runTest {
+        val c = Cenario(backgroundScope, limite = 60.seconds)
+        c.porta.sonda = TermuxResult.NotAllowed
+        c.fluxo.resume(); runCurrent()
+        assertEquals(1, c.porta.sondagens)
+        advanceTimeBy(1_999); runCurrent()
+        assertEquals(1, c.porta.sondagens)
+        c.porta.sonda = TermuxResult.Ok
+        c.porta.motorNoAr = true
+        advanceTimeBy(1); runCurrent()
+        assertEquals(2, c.porta.sondagens)
+        assertEquals(Passo.Pronto, proximoPasso(c.fluxo.state.value))
+        assertFalse(c.fluxo.state.value.testing)
+    }
+
+    @Test fun `voltar do Termux sem resposta encerra em sessenta segundos`() = runTest {
+        val c = Cenario(backgroundScope, limite = 60.seconds)
+        c.porta.sonda = TermuxResult.NotAllowed
+        c.fluxo.resume(); runCurrent()
+        advanceTimeBy(60_000); runCurrent()
+        assertFalse(c.fluxo.state.value.testing)
+        assertTrue(c.fluxo.state.value.notice!!.contains("não respondeu"))
+        assertEquals(0, c.porta.pareamentos)
+        val tentativas = c.porta.sondagens
+        advanceTimeBy(4_000); runCurrent()
+        assertEquals(tentativas, c.porta.sondagens)
     }
 
     @Test fun `resultado do Termux vira recusado, falha ou token guardado, e lixo nunca guarda nada`() {

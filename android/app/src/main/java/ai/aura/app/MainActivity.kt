@@ -13,6 +13,10 @@ import androidx.compose.runtime.setValue
 import ai.aura.app.integration.AuraEngineClient
 import ai.aura.app.integration.EngineCredentialStore
 import ai.aura.app.integration.RealEngineGateway
+import ai.aura.app.integration.RealTermuxPort
+import ai.aura.app.ui.screens.onboarding.LocalTermuxFlow
+import ai.aura.app.ui.screens.onboarding.TermuxFlow
+import androidx.compose.runtime.rememberCoroutineScope
 import ai.aura.app.integration.TermuxBridge
 import ai.aura.app.offline.EngineLink
 import ai.aura.app.offline.LocalStore
@@ -61,22 +65,28 @@ class MainActivity : ComponentActivity() {
             // Motor real guardado em disco (sem ele o app mostra o último dado) e o estado do vínculo para o banner.
             val bridge = remember { TermuxBridge(applicationContext) }
             val link = remember { EngineLink(bridge) }
+            val realGateway = remember { RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext))) }
             val gateway = remember {
                 OfflineFirstGateway(
-                    RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext))),
+                    realGateway,
                     LocalStore(java.io.File(filesDir, "aura")),
                     link,
                 )
             }
+            val scope = rememberCoroutineScope()
+            val port = remember { RealTermuxPort(this, bridge, realGateway) }
+            val termuxFlow = remember { TermuxFlow(port, link, scope) }
             val openUrl: (String) -> Unit = { url ->
                 val uri = runCatching { Uri.parse(url) }.getOrNull()
                 if (uri?.scheme == "https" && !uri.host.isNullOrBlank()) {
                     // Sem navegador instalado o app não fecha.
-                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure {
+                        android.widget.Toast.makeText(this, "Não foi possível abrir o navegador. Instale ou habilite um navegador e tente de novo.", android.widget.Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
-            androidx.compose.runtime.CompositionLocalProvider(LocalVoiceInput provides voiceHook) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalVoiceInput provides voiceHook, LocalTermuxFlow provides termuxFlow) {
             AuraApp(
                 lastCrash = lastCrash,
                 onDismissCrash = {
@@ -110,8 +120,8 @@ class MainActivity : ComponentActivity() {
                     when (reason) {
                         OfflineReason.NoTermux -> openUrl("https://f-droid.org/packages/com.termux/")
                         OfflineReason.NoPermission -> runCatching { bridge.askPermission(this) }
-                        OfflineReason.NoToken -> runCatching { bridge.pair() }
-                        OfflineReason.EngineStopped -> runCatching { bridge.startEngine() }
+                        OfflineReason.NoToken -> termuxFlow.confirmPasted()
+                        OfflineReason.EngineStopped -> termuxFlow.startEngine()
                     }
                 },
             )

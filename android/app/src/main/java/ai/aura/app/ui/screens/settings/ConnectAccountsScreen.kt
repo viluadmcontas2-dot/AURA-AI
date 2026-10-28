@@ -36,7 +36,7 @@ import ai.aura.app.ui.components.AuraButtonText
 import ai.aura.app.ui.components.AuraCard
 import ai.aura.app.ui.components.StatusChip
 import ai.aura.app.ui.components.StatusKind
-import ai.aura.app.ui.engine.AuthStartResult
+import ai.aura.app.ui.engine.AUTH_PROVIDER_IDS
 import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStatus
 import ai.aura.app.ui.engine.EngineGateway
@@ -58,6 +58,15 @@ private fun providerLabel(id: String): String = when (id) {
     "github" -> "GitHub"
     "gdrive" -> "Google Drive"
     else -> id
+}
+
+/** Páginas públicas: nenhuma credencial passa pelo AURA. */
+fun officialAccountLoginUrl(provider: String): String? = when (provider) {
+    "claude" -> "https://claude.ai/login"
+    "codex", "chatgpt" -> "https://chatgpt.com/auth/login"
+    "gemini", "agy", "gdrive", "google" -> "https://accounts.google.com"
+    "github" -> "https://github.com/login"
+    else -> null
 }
 
 /** Passo ativo: link e código de uso único vindos de auth.prompt. Nunca há token aqui. */
@@ -87,7 +96,9 @@ fun ConnectAccountsScreen(
     var copied by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
-        statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList())
+        statuses = runCatching { gateway.authStatus() }.getOrDefault(emptyList()).ifEmpty {
+            AUTH_PROVIDER_IDS.map { AuthStatus(it, AuthState.Unavailable) }
+        }
         loaded = true
     }
 
@@ -144,13 +155,15 @@ fun ConnectAccountsScreen(
     }
 
     fun connect(provider: String) {
-        notice = null
-        starting = provider
-        step = null
-        scope.launch {
-            val r = runCatching { gateway.startAuth(provider) }.getOrNull()
-            if (r is AuthStartResult.Failed) finish(false, "${r.reason} ${r.fix}")
-            else if (r == null) finish(false, "O motor não respondeu. $ENGINE_DOWN_HINT")
+        val url = officialAccountLoginUrl(provider)
+        if (url == null) {
+            notice = SettingsNotice(false, "Este serviço não tem página de entrada disponível. Escolha outra conta.")
+            return
+        }
+        notice = if (runCatching { onOpenUrl(url) }.isSuccess) {
+            SettingsNotice(true, "Entre no navegador e volte ao AURA")
+        } else {
+            SettingsNotice(false, "Não consegui abrir o navegador. Instale um navegador e tente de novo.")
         }
     }
 
@@ -245,12 +258,12 @@ private fun AccountRow(st: AuthStatus, busy: Boolean, onConnect: () -> Unit, onI
             StatusChip(kind, chip)
         }
         st.detail?.let { Text(it, style = AuraType.SecondarySmall) }
-        when {
-            st.state == AuthState.Disconnected -> AuraButtonSecondary("Conectar $name", onConnect, enabled = !busy)
-            st.state == AuthState.Expired -> AuraButtonSecondary("Reconectar $name", onConnect, enabled = !busy)
-            st.state == AuthState.Unavailable && st.installable ->
-                AuraButtonSecondary("Instalar $name", onInstall, enabled = !busy)
-            else -> Unit
+        if (st.state != AuthState.Connected) {
+            AuraButtonSecondary("Entrar", onConnect, enabled = !busy,
+                contentDescription = "Entrar no $name pelo navegador")
+        }
+        if (st.state == AuthState.Unavailable && st.installable) {
+            AuraButtonSecondary("Instalar $name", onInstall, enabled = !busy)
         }
     }
 }
