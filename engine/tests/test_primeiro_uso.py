@@ -49,6 +49,70 @@ class ClaudeNoPathDoMotor(ChatBase):
             self.assertFalse(adapters.installed("claude"))
 
 
+STDIN_PRELUDE = '''import json, os, sys
+open(os.environ["AURA_FAKE_DIR"] + "/stdin.log", "a").write(json.dumps(sys.stdin.read()) + "\\n")
+'''
+FAKE_GEMINI = """#!%(py)s
+import json, os, sys
+d = os.environ["AURA_FAKE_DIR"]
+open(d + "/gemini-args.log", "a").write(json.dumps(sys.argv[1:]) + "\\n")
+open(d + "/gemini-stdin.log", "a").write(json.dumps(sys.stdin.read()) + "\\n")
+print("resposta do gemini")
+"""
+
+
+class TextoLongoEPrefixoTraco(ChatBase):
+    def install_claude_stdin(self):
+        path = self.fake / "claude"
+        path.write_text((FAKE_CLAUDE % {"py": sys.executable}).replace(
+            "import json, os, sys, time\n", "import json, os, sys, time\n" + STDIN_PRELUDE, 1))
+        path.chmod(0o755)
+        os.environ["PATH"] = str(self.fake) + os.pathsep + str(self.root / "vazio")
+
+    def stdins(self, nome="stdin.log"):
+        return [json.loads(x) for x in (self.fake / nome).read_text().splitlines()]
+
+    def test_PU4_texto_de_30000_caracteres_vai_por_stdin_e_responde(self):
+        self.install_claude_stdin()
+        texto = ("ditado longo " * 3000)[:30000]
+        _, started = self.call("POST", "/v1/chat", {"text": texto})
+        self.assertEqual(self.wait_final(started["chat_id"])["type"], "chat.done")
+        argv = self.args()[0]
+        self.assertTrue(all(len(a) < 1000 for a in argv), [len(a) for a in argv])
+        self.assertEqual(argv[0], "-p")
+        self.assertEqual(self.stdins()[0], texto)
+
+    def test_PU4_texto_que_comeca_com_traco_nao_vira_opcao(self):
+        self.install_claude_stdin()
+        texto = "--help e -x: o que e isso?"
+        _, started = self.call("POST", "/v1/chat", {"text": texto})
+        self.assertEqual(self.wait_final(started["chat_id"])["type"], "chat.done")
+        self.assertNotIn(texto, self.args()[0])
+        self.assertEqual(self.stdins()[0], texto)
+
+    def test_PU4_texto_curto_continua_no_argv(self):
+        self.install_claude_stdin()
+        _, started = self.call("POST", "/v1/chat", {"text": "Ola"})
+        self.wait_final(started["chat_id"])
+        self.assertEqual(self.args()[0][:2], ["-p", "Ola"])
+        self.assertEqual(self.stdins()[0], "")
+
+    def test_PU4_gemini_com_texto_longo_tambem_usa_stdin(self):
+        gemini = self.fake / "gemini"
+        gemini.write_text(FAKE_GEMINI % {"py": sys.executable})
+        gemini.chmod(0o755)
+        os.environ["PATH"] = str(self.fake) + os.pathsep + str(self.root / "vazio")
+        texto = "-" + "a" * 20000
+        _, started = self.call("POST", "/v1/chat", {"text": texto})
+        final = self.wait_final(started["chat_id"])
+        self.assertEqual(final["type"], "chat.done")
+        self.assertTrue(all(len(a) < 1000 for a in self.args("gemini-args.log")[0]))
+        self.assertEqual(self.stdins("gemini-stdin.log")[0], texto)
+
+    def args(self, nome="args.log"):
+        return [json.loads(x) for x in (self.fake / nome).read_text().splitlines()]
+
+
 class VersaoDoMotor(ChatBase):
     def test_PU3_health_traz_engine_build_do_conteudo_de_aura_engine(self):
         code, body = self.call("GET", "/v1/health")

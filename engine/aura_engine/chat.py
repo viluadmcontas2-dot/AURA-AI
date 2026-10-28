@@ -47,6 +47,14 @@ def tool_summary(name, tool_input):
     return TOOL_PHRASES.get(name, "Trabalhando…")
 
 
+STDIN_MIN = 8000  # acima disso o prompt vai por stdin (o teto de um argumento e 10000, em security.safe_argv)
+STDIN_INSTRUCTION = "Responda à mensagem do usuário que veio na entrada."
+
+
+def via_stdin(text):
+    return len(text) > STDIN_MIN or text.lstrip().startswith("-")
+
+
 def friendly_error(code, kind=None):
     who = NAME.get(kind, "Claude")
     table = {
@@ -230,11 +238,18 @@ class ChatManager:
         self._fail(run, code, kind)
 
     def _build(self, run, kind, conv):
+        """(argv, texto_para_stdin). Texto longo ou que comeca com '-' vai por STDIN: o argv tem teto
+        (security.safe_argv) e a CLI leria '-texto' como opcao."""
         exe = EXE[kind]
         total = adapters.is_total(self.engine)
+        stdin_text = None
         if kind == "claude_cli":
-            argv = [exe, "-p", run.text, "--output-format", "stream-json",
-                    "--verbose", "--include-partial-messages"]
+            # `claude -p` sem texto no argv le o prompt do stdin
+            if via_stdin(run.text):
+                argv, stdin_text = [exe, "-p"], run.text
+            else:
+                argv = [exe, "-p", run.text]
+            argv += ["--output-format", "stream-json", "--verbose", "--include-partial-messages"]
             cli = conv.get("cli_session") or conv["id"]
             argv += ["--resume", cli] if conv.get("started") else ["--session-id", cli]
             if total:
@@ -245,14 +260,20 @@ class ChatManager:
                 model = None
             if model:
                 argv += ["--model", model]
-        elif kind == "gemini_cli":
-            argv = [exe, "-p", self._prompt_with_history(run)] + (["--yolo"] if total else [])
         else:
-            if total:
-                adapters.bootstrap_agy_permissions()
-            argv = [exe] + (["--dangerously-skip-permissions"] if total else []) + [
-                "-p", self._prompt_with_history(run)]
-        return safe_argv(argv)
+            prompt = self._prompt_with_history(run)
+            if via_stdin(prompt):
+                # o texto vai no stdin e o -p leva so uma instrucao curta (a CLI junta os dois)
+                arg, stdin_text = STDIN_INSTRUCTION, prompt
+            else:
+                arg = prompt
+            if kind == "gemini_cli":
+                argv = [exe, "-p", arg] + (["--yolo"] if total else [])
+            else:
+                if total:
+                    adapters.bootstrap_agy_permissions()
+                argv = [exe] + (["--dangerously-skip-permissions"] if total else []) + ["-p", arg]
+        return safe_argv(argv), stdin_text
 
     def _prompt_with_history(self, run):
         # CLIs sem sessao confiavel: leva o fim da conversa junto.
@@ -270,17 +291,21 @@ class ChatManager:
         cwd = adapters.workspace(self.engine.home, {"workspace": run.workspace})
         if kind == "claude_cli" and conv.get("cwd") and os.path.isdir(conv["cwd"]):
             cwd = pathlib.Path(conv["cwd"])
-        argv = self._build(run, kind, conv)
+        argv, stdin_text = self._build(run, kind, conv)
         try:
             env = pathutil.child_env()  # PATH ampliado: acha o `claude` recem-instalado em ~/.local/bin
             if kind == "claude_cli" and adapters.is_total(self.engine) and hasattr(os, "geteuid") \
                     and os.geteuid() == 0:
                 env["IS_SANDBOX"] = "1"  # o Claude Code recusa o bypass como root sem isto
-            proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, start_new_session=True, env=env)
+            proc = subprocess.Popen(argv, cwd=str(cwd),
+                                    stdin=subprocess.DEVNULL if stdin_text is None else subprocess.PIPE,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
+                                    env=env)
         except OSError:
             return "cli_missing"
         run.proc = proc
+        if stdin_text is not None:
+            threading.Thread(target=self._feed_stdin, args=(proc, stdin_text), daemon=True).start()
         run.kind, run.started_at = kind, time.time()
         if run.stopped:
             self._kill(run)
@@ -338,6 +363,19 @@ class ChatManager:
             self._delta(run, adapters.redact(result["result"]))
         cost = result.get("total_cost_usd", result.get("cost_usd"))
         return self._done(run, parsed["session"], cost if isinstance(cost, (int, float)) else None)
+
+    @staticmethod
+    def _feed_stdin(proc, text):
+        """Escreve o prompt no stdin e fecha (EOF). Numa thread: texto grande nao trava se a CLI nao ler."""
+        try:
+            proc.stdin.write(text.encode("utf-8"))
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                proc.stdin.close()
+            except (OSError, ValueError):
+                pass
 
     @staticmethod
     def _classify(blob, returncode):
