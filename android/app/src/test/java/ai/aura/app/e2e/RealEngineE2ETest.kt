@@ -133,23 +133,49 @@ class RealEngineE2ETest {
         assertTrue(bad.models() is ModelsResult.Unavailable)
     }
 
+    private suspend fun eventTypes() = client.events(0).getJSONArray("events").let { a ->
+        List(a.length()) { a.getJSONObject(it).getString("type") }
+    }
+
     @Test
-    fun tarefa_shell_pede_aprovacao_e_roda_de_verdade() = runBlocking {
+    fun tarefa_shell_na_autonomia_padrao_roda_sem_pedir_aprovacao() = runBlocking {
+        // Decisão do dono: a autonomia padrão é "total", então o shell não espera aprovação.
+        assertEquals("total", client.request("/v1/settings/autonomy").getString("autonomy"))
         val created = client.submit(echo("aura-e2e-ok"), "e2e-" + System.nanoTime())
         val id = created.getString("id")
-        // Política padrão (autônomo): shell é crítico e espera o dono aprovar.
+        assertNotEquals("awaiting_approval", created.getString("status"))
+
+        val done = waitJob(id) { it.status.isTerminal }
+        assertEquals(JobStatus.Completed, done.status)
+        assertTrue("saída real do echo: ${done.result}", done.result.orEmpty().contains("aura-e2e-ok"))
+
+        val types = eventTypes()
+        assertTrue("eventos do job: $types", types.any { it.startsWith("job.") })
+    }
+
+    @Test
+    fun tarefa_shell_pede_aprovacao_quando_o_dono_escolhe_ask_destructive() = runBlocking {
+        client.request("/v1/settings/autonomy", "POST", JSONObject().put("autonomy", "ask_destructive"))
+        val created = client.submit(echo("aura-e2e-aprovado"), "e2e-" + System.nanoTime())
+        val id = created.getString("id")
+        // Shell é crítico: com "pedir só o destrutivo" espera o dono aprovar.
         assertEquals("awaiting_approval", created.getString("status"))
         assertEquals(JobStatus.AwaitingApproval, gateway.jobs().first { it.id == id }.status)
 
         gateway.approve(id)
         val done = waitJob(id) { it.status.isTerminal }
         assertEquals(JobStatus.Completed, done.status)
-        assertTrue("saída real do echo: ${done.result}", done.result.orEmpty().contains("aura-e2e-ok"))
+        assertTrue("saída real do echo: ${done.result}", done.result.orEmpty().contains("aura-e2e-aprovado"))
+    }
 
-        val types = client.events(0).getJSONArray("events").let { a ->
-            List(a.length()) { a.getJSONObject(it).getString("type") }
-        }
-        assertTrue("eventos do job: $types", types.any { it.startsWith("job.") })
+    @Test
+    fun tarefa_shell_pede_aprovacao_quando_o_dono_escolhe_ask_all() = runBlocking {
+        client.request("/v1/settings/autonomy", "POST", JSONObject().put("autonomy", "ask_all"))
+        val created = client.submit(echo("aura-e2e-ask-all"), "e2e-" + System.nanoTime())
+        assertEquals("awaiting_approval", created.getString("status"))
+        gateway.approve(created.getString("id"))
+        val done = waitJob(created.getString("id")) { it.status.isTerminal }
+        assertEquals(JobStatus.Completed, done.status)
     }
 
     @Test
