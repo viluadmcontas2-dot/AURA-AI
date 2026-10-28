@@ -18,7 +18,16 @@ from .security import safe_argv, workspace_name
 UUID_RE = re.compile(r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}")
 EXE = {"claude_cli": "claude", "gemini_cli": "gemini", "agy_cli": "agy"}
 NAME = {"claude_cli": "Claude", "gemini_cli": "Gemini", "agy_cli": "Antigravity"}
-TIMEOUT_SECONDS = 900
+DEFAULT_TIMEOUT = 3600
+NO_CONVERSATION = "no conversation found"  # o que a CLI diz quando o --resume nao conhece a sessao
+
+
+def chat_timeout():
+    """Tempo maximo (s) de uma resposta. Padrao 1 h; AURA_CHAT_TIMEOUT (segundos, 1..86400) muda."""
+    try:
+        return max(1, min(int(os.environ.get("AURA_CHAT_TIMEOUT", DEFAULT_TIMEOUT)), 86400))
+    except ValueError:
+        return DEFAULT_TIMEOUT
 EXECUTORS = ("auto", "claude", "claude_cli", "gemini", "gemini_cli", "agy", "agy_cli")
 
 AUTH_HINTS = ("/login", "not logged in", "invalid api key", "authentication", "unauthorized",
@@ -80,6 +89,7 @@ class _Run:
         self.stopped = False
         self.timed_out = False
         self.answer = ""
+        self.retried_new = False  # ja tentou de novo como conversa nova (so uma vez)
 
 
 class ChatManager:
@@ -219,6 +229,9 @@ class ChatManager:
 
     def _fail(self, run, code, kind=None):
         err = friendly_error(code, kind)
+        if code in ("timeout", "stopped") and run.answer.strip():
+            # o que ja chegou nao se perde: fica no historico da conversa
+            self.engine.store.chat_add_message(run.session_id, run.chat_id, "assistant", run.answer)
         self.engine.store.chat_run_set(run.chat_id, "error", text=run.answer, error=err)
         self._emit("chat.error", dict(err, chat_id=run.chat_id))
 
@@ -320,7 +333,7 @@ class ChatManager:
         def on_timeout():
             run.timed_out = True
             self._kill(run)
-        timer = threading.Timer(TIMEOUT_SECONDS, on_timeout)
+        timer = threading.Timer(chat_timeout(), on_timeout)
         timer.daemon = True
         timer.start()
         parsed = {"result": None, "session": None, "plain": []}
@@ -358,7 +371,14 @@ class ChatManager:
         result = parsed["result"]
         if result is None or result.get("is_error"):
             body = result.get("result") if result and isinstance(result.get("result"), str) else ""
-            return self._classify(err_text + " " + body.lower(), proc.returncode if result is None else 1)
+            blob = err_text + " " + body.lower()
+            if NO_CONVERSATION in blob and conv.get("started") and not run.answer and not run.retried_new:
+                # a CLI nao conhece essa sessao: uma vez so, recomeca como conversa nova. O session_id do app
+                # continua o mesmo (o historico dele fica); so a sessao interna da CLI e trocada.
+                run.retried_new = True
+                store.chat_update_conversation(run.session_id, cli_session=str(uuid.uuid4()), started=0)
+                return self._run_one(run, kind)
+            return self._classify(blob, proc.returncode if result is None else 1)
         if not run.answer and isinstance(result.get("result"), str):
             self._delta(run, adapters.redact(result["result"]))
         cost = result.get("total_cost_usd", result.get("cost_usd"))
@@ -441,5 +461,7 @@ class ChatManager:
         payload = {"chat_id": run.chat_id, "text": run.answer, "session_id": run.session_id}
         if cost is not None:
             payload["cost"] = cost
+        if run.retried_new:
+            payload["new_conversation"] = True  # a CLI nao conhecia a sessao: a conversa recomecou do zero
         self._emit("chat.done", payload)
         return True

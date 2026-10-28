@@ -6,6 +6,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+import time
 import sys
 import unittest
 import unittest.mock
@@ -111,6 +112,83 @@ class TextoLongoEPrefixoTraco(ChatBase):
 
     def args(self, nome="args.log"):
         return [json.loads(x) for x in (self.fake / nome).read_text().splitlines()]
+
+
+PRELUDE_MODOS = """if mode == "noresume" and "--resume" in sys.argv and sid.startswith("11111111-"):
+    out({"type": "result", "subtype": "error", "is_error": True, "session_id": sid,
+         "result": "No conversation found with session ID: " + sid})
+    sys.exit(1)
+if mode == "partial":
+    out({"type": "stream_event", "session_id": sid, "event": {"type": "message_start"}})
+    out({"type": "stream_event", "session_id": sid, "event": {"type": "content_block_delta", "index": 0,
+         "delta": {"type": "text_delta", "text": "Resposta pela metade"}}})
+    time.sleep(60)
+"""
+UUID_DESCONHECIDO = "11111111-2222-4333-8444-555555555555"
+
+
+class SessaoDesconhecidaETimeout(ChatBase):
+    def install_claude_modos(self):
+        path = self.fake / "claude"
+        path.write_text((FAKE_CLAUDE % {"py": sys.executable}).replace(
+            'if mode == "hang":', PRELUDE_MODOS + 'if mode == "hang":', 1))
+        path.chmod(0o755)
+        os.environ["PATH"] = str(self.fake) + os.pathsep + str(self.root / "vazio")
+
+    def test_PU5_resume_de_sessao_desconhecida_recomeca_uma_vez_como_conversa_nova(self):
+        self.install_claude_modos()
+        (self.fake / "mode").write_text("noresume")
+        _, started = self.call("POST", "/v1/chat", {"text": "Ola", "session_id": UUID_DESCONHECIDO})
+        final = self.wait_final(started["chat_id"])
+        self.assertEqual(final["type"], "chat.done", final)
+        self.assertTrue(final["payload"]["new_conversation"])
+        self.assertEqual(final["payload"]["session_id"], UUID_DESCONHECIDO)
+        primeira, segunda = self.args()
+        self.assertIn("--resume", primeira)
+        self.assertIn("--session-id", segunda)
+        self.assertNotIn("--resume", segunda)
+        # a proxima mensagem na mesma conversa retoma a sessao nova da CLI, sem novo recomeco
+        _, again = self.call("POST", "/v1/chat", {"text": "E agora?", "session_id": UUID_DESCONHECIDO})
+        done = self.wait_final(again["chat_id"])
+        self.assertEqual(done["type"], "chat.done", done)
+        self.assertNotIn("new_conversation", done["payload"])
+        terceira = self.args()[2]
+        self.assertEqual(terceira[terceira.index("--resume") + 1], segunda[segunda.index("--session-id") + 1])
+
+    def test_PU6_timeout_padrao_1h_e_configuravel(self):
+        from aura_engine import chat
+        os.environ.pop("AURA_CHAT_TIMEOUT", None)
+        self.assertEqual(chat.chat_timeout(), 3600)
+        with unittest.mock.patch.dict(os.environ, {"AURA_CHAT_TIMEOUT": "120"}):
+            self.assertEqual(chat.chat_timeout(), 120)
+        with unittest.mock.patch.dict(os.environ, {"AURA_CHAT_TIMEOUT": "lixo"}):
+            self.assertEqual(chat.chat_timeout(), 3600)
+
+    def test_PU6_timeout_guarda_o_texto_parcial_no_historico(self):
+        self.install_claude_modos()
+        (self.fake / "mode").write_text("partial")
+        with unittest.mock.patch.dict(os.environ, {"AURA_CHAT_TIMEOUT": "1"}):
+            _, started = self.call("POST", "/v1/chat", {"text": "demora"})
+            final = self.wait_final(started["chat_id"], timeout=10)
+        self.assertEqual((final["type"], final["payload"]["code"]), ("chat.error", "timeout"))
+        _, msgs = self.call("GET", "/v1/chats/%s/messages" % started["session_id"])
+        self.assertEqual([(m["role"], m["text"]) for m in msgs["messages"]],
+                         [("user", "demora"), ("assistant", "Resposta pela metade")])
+        _, state = self.call("GET", "/v1/chat/" + started["chat_id"])
+        self.assertEqual(state["text"], "Resposta pela metade")
+
+    def test_PU6_parar_guarda_o_texto_parcial_no_historico(self):
+        self.install_claude_modos()
+        (self.fake / "mode").write_text("partial")
+        _, started = self.call("POST", "/v1/chat", {"text": "demora"})
+        end = time.time() + 6
+        while time.time() < end and "Resposta pela metade" not in (self.call("GET", "/v1/chat/" + started["chat_id"])[1].get("text") or ""):
+            time.sleep(0.05)
+        self.call("POST", "/v1/chat/%s/stop" % started["chat_id"])
+        self.assertEqual(self.wait_final(started["chat_id"])["payload"]["code"], "stopped")
+        _, msgs = self.call("GET", "/v1/chats/%s/messages" % started["session_id"])
+        self.assertEqual(msgs["messages"][-1]["text"], "Resposta pela metade")
+        self.assertEqual(msgs["messages"][-1]["role"], "assistant")
 
 
 class VersaoDoMotor(ChatBase):
