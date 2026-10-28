@@ -89,12 +89,3 @@ fun HomeScreen(
         }
     }
 }
-<<<<<<< HEAD
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, widthDp = 390, heightDp = 844)
-@Composable
-private fun HomeScreenPreview() {
-    AuraTheme { HomeScreen(FakeEngineGateway(), store = LocalStore(File(System.getProperty("java.io.tmpdir"), "aura-preview"))) }
-}
-=======
->>>>>>> origin/claude/t4-gateway

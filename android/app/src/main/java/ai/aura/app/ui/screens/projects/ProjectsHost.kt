@@ -240,17 +240,3 @@ internal fun ProjectsHost(
         )
     }
 }
-<<<<<<< HEAD
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 780)
-@Composable
-private fun ProjectsHostPreview() {
-    AuraTheme {
-        ProjectsHost(
-            FakeEngineGateway(ExampleData.jobs), initialProjects = ExampleData.projects, initialArtifacts = ExampleData.artifacts,
-            store = LocalStore(File(System.getProperty("java.io.tmpdir"), "aura-preview")),
-        )
-    }
-}
-=======
->>>>>>> origin/claude/t4-gateway
