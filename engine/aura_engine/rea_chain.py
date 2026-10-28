@@ -21,7 +21,8 @@ MCP_ARGV = ["rea-agents", "mcp"]
 def steps(home):
     jar = str(home / "rea" / JAR_NAME)
     return [
-        ("node", [["pkg", "install", "-y", "nodejs-lts"], ["node", "--version"]]),
+        ("node", [["pkg", "install", "-y", "nodejs-lts", "npm"],  # desde o 24.13 o npm e pacote a parte
+                  ["node", "--version"], ["npm", "--version"]]),
         ("jdk", [["pkg", "install", "-y", "openjdk-21"], ["javac", "-version"]]),
         ("jadx", [["curl", "-fL", "-o", jar, JAR_URL],
                   ["sh", "-c", 'echo "%s  %s" | sha256sum -c -' % (JAR_SHA256, jar)]]),

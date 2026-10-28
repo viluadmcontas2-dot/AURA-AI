@@ -76,8 +76,8 @@ class ReaChain(Base):
         fake = Fake()
         done = self.run_job(fake, SETUP)
         self.assertEqual(done["status"], "completed", done)
-        self.assertEqual([a[-1] for a in fake.calls if a[:2] == ["pkg", "install"]],
-                         ["nodejs-lts", "openjdk-21", "apktool", "android-tools"])
+        self.assertEqual([a[3:] for a in fake.calls if a[:2] == ["pkg", "install"]],
+                         [["nodejs-lts", "npm"], ["openjdk-21"], ["apktool"], ["android-tools"]])
         self.assertIn(["npm", "install", "-g", "rea-agents@6.8.0"], fake.calls)
         curl = next(a for a in fake.calls if a[0] == "curl")
         self.assertIn("https://github.com/1013503897/jadx-headless-mcp/releases/download/"
