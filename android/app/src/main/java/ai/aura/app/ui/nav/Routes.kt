@@ -154,7 +154,9 @@ val ROUTES: List<Route> = listOf(
             { env.open("ajustes") }, env.onOpenUrl, env.back,
         )
     },
-    Route("notificacoes", "Notificacoes", null, false, emptyList()),
+    Route("notificacoes", "Notificacoes", null, false, emptyList()) { env ->
+        ai.aura.app.ui.screens.settings.NotificationsScreen(onBack = env.back, modifier = Modifier.fillMaxSize())
+    },
     Route("conexoes", "Conexoes", null, true, emptyList()),
     Route("permissoes", null, null, false, emptyList()),
 
