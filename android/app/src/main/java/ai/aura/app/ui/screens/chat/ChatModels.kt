@@ -1,13 +1,17 @@
 package ai.aura.app.ui.screens.chat
 
+import ai.aura.app.offline.LocalStore
 import ai.aura.app.ui.components.StatusKind
 import ai.aura.app.ui.engine.Capability
 import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.engine.RouteResult
 import ai.aura.app.ui.engine.Job
+import ai.aura.app.ui.screens.readList
+import ai.aura.app.ui.screens.writeList
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
+import org.json.JSONObject
 
 /**
  * O que a aba Início sabe sobre o chat aberto. Só strings, para sobreviver a rotação e a
@@ -25,14 +29,29 @@ data class ChatEntry(
 ) {
     companion object {
         val Closed = ChatEntry()
-        val Saver: Saver<ChatEntry, Any> = listSaver<ChatEntry, String>(
+        val Saver: Saver<ChatEntry, Any> = listSaver<ChatEntry, Any>(
             save = { listOf(if (it.open) "1" else "0", it.prompt, it.requestId, it.jobId, it.draft) },
-            restore = { ChatEntry(it[0] == "1", it[1], it[2], it[3], it[4]) },
+            // Lista curta ou de tipo torto (versão antiga, Bundle estranho): descarta em vez de derrubar o app.
+            restore = { l ->
+                if (l.size < 5) null
+                else ChatEntry(l[0] == "1", l[1] as? String ?: "", l[2] as? String ?: "", l[3] as? String ?: "", l[4] as? String ?: "")
+            },
         )
     }
 }
 
 data class ChatMessage(val id: Int, val fromUser: Boolean, val text: String)
+
+/** Histórico do chat no disco (FN-12): volta ao reabrir a conversa, mesmo sem motor. */
+internal fun LocalStore.loadChat(): List<ChatMessage> = readList("chat-history") { o ->
+    ChatMessage(o.optInt("id", -1), o.optBoolean("fromUser", false), o.optString("text", ""))
+        .takeIf { it.id >= 0 && it.text.isNotEmpty() }
+}
+
+internal fun LocalStore.saveChat(messages: List<ChatMessage>) = writeList(
+    "chat-history",
+    messages.takeLast(200).map { JSONObject().put("id", it.id).put("fromUser", it.fromUser).put("text", it.text) },
+)
 
 sealed interface ChatPhase {
     object Idle : ChatPhase

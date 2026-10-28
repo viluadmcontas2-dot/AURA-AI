@@ -50,6 +50,7 @@ import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
+import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.screens.devices.SectionTitle
@@ -61,11 +62,12 @@ import ai.aura.app.ui.theme.AuraTheme
 import ai.aura.app.ui.theme.AuraType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * Aba Atividade: aprovações, o que está rodando e histórico (concluído, falhou, cancelado,
  * interrompido) com evidência do engine. Logs só atrás de "Ver detalhes técnicos".
- * [onRetry] é opcional: sem ele não há botão de repetir (o Job não guarda o pedido original).
+ * [onRetry] é opcional: sem ele, "Tentar de novo" manda um pedido novo com o tipo e o título do job.
  * [onStartRequest] leva o usuário a pedir algo (aba Início), usado na tela vazia.
  */
 @Composable
@@ -135,7 +137,8 @@ fun ActivityTab(
         onRefuse = { launchAction { gateway.cancel(it.id) } },
         onCancel = { launchAction { gateway.cancel(it.id) } },
         onReload = { tick++ },
-        onRetry = onRetry,
+        // Sem gancho de fora, "Tentar de novo" repete o pedido (kind e título, o que o Job guarda) com id novo.
+        onRetry = onRetry ?: { job: Job -> launchAction { gateway.submit("req_retry_" + UUID.randomUUID(), JobRequest(job.kind, job.title)) } },
         onStartRequest = onStartRequest,
         onOpenJob = onOpenJob,
         modifier = modifier,

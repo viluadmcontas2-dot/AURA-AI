@@ -1,5 +1,7 @@
 package ai.aura.app.ui.screens.home
 
+import ai.aura.app.offline.LinkState
+import ai.aura.app.offline.OfflineReason
 import ai.aura.app.ui.components.AuraButtonPrimary
 import ai.aura.app.ui.components.AuraButtonSecondary
 import ai.aura.app.ui.components.AuraButtonText
@@ -109,6 +111,8 @@ fun HomeContent(
     onOpenSettings: () -> Unit = {},
     initialDraft: String = "",
     onDraftChange: (String) -> Unit = {},
+    link: LinkState = LinkState.Unknown,
+    onEngineAction: ((OfflineReason) -> Unit)? = null,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
@@ -129,6 +133,8 @@ fun HomeContent(
         onRetry = { attempt++ },
         modifier = modifier,
         onOpenSettings = onOpenSettings,
+        link = link,
+        onEngineAction = onEngineAction,
     )
 }
 
@@ -142,9 +148,14 @@ internal fun HomeView(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenSettings: () -> Unit = {},
+    link: LinkState = LinkState.Unknown,
+    onEngineAction: ((OfflineReason) -> Unit)? = null,
 ) {
+    // Sem motor, o aviso nasce do motivo do elo (ou de a consulta ter falhado) e traz UMA ação.
+    val offlineReason = (link as? LinkState.Offline)?.reason
+        ?: if (data == HomeData.Offline) OfflineReason.EngineStopped else null
     Column(modifier.fillMaxSize().background(AuraColors.Bg)) {
-        HomeHeader(data, onOpenSettings)
+        HomeHeader(data, offlineReason != null, onOpenSettings)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
@@ -163,10 +174,9 @@ internal fun HomeView(
                     )
                 }
                 Spacer(Modifier.height(24.dp))
-                when (data) {
-                    HomeData.Offline -> OfflineCard(onRetry)
-                    is HomeData.Ready -> SuggestionCard(data.jobs, onOpenChat)
-                    HomeData.Loading -> Unit
+                when {
+                    offlineReason != null -> OfflineCard(offlineReason, onEngineAction, onRetry)
+                    data is HomeData.Ready -> SuggestionCard(data.jobs, onOpenChat)
                 }
                 Spacer(Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -196,7 +206,7 @@ internal fun HomeView(
 }
 
 @Composable
-private fun HomeHeader(data: HomeData, onOpenSettings: () -> Unit) {
+private fun HomeHeader(data: HomeData, offline: Boolean, onOpenSettings: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -206,12 +216,12 @@ private fun HomeHeader(data: HomeData, onOpenSettings: () -> Unit) {
             AuraOrb(Modifier.size(24.dp))
             Text("aura", style = AuraType.Section.copy(fontSize = 22.sp, letterSpacing = (-0.03).sp, fontWeight = FontWeight.SemiBold))
         }
-        val (kind, label) = when (data) {
-            HomeData.Loading -> StatusKind.Neutral to "Verificando…"
-            HomeData.Offline -> StatusKind.NeedsYou to "Termux sem resposta"
-            is HomeData.Ready ->
+        val (kind, label) = when {
+            offline -> StatusKind.NeedsYou to "Motor desligado"
+            data is HomeData.Ready ->
                 if (data.capabilities.any { it.id == "termux" && !it.available }) StatusKind.NeedsYou to "Termux inativo"
                 else StatusKind.Ready to "Termux ativo"
+            else -> StatusKind.Neutral to "Verificando…"
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             StatusChip(kind, label)
@@ -309,11 +319,20 @@ private fun SuggestionCard(jobs: List<Job>, onOpenChat: (ChatEntry) -> Unit) {
 }
 
 @Composable
-private fun OfflineCard(onRetry: () -> Unit) {
-    AuraCard(tint = AuraColors.NeedsYou.bg, contentDescription = "Sem conexão com o Termux") {
-        Text("O AURA não alcança o Termux", style = AuraType.Section.copy(color = AuraColors.NeedsYou.fg), modifier = Modifier.semantics { heading() })
-        Text("Abra o Termux, confirme que o AURA está ativo e toque em Tentar de novo.", style = AuraType.Secondary.copy(color = AuraColors.NeedsYou.fg))
-        Box(Modifier.padding(top = 8.dp)) { AuraButtonSecondary("Tentar de novo", onRetry) }
+private fun OfflineCard(reason: OfflineReason, onAction: ((OfflineReason) -> Unit)?, onRetry: () -> Unit) {
+    val (title, body, action) = when (reason) {
+        OfflineReason.NoTermux -> Triple("O Termux não está instalado", "O AURA precisa do Termux neste celular. Instale e volte aqui.", "Instalar o Termux")
+        OfflineReason.NoPermission -> Triple("Falta a permissão do Termux", "Libere o acesso ao Termux para o AURA trabalhar.", "Dar permissão")
+        OfflineReason.NoToken -> Triple("Falta conectar o AURA ao Termux", "Faça o pareamento uma vez e o AURA volta a trabalhar.", "Conectar o Termux")
+        else -> Triple("Motor desligado", "Abra o Termux e ligue o AURA. O que você pedir fica guardado e vai sozinho quando ele voltar.", "Ligar o motor")
+    }
+    AuraCard(tint = AuraColors.NeedsYou.bg, contentDescription = "Motor desligado") {
+        Text(title, style = AuraType.Section.copy(color = AuraColors.NeedsYou.fg), modifier = Modifier.semantics { heading() })
+        Text(body, style = AuraType.Secondary.copy(color = AuraColors.NeedsYou.fg))
+        // Sem quem execute a ação do motivo, o botão vira "Tentar de novo", que sempre faz algo.
+        Box(Modifier.padding(top = 8.dp)) {
+            if (onAction != null) AuraButtonSecondary(action, { onAction(reason) }) else AuraButtonSecondary("Tentar de novo", onRetry)
+        }
     }
 }
 

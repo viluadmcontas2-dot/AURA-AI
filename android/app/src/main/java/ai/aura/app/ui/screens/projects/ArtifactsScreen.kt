@@ -84,7 +84,7 @@ fun ArtifactsScreen(
                 ArtifactKind.entries.forEach { k -> AuraFilterChip(k.filter, filter == k.name, { filter = k.name }) }
             }
             if (shown.isEmpty()) {
-                Text("Nenhum item em ${ArtifactKind.valueOf(filter).filter}. Toque em Todos para ver o resto.", style = AuraType.Secondary, modifier = Modifier.padding(vertical = 16.dp))
+                Text("Nenhum item em ${ArtifactKind.entries.firstOrNull { it.name == filter }?.filter ?: "este filtro"}. Toque em Todos para ver o resto.", style = AuraType.Secondary, modifier = Modifier.padding(vertical = 16.dp))
             }
             shown.chunked(2).forEach { pair ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

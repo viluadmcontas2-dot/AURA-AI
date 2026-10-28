@@ -101,6 +101,14 @@ fun SettingsScreen(
             SettingsLoad.Ready -> SettingsBody(state, { showAccounts = true }, Modifier.weight(1f))
         }
         if (state.load == SettingsLoad.Ready) SaveBar(state)
+        // "Parar tudo" responde em qualquer estado: a barra de salvar só existe com o motor no ar.
+        if (state.load != SettingsLoad.Ready) state.notice?.let { n ->
+            Text(
+                n.text,
+                style = AuraType.SecondarySmall.copy(color = if (n.ok) AuraColors.Ready.fg else AuraColors.Risk.fg),
+                modifier = Modifier.padding(AuraSpacing.ScreenGutter).semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 
     if (state.confirmAllowAll) {
