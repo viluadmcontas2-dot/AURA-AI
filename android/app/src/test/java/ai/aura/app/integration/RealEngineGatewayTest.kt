@@ -2,6 +2,8 @@ package ai.aura.app.integration
 
 import ai.aura.app.offline.EngineUnreachableException
 import ai.aura.app.offline.OfflineReason
+import ai.aura.app.ui.engine.AuthStartResult
+import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineHealth
 import ai.aura.app.ui.engine.EngineResult
@@ -235,5 +237,38 @@ class RealEngineGatewayTest {
         assertEquals(EngineResult.Ok(3), gateway.forgetAllMemory())
         assertEquals(listOf<Any?>("default"), api.calls.last { it.first == "forgetAllMemory" }.second)
         assertTrue(gateway.memory() is EngineResult.Unavailable)
+    }
+
+    @Test fun `login - o Drive do motor aparece como gdrive e o estado vem do contrato`() = runTest {
+        val api = FakeApi { name, _ ->
+            if (name == "authStatus") JSONObject().put("providers", JSONArray(listOf(
+                JSONObject().put("provider", "claude").put("state", "conectado"),
+                JSONObject().put("provider", "google").put("state", "indisponivel").put("installable", true),
+            ))) else JSONObject()
+        }
+
+        val list = RealEngineGateway(api, backgroundScope).authStatus()
+
+        assertEquals(AuthState.Connected, list.first { it.provider == "claude" }.state)
+        val drive = list.first { it.provider == "gdrive" }
+        assertEquals(AuthState.Unavailable, drive.state)
+        assertTrue(drive.installable)
+    }
+
+    @Test fun `login - start devolve o prompt ja emitido e trata programa ausente`() = runTest {
+        val api = FakeApi { name, args ->
+            when {
+                name != "startAuth" -> JSONObject()
+                args[0] == "codex" -> JSONObject().put("provider", "codex").put("state", "em_andamento")
+                    .put("prompt", JSONObject().put("url", "https://example.com/device").put("code", "AB-12"))
+                args[0] == "agy" -> JSONObject().put("provider", "agy").put("state", "indisponivel").put("fix", "Instalar")
+                else -> JSONObject().put("provider", args[0]).put("state", "em_andamento").put("prompt", JSONObject.NULL)
+            }
+        }
+        val gateway = RealEngineGateway(api, backgroundScope)
+
+        assertEquals(AuthStartResult.Prompted("https://example.com/device", "AB-12"), gateway.startAuth("codex"))
+        assertEquals(AuthStartResult.Started, gateway.startAuth("claude"))
+        assertTrue(gateway.startAuth("agy") is AuthStartResult.Failed)
     }
 }
