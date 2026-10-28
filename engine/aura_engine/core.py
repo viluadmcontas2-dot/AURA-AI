@@ -21,6 +21,8 @@ class Engine:
         self.config = ConfigStore(self.home, self.store)
         self.policy = RiskPolicy(self.config)
         self.auth = AuthManager(self.home, self.store, timeout=auth_timeout)
+        self.auth.load_token()
+        self._keep_awake()
         self.stop_event = threading.Event()
         self.process_lock = threading.RLock()
         self.context = threading.local()
@@ -34,6 +36,19 @@ class Engine:
                                           name="aura-worker-%d" % number)
                 self.workers.append(worker)
                 worker.start()
+
+    @staticmethod
+    def _keep_awake():
+        """Termux: segura o celular acordado para o motor nao morrer. Best effort: sem o comando, segue."""
+        import shutil
+        import subprocess
+        exe = shutil.which("termux-wake-lock")
+        if exe:
+            try:
+                subprocess.run([exe], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=10)
+            except (OSError, subprocess.SubprocessError):
+                pass
 
     def close(self):
         self.stop_event.set()

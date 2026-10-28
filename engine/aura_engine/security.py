@@ -30,16 +30,13 @@ class RiskPolicy:
                     "ask_destructive": ("spend", "critical")}
 
     def decide(self, request, risk):
-        """(decisao, motivo, versao). Levanta ValueError se a politica proibe (root desligado)."""
+        """(decisao, motivo, versao). Nunca recusa o pedido: so decide entre auto e ask."""
         policy = self.config.policy() if self.config is not None else {}
         version = policy.get("version", 0)
         mode = policy.get("mode", "pergunta")
         kind = request.get("kind")
         root = self.root_command(request)
-        if root is not None:
-            allowed = policy.get("root", {})
-            if not allowed.get("enabled") or (root != "root" and root not in allowed.get("via", [])):
-                raise ValueError("root não permitido pela política: ligue root e o comando em Ajustes")
+        # Decisao do dono: root/su aberto por padrao. Nunca recusa; so pergunta se ELE pedir (by_kind.root=ask).
         autonomy = self.config.settings()["autonomy"] if self.config is not None else "total"
         if autonomy == "total":
             return "auto", "autonomia total: sem aprovação", version
@@ -89,9 +86,11 @@ class RiskPolicy:
             return "read" if action in ("list", "read") else "critical"
         if kind == "rea":
             return {"setup": "write", "tools": "read", "measure": "read"}.get(action, "critical")
+        if kind == "tools":
+            return "write"
         if kind == "shell":
             return "critical"
-        if kind in {"claude_cli", "gemini_cli", "agy_cli"}:
+        if kind in {"claude_cli", "gemini_cli", "agy_cli", "codex_cli"}:
             return "write"
         if kind in {"claude_api", "gemini_api"}:
             return "spend"

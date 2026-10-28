@@ -22,7 +22,8 @@ from .config import atomic_write_json
 PROVIDERS = {
     "claude": {"name": "Claude", "exe": "claude",
                "status": ["claude", "auth", "status"],
-               "login": ["claude", "auth", "login"]},
+               "login": ["claude", "auth", "login"],
+               "stdin": True},  # imprime uma URL de OAuth e espera o CODIGO colado de volta (POST /v1/auth/code)
     "gemini": {"name": "Gemini", "exe": "gemini", "status": None,
                "login": ["gemini"], "env": {"NO_BROWSER": "true"}},
     "agy": {"name": "Antigravity", "exe": "agy", "status": None,
@@ -184,7 +185,7 @@ class AuthManager:
             env.update(spec.get("env", {}))
             try:
                 proc = subprocess.Popen(
-                    argv, stdin=subprocess.PIPE if spec.get("enter") else subprocess.DEVNULL,
+                    argv, stdin=subprocess.PIPE if (spec.get("enter") or spec.get("stdin")) else subprocess.DEVNULL,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
                     start_new_session=True)
             except OSError:
@@ -200,6 +201,51 @@ class AuthManager:
         threading.Thread(target=self._watch, args=(provider, run, spec), daemon=True,
                          name="aura-auth-watch-" + provider).start()
         return {"provider": provider, "state": "em_andamento", "prompt": None}
+
+    def submit_code(self, provider, code):
+        """Escreve o codigo que o dono colou no app no stdin do login em andamento. Nunca o devolve nem o guarda."""
+        provider = self.normalize(provider)
+        if not isinstance(code, str) or not code.strip() or len(code) > 2000 or "\n" in code.strip() \
+                or "\x00" in code:
+            raise ValueError("codigo invalido")
+        with self.lock:
+            run = self.active.get(provider)
+        if run is None or not PROVIDERS[provider].get("stdin") or run["proc"].poll() is not None:
+            raise ValueError("nenhum login em andamento para esse programa; toque em Conectar")
+        try:
+            run["proc"].stdin.write(code.strip().encode("utf-8") + b"\n")
+            run["proc"].stdin.flush()
+        except (OSError, ValueError):
+            raise ValueError("o login terminou antes do codigo; toque em Conectar de novo")
+        return {"provider": provider, "state": "em_andamento"}
+
+    def save_token(self, provider, token):
+        """Alternativa do Claude: `claude setup-token` -> CLAUDE_CODE_OAUTH_TOKEN colado pelo dono.
+        Fica em arquivo 0600 do motor e no ambiente deste processo; nunca em evento, log ou resposta."""
+        provider = self.normalize(provider)
+        if provider != "claude":
+            raise ValueError("so o claude usa token colado")
+        if not isinstance(token, str) or not 20 <= len(token.strip()) <= 4000 or any(c.isspace() for c in token.strip()):
+            raise ValueError("token invalido")
+        token = token.strip()
+        path = self.home / "claude_oauth_token"
+        self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as stream:
+            stream.write(token)
+        os.chmod(path, 0o600)
+        os.environ["CLAUDE_CODE_OAUTH_TOKEN"] = token
+        self._mark("claude", True)
+        self.store.emit("auth.done", {"provider": "claude"})
+        return {"provider": "claude", "state": "conectado"}
+
+    def load_token(self):
+        try:
+            token = (self.home / "claude_oauth_token").read_text("utf-8").strip()
+        except OSError:
+            return
+        if token:
+            os.environ.setdefault("CLAUDE_CODE_OAUTH_TOKEN", token)
 
     @staticmethod
     def _remotes():

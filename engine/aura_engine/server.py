@@ -4,7 +4,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import adapters, reform_http, triage
+from . import adapters, cli_setup, reform_http, triage
 from .config import ConfigError, VersionConflict
 from .security import workspace_name
 
@@ -138,6 +138,20 @@ def make_server(engine, host="127.0.0.1", port=8765):
                 else:
                     if method == "POST" and path == "/v1/auth/start":
                         return self.send(200, engine.auth.start(self.body().get("provider")))
+                    if method == "POST" and path == "/v1/auth/code":
+                        data = self.body()
+                        return self.send(200, engine.auth.submit_code(data.get("provider"), data.get("code")))
+                    if method == "POST" and path == "/v1/auth/token":
+                        data = self.body()
+                        return self.send(200, engine.auth.save_token(data.get("provider"), data.get("token")))
+                    if method == "POST" and path == "/v1/tools/install":
+                        data = self.body()
+                        if data.get("provider") not in cli_setup.EXE:
+                            raise ValueError("provider must be one of: " + ", ".join(cli_setup.PROVIDERS))
+                        job = engine.submit({"kind": "tools", "action": "install", "provider": data["provider"],
+                                             "workspace": data.get("workspace", "default")},
+                                            request_id=data.get("request_id"))
+                        return self.send(202, job)
                     if method == "POST" and path == "/v1/policy/undo":
                         return self.send(200, engine.config.undo_policy(self.body().get("to_version")))
                     if method == "PUT":

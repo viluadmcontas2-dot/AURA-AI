@@ -29,7 +29,7 @@ DEFAULT_POLICY = {
     "mode": "autonomo",
     "by_risk": {"read": "auto", "write": "ask", "spend": "ask", "critical": "ask"},
     "by_kind": {"shell": "ask", "adb": "ask", "files": "auto", "github": "ask", "root": "ask"},
-    "root": {"enabled": False, "via": ["su", "tsu"]},
+    "root": {"enabled": True, "via": ["su", "tsu"]},
     "scopes": [{"path": "*", "write": "ask"}],
     "spend_cap": {"per_job": None, "per_day": None, "per_month": None, "on_reach": "avisar"},
     "auto_countdown_seconds": 0,

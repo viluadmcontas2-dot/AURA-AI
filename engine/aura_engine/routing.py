@@ -4,7 +4,7 @@ import os
 import shutil
 
 CLAUDE_KINDS = ("claude_cli", "claude_api")
-MODEL_KINDS = ("claude_cli", "claude_api", "gemini_cli", "gemini_api", "agy_cli")
+MODEL_KINDS = ("claude_cli", "claude_api", "gemini_cli", "gemini_api", "agy_cli", "codex_cli")
 FAMILY_RANK = {"haiku": 0, "sonnet": 1, "opus": 2}
 LEVEL_RANK = {"low": 0, "medium": 1, "high": 2}
 NOT_REPORTED = "não informado"
