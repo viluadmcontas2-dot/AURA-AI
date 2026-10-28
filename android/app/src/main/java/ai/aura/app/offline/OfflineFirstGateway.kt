@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -35,8 +36,7 @@ import kotlin.coroutines.EmptyCoroutineContext
  * - [link] recebe o desfecho de cada chamada, para a tela mostrar "Motor desligado" com a ação certa.
  *
  * O que não é tratado aqui (política, modelos, gastos, contas) passa direto para [delegate].
- * shortcut: o disco é lido e gravado na thread de quem chama (arquivos pequenos); mover para
- * Dispatchers.IO se virar gargalo.
+ * O disco (ler e gravar com fsync) roda em [io]: a UI chama da Main, então em produção é Dispatchers.IO.
  */
 class OfflineFirstGateway(
     private val delegate: EngineGateway,
@@ -71,22 +71,22 @@ class OfflineFirstGateway(
 
     // ---- leitura ----
 
-    override suspend fun jobs(): List<Job> {
-        val live = attempt { delegate.jobs() } ?: return merged(readJobs(JOBS_CACHE))
+    override suspend fun jobs(): List<Job> = withContext(io) {
+        val live = attempt { delegate.jobs() } ?: return@withContext merged(readJobs(JOBS_CACHE))
         rememberJobs(live)
         val sent = if (readQueue().isEmpty()) emptyList() else flush()
-        return merged(live, sent)
+        merged(live, sent)
     }
 
-    override suspend fun capabilities(): List<Capability> {
+    override suspend fun capabilities(): List<Capability> = withContext(io) {
         val live = attempt { delegate.capabilities() }
         if (live != null) {
             rememberCapabilities(live)
-            return live
+            return@withContext live
         }
         val why = if (link.state.value == LinkState.Online) "Sem resposta do motor" else "Motor desligado"
         // Sem o motor não dá para saber se a ferramenta continua lá: nada fica "disponível".
-        return readCapabilities().map {
+        readCapabilities().map {
             it.copy(available = false, detail = it.detail?.let { d -> "$why. Última leitura: $d" } ?: why)
         }
     }
@@ -105,31 +105,40 @@ class OfflineFirstGateway(
         )
     }
 
-    override suspend fun submit(requestId: String, request: JobRequest): Job = lock.withLock {
-        readQueue().firstOrNull { it.requestId == requestId }?.let { return@withLock it.toJob() }
-        // O que já espera sai primeiro: um pedido novo nunca passa na frente da fila.
-        flushLocked()
-        if (readQueue().isEmpty()) {
-            try {
-                // "auto" nasceu sem o motor: ele ainda precisa interpretar o pedido.
-                val toSend = if (request.kind == AUTO) reach { delegate.route(request.prompt) }.request else request
-                return@withLock reach { delegate.submit(requestId, toSend) }
-            } catch (_: IOException) {
-                // Sem motor (ou sem credencial): o pedido vai para a fila, logo abaixo.
+    override suspend fun submit(requestId: String, request: JobRequest): Job = withContext(io) {
+        lock.withLock {
+            readQueue().firstOrNull { it.requestId == requestId }?.let { return@withLock it.toJob() }
+            // O que já espera sai primeiro: um pedido novo nunca passa na frente da fila.
+            flushLocked()
+            if (readQueue().isEmpty()) {
+                try {
+                    return@withLock reach { delegate.submit(requestId, interpreted(request)) }
+                } catch (_: IOException) {
+                    // Sem motor (ou sem credencial): o pedido vai para a fila, logo abaixo.
+                }
             }
+            enqueue(requestId, request)
         }
-        enqueue(requestId, request)
     }
+
+    /** "auto" nasceu sem o motor: ele ainda precisa interpretar o pedido, no workspace guardado. */
+    private suspend fun interpreted(request: JobRequest): JobRequest =
+        if (request.kind == AUTO) reach { delegate.route(request.prompt, request.workspace) }.request else request
 
     override suspend fun approve(id: String): Job = reach { delegate.approve(id) }
 
     override suspend fun cancel(id: String): Job {
         if (id.startsWith(LOCAL)) {
-            val removed = lock.withLock {
-                readQueue().firstOrNull { LOCAL + it.requestId == id }?.also { dequeue(it.requestId) }
+            val removed = withContext(io) {
+                lock.withLock {
+                    readQueue().firstOrNull { LOCAL + it.requestId == id }?.also { dequeue(it.requestId) }
+                }
             }
             // Ainda não saiu do celular: cancelar não precisa do motor.
             if (removed != null) return removed.toJob().copy(status = JobStatus.Cancelled)
+            // Já saiu: o motor guarda o job com o mesmo requestId, mas com outro id (job_N).
+            val sent = attempt { delegate.jobs() }?.firstOrNull { it.requestId == id.removePrefix(LOCAL) }
+            if (sent != null) return reach { delegate.cancel(sent.id) }
         }
         return reach { delegate.cancel(id) }
     }
@@ -173,7 +182,7 @@ class OfflineFirstGateway(
 
     // ---- fila ----
 
-    private suspend fun flush(): List<Job> = lock.withLock { flushLocked() }
+    private suspend fun flush(): List<Job> = withContext(io) { lock.withLock { flushLocked() } }
 
     /**
      * Envia a fila em ordem, um pedido de cada vez, e devolve o que o motor aceitou. Só lança
@@ -186,8 +195,7 @@ class OfflineFirstGateway(
             while (true) {
                 val next = readQueue().firstOrNull() ?: break
                 try {
-                    val routed = reach { delegate.route(next.request.prompt) }.request
-                    accepted += reach { delegate.submit(next.requestId, routed) }
+                    accepted += reach { delegate.submit(next.requestId, interpreted(next.request)) }
                     dequeue(next.requestId)
                 } catch (e: AuraEngineException) {
                     if (!e.isFinal()) break
