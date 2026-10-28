@@ -69,8 +69,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
             params = parse_qs(parsed.query, keep_blank_values=False)
             try:
                 if method == "DELETE":
-                    # So esta rota exata apaga tudo: "/v1/memory/" (id vazio de um cliente com defeito) cai no 404.
-                    if parsed.path == "/v1/memory":
+                    # So o caminho CRU "/v1/memory" apaga tudo: "/v1/memory/" (id vazio de um cliente com
+                    # defeito) e "/v1/memory;x" (urlparse separa ";params") caem no 404.
+                    if self.path.partition("?")[0] == "/v1/memory":
                         query = parse_qs(parsed.query, keep_blank_values=True)
                         if set(query) - {"workspace"}:
                             raise ValueError("unknown query parameter")
