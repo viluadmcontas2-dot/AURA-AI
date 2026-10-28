@@ -34,6 +34,12 @@ class DesignCoverageGateTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, result.stdout)
             self.assertIn("FN-21", result.stdout + result.stderr)
 
+    def test_engine_ci_follows_android_and_design_changes_for_exact_sha(self):
+        workflow = (ROOT / ".github/workflows/engine-ci.yml").read_text(encoding="utf-8")
+        for dependency in ("android/**", "docs/design/**", ".github/workflows/android-ci.yml",
+                           "scripts/check_design_coverage.py", "scripts/test_design_coverage.py"):
+            self.assertGreaterEqual(workflow.count('"' + dependency + '"'), 2, dependency)
+
     def test_debug_apk_upload_requires_release_gate(self):
         workflow = ANDROID_CI.read_text(encoding="utf-8")
         gate = "python3 scripts/check_design_coverage.py --release"
