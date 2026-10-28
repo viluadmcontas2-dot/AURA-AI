@@ -2,6 +2,7 @@ name: design-coverage
 on:
   push:
     paths:
+      - "android/**"
       - "docs/design/**"
       - "scripts/check_design_coverage.py"
       - "scripts/test_design_coverage.py"
@@ -9,6 +10,7 @@ on:
       - ".github/workflows/android-ci.yml"
   pull_request:
     paths:
+      - "android/**"
       - "docs/design/**"
       - "scripts/check_design_coverage.py"
       - "scripts/test_design_coverage.py"
