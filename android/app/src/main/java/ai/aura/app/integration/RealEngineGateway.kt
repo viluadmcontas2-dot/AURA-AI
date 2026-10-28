@@ -460,7 +460,7 @@ class RealEngineGateway(
                             return@channelFlow
                         }
                         "chat.error" -> {
-                            send(ChatEvent.Failed(chatFailure(code = ev.payload["code"], message = ev.payload["message_pt"])))
+                            send(ChatEvent.Failed(chatFailureFor(ev.payload["code"], ev.payload["message_pt"])))
                             return@channelFlow
                         }
                     }
@@ -483,7 +483,7 @@ class RealEngineGateway(
                     }
                     "error" -> {
                         val err = state.optJSONObject("error")
-                        send(ChatEvent.Failed(chatFailure(code = err?.text("code"), message = err?.text("message_pt"))))
+                        send(ChatEvent.Failed(chatFailureFor(err?.text("code"), err?.text("message_pt"))))
                         return@channelFlow
                     }
                     else -> {
@@ -545,22 +545,6 @@ class RealEngineGateway(
             "task" -> IntentResult.Task(idea)
             else -> IntentResult.Chat
         }
-    }
-
-    /** Erro de conversa em português. Os botões são sempre os mesmos; o motor só diz qual. */
-    private fun chatFailure(code: String?, message: String?): ChatFailure {
-        val c = code ?: "chat_error"
-        val action = when {
-            c == "engine_down" -> ChatAction.StartEngine
-            listOf("login", "logged", "auth", "install", "missing").any { c.contains(it) } -> ChatAction.OpenConnections
-            else -> ChatAction.Retry
-        }
-        val fallback = when (action) {
-            ChatAction.OpenConnections -> "O AURA ainda não está conectado a uma conta de IA. Abra Conexões para entrar."
-            ChatAction.StartEngine -> "O motor está desligado."
-            ChatAction.Retry -> "Não consegui responder agora. Tente de novo."
-        }
-        return ChatFailure(c, message ?: fallback, action)
     }
 
     // ---- Memória, skills, saúde e uso ----------------------------------------------------

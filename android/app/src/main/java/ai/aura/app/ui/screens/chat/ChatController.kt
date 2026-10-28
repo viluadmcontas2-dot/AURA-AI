@@ -225,7 +225,9 @@ class ChatController(
             is ChatEvent.Failed -> {
                 if (current.text.isNotBlank()) addMessage(false, current.text)
                 live = null
-                notice = ChatNotice(event.failure.message, event.failure.action)
+                // "Parada" não é erro: se algo já chegou, fica o texto e nenhum aviso.
+                val calm = event.failure.code == "stopped" && current.text.isNotBlank()
+                notice = if (calm) null else ChatNotice(event.failure.message, event.failure.action)
             }
         }
     }
