@@ -27,7 +27,7 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
         private const val CHUNK = 60_000
         private val nextRequestId = AtomicInteger(1001)
         const val PERMISSION = "com.termux.permission.RUN_COMMAND"
-        const val ENGINE_ASSET = "engine.tar.gz"
+        const val ENGINE_ASSET = "engine.bin"
         // Instala o Python só se faltar, apaga a cópia antiga do motor e extrai a nova. Termina com a marca de sucesso.
         private val INSTALL_SCRIPT = """
             export PATH=/data/data/com.termux/files/usr/bin:${'$'}PATH
@@ -99,7 +99,7 @@ class TermuxBridge(private val context: Context) : TermuxProbe {
     suspend fun runEngine(): TermuxResult =
         awaitCommand("start", baseIntent(arrayOf("-m", "aura_engine")))
 
-    /** Motor embutido (assets/engine.tar.gz) -> ~/.aura/app no Termux. O tar viaja em argumentos base64: sem rede e sem git. */
+    /** Motor embutido (assets/engine.bin) -> ~/.aura/app no Termux. O tar viaja em argumentos base64: sem rede e sem git. */
     suspend fun installEngine(): TermuxResult {
         val packed = try {
             context.assets.open(ENGINE_ASSET).use { android.util.Base64.encodeToString(it.readBytes(), android.util.Base64.NO_WRAP) }
