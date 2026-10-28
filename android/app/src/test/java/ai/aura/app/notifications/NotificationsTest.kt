@@ -217,7 +217,8 @@ class NotificationsTest {
         compose.onAllNodesWithText("Abrir ajustes do Android").assertCountEquals(1)
         compose.onNodeWithText("Abrir ajustes do Android").assertHeightIsAtLeast(44.dp).performClick()
 
-        val aberto = shadowOf(app).nextStartedActivity
+        // O último pedido de tela é o do clique (a tela de teste pode ter registrado o próprio lançamento antes).
+        val aberto = generateSequence { shadowOf(app).nextStartedActivity }.last()
         assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, aberto.action)
         assertEquals(app.packageName, aberto.getStringExtra(Settings.EXTRA_APP_PACKAGE))
     }
