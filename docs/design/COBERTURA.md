@@ -4,7 +4,7 @@ Toda tela e função do design precisa virar código com teste e evidência. O A
 
 Status: `pendente`, `em andamento`, `feito`. Para marcar `feito`, a célula Evidência precisa ter **um** vínculo rastreável:
 - Teste remoto: URL completa de um **job** Actions, por exemplo `https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456` (IDs acima são apenas exemplos sintéticos). Na revisão, conferir resultado, SHA, comando e teste correspondente.
-- Verificação Android/Termux: `docs/design/evidence/UI-05.md`, ou `docs/design/evidence/FN-10.md`, substituindo pelo ID pertinente. O arquivo deve existir e conter campos preenchidos `Dispositivo:`, `Procedimento:`, `Resultado:` e `Registro:`, com detalhes reais do aparelho e referência auditável. Nunca incluir tokens ou dados pessoais. Fotos e captura podem estar no registro quando autorizadas.
+- Verificação Android/Termux: `docs/design/evidence/UI-05.md`, ou `docs/design/evidence/FN-10.md`, substituindo pelo ID pertinente. O arquivo deve existir e conter campos preenchidos `Dispositivo:`, `Procedimento:`, `Resultado: aprovado` (linha exata, somente após o teste ter sido aprovado) e `Registro:`, com detalhes reais do aparelho e referência auditável. `Resultado: falha`, `pendente` ou `não testado` não autorizam entrega. Nunca incluir tokens ou dados pessoais. Fotos e captura podem estar no registro quando autorizadas.
 
 Em **19 IDs que dependem do aparelho** (definidos em `DEVICE_REQUIRED` no checker), somente o segundo tipo é aceito. São principalmente onboarding/Termux, voz, notificações, REA, fidelidade visual, credenciais, retomada e teclado. Um job JVM ou link de Actions isolado nunca comprova esses resultados.
 
