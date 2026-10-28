@@ -4,6 +4,8 @@ Acao `kind: tools, action: install, provider: <nome>` (HTTP: POST /v1/tools/inst
 Mesma regra de rede da cadeia REA: dados moveis esperam o Wi-Fi (nao falha; rodar de novo retoma),
 download grande so avisa. Cada comando passa por adapters.run_process (os testes trocam por um falso).
 """
+import shlex
+
 from . import adapters, rea_chain
 
 NODE_PKGS = ["pkg", "install", "-y", "nodejs-lts", "git"]
@@ -13,8 +15,12 @@ PKG = {"gh": "gh", "rclone": "rclone"}
 AGY_URL = "https://antigravity.google/cli/install.sh"
 # Caminho A do projeto MIT github.com/ferrumclaudepilgrim/claude-code-android (glibc-runner + binario
 # linux-arm64 oficial remendado). O Claude Code so publica binario glibc: o npm nem sempre roda no Termux.
-CLAUDE_ANDROID_URL = ("https://raw.githubusercontent.com/ferrumclaudepilgrim/"
-                      "claude-code-android/main/install.sh")
+# Script de terceiro NUNCA roda sem pin + checksum: a URL fixa o COMMIT (nao a branch `main`) e o sha256 do
+# install.sh desse commit e conferido antes de executar. Para atualizar: troque os dois juntos, depois de ler o diff.
+CLAUDE_ANDROID_COMMIT = "a0477923457be0bd2d09580d46c697b0fb9d5c32"  # v2.9.5, 26/10/2026
+CLAUDE_ANDROID_SHA256 = "307ee7ef73055fc6a8c6b55cb8c9eadf16ec945ef9207e4f22f5e79f38d1ccaa"
+CLAUDE_ANDROID_URL = ("https://raw.githubusercontent.com/ferrumclaudepilgrim/claude-code-android/"
+                      + CLAUDE_ANDROID_COMMIT + "/install.sh")
 PROVIDERS = tuple(EXE)
 
 
@@ -39,9 +45,11 @@ def _npm_steps(provider):
 
 def _claude_fallback(home):
     script = str(home / "tools" / "claude-code-android-install.sh")
-    # o instalador faz 2 perguntas (Termux novo? pacotes extras?): responde nao e nao, sem tocar no resto
-    return [("glibc-runner", [["curl", "-fsSL", "-o", script, CLAUDE_ANDROID_URL],
-                              ["sh", "-c", 'printf "n\\nn\\n" | bash "%s"' % script]])]
+    # So executa se o sha256 bater (sha256sum -c falha = `&&` nao roda o script). O instalador faz 2 perguntas
+    # (Termux novo? pacotes extras?): responde nao e nao, sem tocar no resto.
+    run = ('echo "%s  %s" | sha256sum -c - && printf "n\\nn\\n" | bash %s'
+           % (CLAUDE_ANDROID_SHA256, shlex.quote(script), shlex.quote(script)))
+    return [("glibc-runner", [["curl", "-fsSL", "-o", script, CLAUDE_ANDROID_URL], ["sh", "-c", run]])]
 
 
 def _agy_steps(home):

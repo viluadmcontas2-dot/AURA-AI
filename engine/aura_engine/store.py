@@ -15,8 +15,15 @@ MEMORY_SOURCE_MAX = 60
 
 
 class Store:
+    # Poda dos eventos: fica o que for MAIS permissivo (mais recente que 24 h OU entre os ultimos 5000).
+    # Os ids sao AUTOINCREMENT e nunca voltam: `/v1/events?since=<id>` segue valendo depois da poda.
+    EVENTS_KEEP_SECONDS = 24 * 3600
+    EVENTS_KEEP_LAST = 5000
+    EVENTS_PRUNE_EVERY = 500
+
     def __init__(self, filename):
         self.lock = threading.RLock()
+        self._emitted = 0
         self.db = sqlite3.connect(str(filename), check_same_thread=False, timeout=15)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -52,6 +59,7 @@ class Store:
             if "cwd" not in {r["name"] for r in self.db.execute("PRAGMA table_info(conversations)")}:
                 self.db.execute("ALTER TABLE conversations ADD COLUMN cwd TEXT")
         self._upgrade_memory()
+        self.prune_events()
         with self.lock, self.db:
             columns = {r["name"] for r in self.db.execute("PRAGMA table_info(jobs)")}
             if "note" not in columns:
@@ -94,6 +102,20 @@ class Store:
     def _emit(self, kind, payload):
         self.db.execute("INSERT INTO events(type,payload,created) VALUES(?,?,?)",
                         (kind, packed(payload), time.time()))
+        self._emitted += 1
+        if self._emitted % self.EVENTS_PRUNE_EVERY == 0:
+            self._prune_events()
+
+    def _prune_events(self):
+        newest = self.db.execute("SELECT MAX(id) FROM events").fetchone()[0] or 0
+        cursor = self.db.execute("DELETE FROM events WHERE id<=? AND created<?",
+                                 (newest - self.EVENTS_KEEP_LAST, time.time() - self.EVENTS_KEEP_SECONDS))
+        return cursor.rowcount
+
+    def prune_events(self):
+        """Apaga eventos velhos E fora dos ultimos N. Devolve quantos apagou."""
+        with self.lock, self.db:
+            return self._prune_events()
 
     def emit(self, kind, payload):
         with self.lock, self.db:

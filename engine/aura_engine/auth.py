@@ -9,7 +9,6 @@ import json
 import os
 import pathlib
 import re
-import shutil
 import signal
 import sqlite3
 import subprocess
@@ -17,6 +16,7 @@ import threading
 import time
 from urllib.parse import urlsplit
 
+from . import pathutil
 from .config import atomic_write_json
 
 PROVIDERS = {
@@ -111,7 +111,7 @@ class AuthManager:
         """Roda um comando de status e devolve so (codigo, expirado). Saida descartada."""
         try:
             done = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, timeout=8)
+                                  stderr=subprocess.STDOUT, timeout=8, env=pathutil.child_env())
         except (OSError, subprocess.TimeoutExpired):
             return None, False
         text = done.stdout.decode("utf-8", "replace").lower()
@@ -119,13 +119,13 @@ class AuthManager:
 
     def _row(self, provider):
         spec = PROVIDERS[provider]
-        if shutil.which(spec["exe"]) is None:
+        if pathutil.which(spec["exe"]) is None:
             return {"provider": provider, "state": "indisponivel", "installable": True,
                     "detail": "Falta o programa de %s." % spec["name"]}
         if provider == "google":
             try:
                 done = subprocess.run(["rclone", "listremotes"], stdin=subprocess.DEVNULL,
-                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=8)
+                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=8, env=pathutil.child_env())
                 names = done.stdout.decode("utf-8", "replace").split()
                 code = done.returncode
             except (OSError, subprocess.TimeoutExpired):
@@ -172,7 +172,7 @@ class AuthManager:
                 return {"provider": provider, "state": "em_andamento", "prompt": run["prompt"]}
             if self.closed:
                 raise ValueError("motor encerrando")
-            if shutil.which(spec["exe"]) is None:
+            if pathutil.which(spec["exe"]) is None:
                 self.store.emit("auth.failed", {
                     "provider": provider, "reason": "cli_ausente",
                     "fix": "Falta o programa de %s. Toque em Instalar." % spec["name"]})
@@ -180,7 +180,7 @@ class AuthManager:
             argv = list(spec["login"])
             if provider == "google" and "gdrive:" in self._remotes():
                 argv = ["rclone", "config", "reconnect", "gdrive:"]
-            env = dict(os.environ)
+            env = pathutil.child_env()
             env["BROWSER"] = "true"
             env.update(spec.get("env", {}))
             try:
@@ -251,7 +251,7 @@ class AuthManager:
     def _remotes():
         try:
             done = subprocess.run(["rclone", "listremotes"], stdin=subprocess.DEVNULL,
-                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=8)
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=8, env=pathutil.child_env())
             return done.stdout.decode("utf-8", "replace").split()
         except (OSError, subprocess.TimeoutExpired):
             return []

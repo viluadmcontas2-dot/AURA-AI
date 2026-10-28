@@ -114,7 +114,7 @@ def _model(engine, ledger, data, idk):
     import os
     approved = data.get("approved") is True
     provider, cost = choose_model(
-        shutil.which("agy") is not None, bool(os.environ.get("GEMINI_API_KEY")),
+        adapters.installed("agy"), bool(os.environ.get("GEMINI_API_KEY")),
         os.environ.get("AURA_GEMINI_KEY_FREE") == "1", approved)
     if provider == "blocked":
         raise adapters.ActionError(

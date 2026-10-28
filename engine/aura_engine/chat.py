@@ -12,13 +12,22 @@ import threading
 import time
 import uuid
 
-from . import adapters, routing
+from . import adapters, pathutil, routing
 from .security import safe_argv, workspace_name
 
 UUID_RE = re.compile(r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}")
 EXE = {"claude_cli": "claude", "gemini_cli": "gemini", "agy_cli": "agy"}
 NAME = {"claude_cli": "Claude", "gemini_cli": "Gemini", "agy_cli": "Antigravity"}
-TIMEOUT_SECONDS = 900
+DEFAULT_TIMEOUT = 3600
+NO_CONVERSATION = "no conversation found"  # o que a CLI diz quando o --resume nao conhece a sessao
+
+
+def chat_timeout():
+    """Tempo maximo (s) de uma resposta. Padrao 1 h; AURA_CHAT_TIMEOUT (segundos, 1..86400) muda."""
+    try:
+        return max(1, min(int(os.environ.get("AURA_CHAT_TIMEOUT", DEFAULT_TIMEOUT)), 86400))
+    except ValueError:
+        return DEFAULT_TIMEOUT
 EXECUTORS = ("auto", "claude", "claude_cli", "gemini", "gemini_cli", "agy", "agy_cli")
 
 AUTH_HINTS = ("/login", "not logged in", "invalid api key", "authentication", "unauthorized",
@@ -47,16 +56,24 @@ def tool_summary(name, tool_input):
     return TOOL_PHRASES.get(name, "Trabalhando…")
 
 
+STDIN_MIN = 8000  # acima disso o prompt vai por stdin (o teto de um argumento e 10000, em security.safe_argv)
+STDIN_INSTRUCTION = "Responda à mensagem do usuário que veio na entrada."
+
+
+def via_stdin(text):
+    return len(text) > STDIN_MIN or text.lstrip().startswith("-")
+
+
 def friendly_error(code, kind=None):
     who = NAME.get(kind, "Claude")
     table = {
-        "cli_missing": ("O %s não está instalado neste aparelho." % who, "Instalar o %s em Conexões" % who),
+        "cli_missing": ("O %s ainda não está instalado neste Termux." % who, "Instalar o %s em Conexões" % who),
         "not_logged_in": ("O %s não está conectado à sua conta." % who, "Entrar no %s em Conexões" % who),
         "timeout": ("A resposta demorou demais e foi interrompida.", "Tentar de novo"),
         "network": ("Sem conexão com a internet para responder.", "Verificar a internet e tentar de novo"),
         "stopped": ("Resposta interrompida.", "Enviar de novo"),
         "failed": ("Não consegui responder agora.", "Tentar de novo"),
-        "no_executor": ("Nenhum assistente está instalado neste aparelho.", "Instalar o Claude em Conexões"),
+        "no_executor": ("O Claude ainda não está instalado neste Termux.", "Instalar o Claude em Conexões"),
     }
     msg, act = table.get(code, table["failed"])
     return {"code": code, "message_pt": msg, "action_pt": act}
@@ -72,6 +89,7 @@ class _Run:
         self.stopped = False
         self.timed_out = False
         self.answer = ""
+        self.retried_new = False  # ja tentou de novo como conversa nova (so uma vez)
 
 
 class ChatManager:
@@ -211,6 +229,9 @@ class ChatManager:
 
     def _fail(self, run, code, kind=None):
         err = friendly_error(code, kind)
+        if code in ("timeout", "stopped") and run.answer.strip():
+            # o que ja chegou nao se perde: fica no historico da conversa
+            self.engine.store.chat_add_message(run.session_id, run.chat_id, "assistant", run.answer)
         self.engine.store.chat_run_set(run.chat_id, "error", text=run.answer, error=err)
         self._emit("chat.error", dict(err, chat_id=run.chat_id))
 
@@ -230,11 +251,18 @@ class ChatManager:
         self._fail(run, code, kind)
 
     def _build(self, run, kind, conv):
+        """(argv, texto_para_stdin). Texto longo ou que comeca com '-' vai por STDIN: o argv tem teto
+        (security.safe_argv) e a CLI leria '-texto' como opcao."""
         exe = EXE[kind]
         total = adapters.is_total(self.engine)
+        stdin_text = None
         if kind == "claude_cli":
-            argv = [exe, "-p", run.text, "--output-format", "stream-json",
-                    "--verbose", "--include-partial-messages"]
+            # `claude -p` sem texto no argv le o prompt do stdin
+            if via_stdin(run.text):
+                argv, stdin_text = [exe, "-p"], run.text
+            else:
+                argv = [exe, "-p", run.text]
+            argv += ["--output-format", "stream-json", "--verbose", "--include-partial-messages"]
             cli = conv.get("cli_session") or conv["id"]
             argv += ["--resume", cli] if conv.get("started") else ["--session-id", cli]
             if total:
@@ -245,14 +273,20 @@ class ChatManager:
                 model = None
             if model:
                 argv += ["--model", model]
-        elif kind == "gemini_cli":
-            argv = [exe, "-p", self._prompt_with_history(run)] + (["--yolo"] if total else [])
         else:
-            if total:
-                adapters.bootstrap_agy_permissions()
-            argv = [exe] + (["--dangerously-skip-permissions"] if total else []) + [
-                "-p", self._prompt_with_history(run)]
-        return safe_argv(argv)
+            prompt = self._prompt_with_history(run)
+            if via_stdin(prompt):
+                # o texto vai no stdin e o -p leva so uma instrucao curta (a CLI junta os dois)
+                arg, stdin_text = STDIN_INSTRUCTION, prompt
+            else:
+                arg = prompt
+            if kind == "gemini_cli":
+                argv = [exe, "-p", arg] + (["--yolo"] if total else [])
+            else:
+                if total:
+                    adapters.bootstrap_agy_permissions()
+                argv = [exe] + (["--dangerously-skip-permissions"] if total else []) + ["-p", arg]
+        return safe_argv(argv), stdin_text
 
     def _prompt_with_history(self, run):
         # CLIs sem sessao confiavel: leva o fim da conversa junto.
@@ -270,17 +304,21 @@ class ChatManager:
         cwd = adapters.workspace(self.engine.home, {"workspace": run.workspace})
         if kind == "claude_cli" and conv.get("cwd") and os.path.isdir(conv["cwd"]):
             cwd = pathlib.Path(conv["cwd"])
-        argv = self._build(run, kind, conv)
+        argv, stdin_text = self._build(run, kind, conv)
         try:
-            env = None
+            env = pathutil.child_env()  # PATH ampliado: acha o `claude` recem-instalado em ~/.local/bin
             if kind == "claude_cli" and adapters.is_total(self.engine) and hasattr(os, "geteuid") \
                     and os.geteuid() == 0:
-                env = dict(os.environ, IS_SANDBOX="1")  # o Claude Code recusa o bypass como root sem isto
-            proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, start_new_session=True, env=env)
+                env["IS_SANDBOX"] = "1"  # o Claude Code recusa o bypass como root sem isto
+            proc = subprocess.Popen(argv, cwd=str(cwd),
+                                    stdin=subprocess.DEVNULL if stdin_text is None else subprocess.PIPE,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
+                                    env=env)
         except OSError:
             return "cli_missing"
         run.proc = proc
+        if stdin_text is not None:
+            threading.Thread(target=self._feed_stdin, args=(proc, stdin_text), daemon=True).start()
         run.kind, run.started_at = kind, time.time()
         if run.stopped:
             self._kill(run)
@@ -295,7 +333,7 @@ class ChatManager:
         def on_timeout():
             run.timed_out = True
             self._kill(run)
-        timer = threading.Timer(TIMEOUT_SECONDS, on_timeout)
+        timer = threading.Timer(chat_timeout(), on_timeout)
         timer.daemon = True
         timer.start()
         parsed = {"result": None, "session": None, "plain": []}
@@ -333,11 +371,31 @@ class ChatManager:
         result = parsed["result"]
         if result is None or result.get("is_error"):
             body = result.get("result") if result and isinstance(result.get("result"), str) else ""
-            return self._classify(err_text + " " + body.lower(), proc.returncode if result is None else 1)
+            blob = err_text + " " + body.lower()
+            if NO_CONVERSATION in blob and conv.get("started") and not run.answer and not run.retried_new:
+                # a CLI nao conhece essa sessao: uma vez so, recomeca como conversa nova. O session_id do app
+                # continua o mesmo (o historico dele fica); so a sessao interna da CLI e trocada.
+                run.retried_new = True
+                store.chat_update_conversation(run.session_id, cli_session=str(uuid.uuid4()), started=0)
+                return self._run_one(run, kind)
+            return self._classify(blob, proc.returncode if result is None else 1)
         if not run.answer and isinstance(result.get("result"), str):
             self._delta(run, adapters.redact(result["result"]))
         cost = result.get("total_cost_usd", result.get("cost_usd"))
         return self._done(run, parsed["session"], cost if isinstance(cost, (int, float)) else None)
+
+    @staticmethod
+    def _feed_stdin(proc, text):
+        """Escreve o prompt no stdin e fecha (EOF). Numa thread: texto grande nao trava se a CLI nao ler."""
+        try:
+            proc.stdin.write(text.encode("utf-8"))
+        except (OSError, ValueError):
+            pass
+        finally:
+            try:
+                proc.stdin.close()
+            except (OSError, ValueError):
+                pass
 
     @staticmethod
     def _classify(blob, returncode):
@@ -403,5 +461,7 @@ class ChatManager:
         payload = {"chat_id": run.chat_id, "text": run.answer, "session_id": run.session_id}
         if cost is not None:
             payload["cost"] = cost
+        if run.retried_new:
+            payload["new_conversation"] = True  # a CLI nao conhecia a sessao: a conversa recomecou do zero
         self._emit("chat.done", payload)
         return True

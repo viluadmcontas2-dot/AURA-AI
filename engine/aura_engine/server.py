@@ -26,7 +26,28 @@ def make_server(engine, host="127.0.0.1", port=8765):
             # HTTP headers, bearer tokens and prompt paths never enter web logs.
             pass
 
+        def drain_body(self):
+            """Le e descarta o corpo ainda nao lido (ate 1 MB) ANTES de responder. Fechar o socket com bytes
+            nao lidos manda um RST e o app recebe IOException em vez da resposta (401, 404, 400...)."""
+            if getattr(self, "_drained", False):
+                return
+            self._drained = True
+            raw_size = self.headers.get("Content-Length", "")
+            if not raw_size.isdigit():
+                return
+            left = min(int(raw_size), 1000000)
+            try:
+                self.connection.settimeout(5)
+                while left > 0:
+                    chunk = self.rfile.read(min(left, 65536))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
+            except (OSError, ValueError):
+                pass
+
         def send(self, code, data):
+            self.drain_body()
             raw = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -38,6 +59,7 @@ def make_server(engine, host="127.0.0.1", port=8765):
 
         def no_content(self):
             # 204 nao leva corpo nem Content-Length (RFC 9110).
+            self.drain_body()
             self.send_response(204)
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -55,7 +77,9 @@ def make_server(engine, host="127.0.0.1", port=8765):
             raw_size = self.headers.get("Content-Length", "")
             if not raw_size.isdigit() or not 0 <= int(raw_size) <= 1000000:
                 raise ValueError("missing or oversized JSON body")
-            data = json.loads(self.rfile.read(int(raw_size)))
+            raw_body = self.rfile.read(int(raw_size))
+            self._drained = True
+            data = json.loads(raw_body)
             if not isinstance(data, dict):
                 raise ValueError("JSON object expected")
             return data
@@ -107,7 +131,8 @@ def make_server(engine, host="127.0.0.1", port=8765):
                     return self.send(200, current if setting == "network" else {setting: current})
                 if method == "GET":
                     if path == "/v1/health":
-                        return self.send(200, {"service": "aura-engine", "version": 1})
+                        return self.send(200, {"service": "aura-engine", "version": 1,
+                                                  "engine_build": engine.build})
                     if path == "/v1/capabilities":
                         return self.send(200, engine.capabilities())
                     if path == "/v1/jobs":

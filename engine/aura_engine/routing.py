@@ -1,7 +1,8 @@
 """Escolha e fiscalizacao de modelo a partir de models.json (lido a cada job)."""
 import fnmatch
 import os
-import shutil
+
+from . import pathutil
 
 CLAUDE_KINDS = ("claude_cli", "claude_api")
 MODEL_KINDS = ("claude_cli", "claude_api", "gemini_cli", "gemini_api", "agy_cli", "codex_cli")
@@ -134,7 +135,7 @@ def choose_executor(task_kind, agy_available=None, gemini_key=None, cost_lock=Tr
     if task_kind in TOOL_KINDS:
         return "tool"
     if agy_available is None:
-        agy_available = shutil.which("agy") is not None
+        agy_available = pathutil.which("agy") is not None
     if gemini_key is None:
         gemini_key = bool(os.environ.get("GEMINI_API_KEY"))
     if agy_available:

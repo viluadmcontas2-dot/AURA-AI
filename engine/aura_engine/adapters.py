@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 
+from . import pathutil
 from .security import resolve_inside, safe_argv, workspace_name
 
 
@@ -22,7 +23,7 @@ class ActionError(Exception):
 
 
 def installed(name):
-    return shutil.which(name) is not None
+    return pathutil.which(name) is not None
 
 
 def workspace(home, request):
@@ -80,7 +81,7 @@ def run_process(argv, cwd, engine, timeout=180, binary=False, env=None):
             proc = subprocess.Popen(argv, cwd=str(cwd), stdin=subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     start_new_session=True,
-                                    env=dict(os.environ, **env) if env else None)
+                                    env=pathutil.child_env(env))
         except OSError:
             raise ActionError("process_start", "Could not start local executable")
         engine.processes[job_id] = proc
