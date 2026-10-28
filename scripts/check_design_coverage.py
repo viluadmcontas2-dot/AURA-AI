@@ -43,6 +43,14 @@ for screen in screens:
     if len(matches) != 1:
         errors.append(f"tela sem vínculo UI único: {screen}")
 
+# Além de cada arquivo ter um ID único, cada ID UI precisa ter uma tela.
+# Sem isso, uma linha pode listar duas telas e deixar outra linha sem nenhuma.
+for ident, cells in rows.items():
+    if ident.startswith("UI-") and len(cells) in (3, 4):
+        linked = [screen for screen in screens if screen in cells[0]]
+        if len(linked) != 1:
+            errors.append(f"{ident}: exige vínculo com exatamente uma tela .dc.html")
+
 # Elementos que exigem interação com Android/Termux, impossível de
 # reproduzir com build/JVM de Actions. CI verde não basta para estes IDs.
 DEVICE_REQUIRED = {
