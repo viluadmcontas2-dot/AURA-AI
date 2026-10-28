@@ -1,7 +1,21 @@
 name: design-coverage
 on:
+  push:
+    paths:
+      - "docs/design/**"
+      - "scripts/check_design_coverage.py"
+      - "scripts/test_design_coverage.py"
+      - ".github/workflows/design-coverage.yml"
+      - ".github/workflows/android-ci.yml"
   pull_request:
-    paths: ['docs/design/**', 'scripts/check_design_coverage.py']
+    paths:
+      - "docs/design/**"
+      - "scripts/check_design_coverage.py"
+      - "scripts/test_design_coverage.py"
+      - ".github/workflows/design-coverage.yml"
+      - ".github/workflows/android-ci.yml"
+permissions:
+  contents: read
 concurrency:
   group: design-coverage-${{ github.ref }}
   cancel-in-progress: true
@@ -11,4 +25,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/check_design_coverage.py
+      - name: Testar falsificações do gate
+        run: python3 -m unittest discover -s scripts -p "test_design_coverage.py" -v
+      - name: Conferir mapa de telas
+        run: python3 scripts/check_design_coverage.py
