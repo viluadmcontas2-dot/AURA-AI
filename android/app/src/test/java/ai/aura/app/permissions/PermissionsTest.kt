@@ -38,7 +38,7 @@ class PermissionsTest {
     val rule = createComposeRule()
 
     @Test
-    fun `tabela: cada funcao tem permissao no manifesto, motivo de uma linha e o que acontece se negar`() {
+    fun `tabela - cada funcao tem permissao no manifesto, motivo de uma linha e o que acontece se negar`() {
         val manifesto = File(checkNotNull(System.getProperty("user.dir")), "src/main/AndroidManifest.xml").readText()
         assertEquals(
             setOf("android.permission.RECORD_AUDIO", "android.permission.POST_NOTIFICATIONS", "com.termux.permission.RUN_COMMAND"),
@@ -54,7 +54,7 @@ class PermissionsTest {
     }
 
     @Test
-    fun `estado: concedida, pode pedir ou bloqueada depois de negar duas vezes`() {
+    fun `estado - concedida, pode pedir ou bloqueada depois de negar duas vezes`() {
         assertEquals(PermissionState.Granted, AppPermissions.state(granted = true, denials = 5))
         assertEquals(PermissionState.CanAsk, AppPermissions.state(granted = false, denials = 0))
         assertEquals(PermissionState.CanAsk, AppPermissions.state(granted = false, denials = 1))
@@ -62,7 +62,7 @@ class PermissionsTest {
     }
 
     @Test
-    fun `tela: estado em cada linha e UM botao que abre a folha ou os ajustes, nunca o pedido direto`() {
+    fun `tela - estado em cada linha e UM botao que abre a folha ou os ajustes, nunca o pedido direto`() {
         val asked = mutableListOf<String>()
         var settings = 0
         rule.setContent {
@@ -93,7 +93,7 @@ class PermissionsTest {
     }
 
     @Test
-    fun `folha de cada permissao: explica, Agora nao nao pede e Permitir pede uma vez`() {
+    fun `folha de cada permissao - explica, Agora nao nao pede e Permitir pede uma vez`() {
         var current by mutableStateOf(AppPermissions.all.first())
         val asked = mutableListOf<String>()
         var notNow = 0
