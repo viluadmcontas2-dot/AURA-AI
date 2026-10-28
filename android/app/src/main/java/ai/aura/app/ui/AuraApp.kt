@@ -252,7 +252,7 @@ internal fun OnboardingHost(
         accounts = accounts,
         // Depois do callback da Activity, reconfere capabilities (tick).
         onRequestTermuxPermission = { onRequestTermuxPermission(); tick++ },
-        onOpenTermux = { onOpenTermux(); tick++ },
+        onOpenTermux = onOpenTermux,
         onCheckTermux = { flow?.confirmPasted() ?: onOpenTermux() },
         onInstallTermux = { onOpenUrl("https://f-droid.org/packages/com.termux/") },
         onSignIn = { id ->

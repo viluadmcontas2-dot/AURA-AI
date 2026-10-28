@@ -9,17 +9,17 @@ Nota honesta: os termos "verify reconstruction" e "outbound process capture" NÃ
 ## 2. Ledger (por projeto de reforma)
 Arquivo `reform/<projeto>/ledger.jsonl` (append-only) + índice SQLite. Cada linha: `seq, ts, kind, idempotency_key, prev_hash, hash, payload`. `hash = sha256(prev_hash + json canônico)`. Adulteração = cadeia quebrada = reforma marcada "inválida".
 
-Tipos (`kind`): `scope_locked` (modo, app, aceite "sou dono/tenho permissão", meta de fidelidade) · `obligation_added` (da REA) · `tool_call` (ferramenta, hash da entrada, `mutates_device`, `risk`, `cost_class`) · `evidence` (evidence_id da REA, sha256, arquivo) · `unknown` (id, revision, estado) · `step_done` (passo, prova) · `coverage_evaluated` (satisfeitas/total, vindo da REA) · `rebuild_progress` (telas prontas/total) · `model_call` (provedor, classe de custo, tokens, aprovado?) · `approval` (alvo, consequência, quem aprovou) · `fidelity_measured` (id do teste real, aprovadas/total) · `checkpoint`.
+Tipos (`kind`): `scope_locked` (modo, app/APK de entrada, meta de fidelidade) · `obligation_added` (da REA) · `tool_call` (ferramenta, hash da entrada, `mutates_device`, `risk`, `cost_class`) · `evidence` (evidence_id da REA, sha256, arquivo) · `unknown` (id, revision, estado) · `step_done` (passo, prova) · `coverage_evaluated` (satisfeitas/total, vindo da REA) · `rebuild_progress` (telas prontas/total) · `model_call` (provedor, classe de custo, tokens, aprovado?) · `approval` (alvo, consequência, quem aprovou) · `fidelity_measured` (id do teste real, aprovadas/total) · `checkpoint`.
 
-## 3. Invariantes (o motor recusa se violar)
-1. Sem `scope_locked` com aceite de permissão, nada roda. App do sistema/câmera de ré: recusado.
-2. Reversão % = obligations satisfeitas ÷ total do **último `coverage_evaluated`** (REA). Sem avaliação = "ainda não medida".
-3. Reconstrução % = telas prontas ÷ telas mapeadas (`rebuild_progress`).
-4. **Fidelidade = null** até existir `fidelity_measured` ligado a um teste real; nunca estimar.
-5. Ferramenta com `mutates_device` exige `approval` anterior e `risk` ≥ médio. O app original nunca é apagado; instala ao lado.
-6. Chamada de modelo com `cost_class="paid"` exige `approval` específico. Padrão: nunca.
+## 3. Invariantes (o motor impõe só o que garante a verdade dos números e o custo)
+1. Sem travas jurídicas: nada de aceite, nada de lista de apps protegidos, nada de recusa por direito autoral. Isso é responsabilidade do usuário, e a REA não impõe esses limites.
+2. Entrada: o usuário extrai o APK original e entrega ao AURA (arquivo). O AURA trabalha só sobre esse arquivo, numa base limpa; **não toca no aparelho** (nenhuma operação `mutatesDevice`, nada é instalado nem apagado pelo AURA). O resultado é um APK que o usuário instala por conta própria.
+3. Reversão % = obligations satisfeitas ÷ total do **último `coverage_evaluated`** (REA). Sem avaliação = "ainda não medida".
+4. Reconstrução % = telas prontas ÷ telas mapeadas (`rebuild_progress`).
+5. **Fidelidade = null** até existir `fidelity_measured` ligado a um teste real; nunca estimar.
+6. Chamada de modelo com `cost_class="paid"` fica bloqueada (trava de custo que o próprio usuário definiu); libera só com aprovação específica dele.
 7. Idempotência: repetir com a mesma `idempotency_key` devolve o resultado anterior (retomada após o Android matar o processo = reprocessar o ledger, pular passos com `step_done`).
-8. Cada afirmação mostrada ao usuário aponta para `seq` do ledger (auditável nos Bastidores).
+8. Cada afirmação mostrada ao usuário aponta para o `seq` do ledger (auditável nos Bastidores).
 
 ## 4. Modelos: login do Antigravity e Gemini, sem gastar à toa
 - **Primeiro:** CLI `agy` (Antigravity) em subprocesso, com o login do próprio usuário (assinatura/cota dele). O AURA nunca lê, copia nem guarda token do agy: só chama o comando. `cost_class="subscription"`.

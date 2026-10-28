@@ -91,3 +91,10 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Feito: T1, T2, T3 implementadas e mescladas localmente (0cba5ae); lote 2 (T9, T10, T12a, T14, T16, T20) despachado 23:43Z; T4, T5 e L1a despachadas 23:53–23:54Z; 1ª delegação ao agy
 - Provado: testes locais: T1 71/71, T2 25/25, T3 131 (mesmas falhas do Windows); CI do cf3ebdb VERDE: android-ci 40606139883 e 40606136046, Engine contract CI 40606139873 e 40606136105, design-coverage 40606139870
 - Próximo: revisões de T1 e T2; correções Minor da T3; lote 3 (T6, T7, T8, T11, T13) rodando
+
+## 2026-10-28 — Termux, contas e teclado (claude/aura-enxuto)
+- Objetivo: corrigir os três defeitos relatados no APK, sem gerar outro APK.
+- Estado verificado: revisão estática do contrato T6, imports e chamadas; `currentTime` importado; fluxo ligado à ponte real e ao retorno do Android, sondagem a cada 2 s limitada a 60 s. Login abre páginas oficiais sem depender do motor. Composer com imePadding/navigationBarsPadding; Activity e Manifest já configurados, abas ocultas com teclado.
+- Evidência: arquivos relidos e `git diff --check` sem erros; testes adicionados para retorno/limite do Termux e login com motor indisponível. Isso não comprova compilação nem testes verdes.
+- Bloqueio: sem SDK Android; Gradle não executado por instrução explícita do dono.
+- Próximo item: CI compilar e executar testes; confirmar os três fluxos no aparelho. Nenhum APK gerado ou entregue.
