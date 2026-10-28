@@ -175,5 +175,33 @@ class DesignCoverageGateTest(unittest.TestCase):
 
 
 
+    def test_normal_rejects_ui_row_without_its_own_screen(self):
+        """Cada uma das 45 linhas UI deve referenciar exatamente uma tela distinta."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "scripts").mkdir()
+            shutil.copyfile(CHECKER, root / "scripts/check_design_coverage.py")
+            screens = root / "docs/design/telas"
+            screens.mkdir(parents=True)
+            rows = ["| ID | Tela/Função | Status | Evidência | Tarefa |",
+                    "|---|---|---|---|---|"]
+            for i in range(1, 46):
+                name = f"Screen-{i:02d}.dc.html"
+                (screens / name).write_text("fixture", encoding="utf-8")
+                description = (
+                    "`Screen-01.dc.html` e `Screen-02.dc.html`" if i == 1 else
+                    "Sem tela associada" if i == 2 else f"`{name}`"
+                )
+                rows.append(f"| UI-{i:02d} | {description} | pendente | - | T17 |")
+            for i in range(1, 22):
+                rows.append(f"| FN-{i:02d} | Função {i} | pendente | - | T20 |")
+            (root / "docs/design/COBERTURA.md").write_text("\n".join(rows), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py")],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("UI-02", result.stdout + result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
