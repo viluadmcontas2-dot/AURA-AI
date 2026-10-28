@@ -8,6 +8,7 @@ on:
       - "AGENTS.md"
       - "README.md"
       - "docs/ANDROID_HANDOFF.md"
+      - "docs/ASSINATURA.md"
       - "docs/CONSTRAINTS.md"
       - "docs/ENGINE_CONTRACT.md"
       - "docs/ENGINE_IMPLEMENTATION_STATE.md"
@@ -25,6 +26,7 @@ on:
       - "AGENTS.md"
       - "README.md"
       - "docs/ANDROID_HANDOFF.md"
+      - "docs/ASSINATURA.md"
       - "docs/CONSTRAINTS.md"
       - "docs/ENGINE_CONTRACT.md"
       - "docs/ENGINE_IMPLEMENTATION_STATE.md"
@@ -56,7 +58,18 @@ jobs:
           gradle-version: "8.9"
       - name: Package debug APK
         working-directory: android
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: gradle --no-daemon --stacktrace -PauraVersion=$((GITHUB_RUN_NUMBER + 100)) :app:assembleDebug
+      - name: Verify debug APK certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$(sed -n 's/^SHA256: //p' docs/ASSINATURA.md | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          certificates=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk)
+          actual=$(printf '%s\n' "$certificates" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ || "$actual" != "$expected" ]]; then
+            echo "Certificado do APK diverge de docs/ASSINATURA.md. Confira a chave de debug configurada."
+            exit 1
+          fi
       - name: Upload debug APK for remote installation
         # APK debug interno: sobe assim que compila; os testes rodam depois e aparecem como aviso.
         if: success()
@@ -68,7 +81,7 @@ jobs:
           retention-days: 14
       - name: Unit tests (falha de teste deixa a CI vermelha; o APK debug ja subiu acima)
         working-directory: android
-        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest
+        run: gradle --no-daemon --stacktrace -PauraVersion=$((GITHUB_RUN_NUMBER + 100)) :app:testDebugUnitTest
       - name: Keep JUnit results
         if: always()
         uses: actions/upload-artifact@v4

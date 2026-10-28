@@ -161,3 +161,10 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Teste existente ajustado: `ConnectionsLoginTest` procurava "o campo de texto" sem rótulo; com o campo da chave do Gemini passou a ser ambíguo, então o seletor ganhou o rótulo ("Código do Claude" / "Token do Claude"). Nenhuma verificação foi enfraquecida.
 - Não comprovado: nada rodou contra o motor real no Termux (só servidor HTTP falso do contrato); aparência no aparelho (ícone novo do cabeçalho do Início em telas estreitas); criar `docs/design` para a tela Sessões (a rota não tem arquivo de design).
 - Próximo item: conferir no aparelho (matriz G em docs/MATRIZ_DE_TESTES.md) e deixar a CI rodar a suíte completa.
+
+## 2026-10-28 — Assinatura debug fixa e versão crescente na CI
+- Objetivo: permitir atualização entre novos APKs com o mesmo certificado e versionCode crescente.
+- Alterações: chave pública de debug gerada uma única vez em android/app/aura-debug.keystore para versionamento; debug e release usam essa chave. Versão segue -PauraVersion, depois AURA_VERSION, depois 1. CI passa GITHUB_RUN_NUMBER + 100 nos dois comandos Gradle e confere o certificado com docs/ASSINATURA.md antes do upload interno.
+- Estado verificado: python3 scripts/test_design_coverage.py passou (11 testes); python3 scripts/check_traceability.py passou (32 vínculos). Fingerprint lido com keytool e registrado em docs/ASSINATURA.md; revisão estática independente sem bloqueios.
+- Limite: nenhum Gradle, APK, commit ou push executado, conforme instrução desta tarefa. Compilação, certificado do APK e atualização no aparelho não foram provados aqui. APKs antigos com outra assinatura continuam incompatíveis.
+- Próximo item: coordenador compilar, conferir certificado no APK e testar atualização preservando dados; incluir a chave no commit. Cofre Obsidian não disponível nesta worktree.

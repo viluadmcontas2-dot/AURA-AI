@@ -12,11 +12,21 @@ android {
         applicationId = "ai.aura.app"
         minSdk = 26
         targetSdk = 35
-        // Versão vem do script de release (-PauraVersion=N). Atualizar por cima exige N maior.
-        val auraVersion = (project.findProperty("auraVersion") as String?)?.toInt() ?: 1
+        // -PauraVersion=N tem prioridade sobre AURA_VERSION. Atualizar por cima exige N maior.
+        val auraVersion = ((project.findProperty("auraVersion") as String?)
+            ?: System.getenv("AURA_VERSION"))?.toInt() ?: 1
         versionCode = auraVersion
         versionName = "v$auraVersion"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    signingConfigs {
+        getByName("debug") {
+            // Chave de DEBUG pública, versionada intencionalmente; não é segredo nem chave de produção.
+            storeFile = file("aura-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
     buildTypes {
         release {
@@ -24,7 +34,7 @@ android {
             isShrinkResources = true
             isDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Mesma chave do v5 (a de debug do aparelho): é o que deixa o v6 instalar por cima. Release só para conferir.
+            // Mesma chave fixa do debug para permitir atualização entre builds com esta assinatura.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
