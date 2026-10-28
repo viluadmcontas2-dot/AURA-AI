@@ -6,6 +6,7 @@ import ai.aura.app.ui.engine.AUTH_PROVIDER_IDS
 import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStatus
+import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.engine.Capability
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
@@ -265,6 +266,61 @@ class RealEngineGateway(
                 )
             }
         }
+    }
+
+    /** Ids do app -> ids do contrato de /v1/tools/install. */
+    private fun toolId(provider: String) = when (provider) { "github" -> "gh"; "gdrive" -> "rclone"; else -> provider }
+
+    private fun toolFailure(e: Exception, doing: String): ToolActionResult.Failed = when {
+        e is AuraEngineException && e.code == "indisponivel_no_termux" -> ToolActionResult.Failed(
+            "Este programa não instala no Termux.",
+            "Use outra conta por enquanto. Se quiser, toque em Tentar de novo.",
+        )
+        e is AuraEngineException -> ToolActionResult.Failed(
+            e.message?.takeIf { it.isNotBlank() } ?: "O motor recusou $doing.", "Confira os dados e tente de novo.",
+        )
+        notExposed(e) -> ToolActionResult.Failed(
+            "O motor ainda não sabe $doing.", "Atualize o AURA Engine no Termux e tente de novo.",
+        )
+        e is java.io.IOException -> ToolActionResult.Failed(
+            e.message ?: "O Termux não respondeu.", "Abra o Termux, inicie o motor e tente de novo.",
+        )
+        else -> ToolActionResult.Failed("Não foi possível $doing.", "Tente de novo.")
+    }
+
+    override suspend fun installTool(provider: String): ToolActionResult = try {
+        val r = client.installTool(toolId(provider))
+        val notices = r.optJSONArray("download_notices")?.length() ?: 0
+        ToolActionResult.Ok(
+            when {
+                r.optBoolean("already_installed") -> "Já estava instalado."
+                notices > 0 -> "Instalando. Há download grande (mais de 100 MB): prefira o Wi-Fi. Acompanhe em Atividade."
+                else -> "Instalando. Acompanhe em Atividade."
+            },
+        )
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        toolFailure(e, "instalar este programa")
+    }
+
+    override suspend fun submitAuthCode(provider: String, code: String): ToolActionResult = try {
+        client.authCode(provider, code.trim())
+        ToolActionResult.Ok("Código enviado. Conferindo o login…")
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        toolFailure(e, "enviar o código")
+    }
+
+    override suspend fun submitAuthToken(provider: String, token: String): ToolActionResult = try {
+        val r = client.authToken(provider, token.trim())
+        if (r.optString("state") == "conectado") ToolActionResult.Ok("Conectado.")
+        else ToolActionResult.Failed("O motor não confirmou o login.", "Confira o token e tente de novo.")
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        toolFailure(e, "enviar o token")
     }
 
     /** Um único polling compartilhado por todas as telas (evita N laços e tempestade de jobs()). */

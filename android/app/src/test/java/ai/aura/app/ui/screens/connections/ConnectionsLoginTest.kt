@@ -10,15 +10,16 @@ import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
-import ai.aura.app.ui.engine.JobRisk
-import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.engine.RouteResult
+import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.theme.AuraTheme
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -39,11 +40,15 @@ private class LoginGateway(
     private val initial: AuthState = AuthState.Disconnected,
     private val installable: Boolean = false,
     private val startResult: AuthStartResult = AuthStartResult.Started,
+    private val promptCode: String? = "ABCD-1234",
+    private val installResult: ToolActionResult = ToolActionResult.Ok("Instalando. Acompanhe em Atividade."),
 ) : EngineGateway {
     val bus = MutableSharedFlow<EngineEvent>(extraBufferCapacity = 16)
     override val events: Flow<EngineEvent> = bus
     val started = mutableListOf<String>()
-    val submitted = mutableListOf<JobRequest>()
+    val installed = mutableListOf<String>()
+    val codes = mutableListOf<String>()
+    val tokens = mutableListOf<String>()
 
     /** O dono terminou o login no Termux: a próxima conferência de estado devolve Conectado. */
     @Volatile var loggedIn = false
@@ -62,18 +67,31 @@ private class LoginGateway(
             bus.tryEmit(
                 EngineEvent(
                     1, "auth.prompt", null,
-                    mapOf("provider" to provider, "url" to "https://example.com/device", "code" to "ABCD-1234"), 0L,
+                    mapOf("provider" to provider, "url" to "https://example.com/device") + (promptCode?.let { mapOf("code" to it) } ?: emptyMap()), 0L,
                 ),
             )
         }
         return startResult
     }
 
-    override suspend fun submit(requestId: String, request: JobRequest): Job {
-        submitted += request
-        return Job("job_1", requestId, request.prompt, request.kind, JobStatus.Queued, JobRisk.Write, 0L)
+    override suspend fun installTool(provider: String): ToolActionResult {
+        installed += provider
+        return installResult
     }
 
+    override suspend fun submitAuthCode(provider: String, code: String): ToolActionResult {
+        codes += code
+        loggedIn = true
+        return ToolActionResult.Ok("Código enviado. Conferindo o login…")
+    }
+
+    override suspend fun submitAuthToken(provider: String, token: String): ToolActionResult {
+        tokens += token
+        loggedIn = true
+        return ToolActionResult.Ok("Conectado.")
+    }
+
+    override suspend fun submit(requestId: String, request: JobRequest): Job = error("não usado")
     override suspend fun jobs(): List<Job> = emptyList()
     override suspend fun approve(id: String): Job = error("não usado")
     override suspend fun cancel(id: String): Job = error("não usado")
@@ -155,7 +173,52 @@ class ConnectionsLoginTest {
 
         rule.onNodeWithText("Não instalado").assertIsDisplayed()
         rule.onNodeWithText("Instalar Claude").performScrollTo().performClick()
-        waitForText("Pedido para instalar Claude criado. Aprove em Atividade.")
-        assertEquals(listOf(JobRequest("system", "Instalar o programa de Claude")), gateway.submitted)
+        waitForText("Claude: Instalando. Acompanhe em Atividade.")
+        assertEquals(listOf("claude"), gateway.installed)
+    }
+
+    @Test
+    fun programaQueNaoInstalaNoTermuxExplicaEDeixaTentarDeNovo() {
+        val gateway = LoginGateway(
+            initial = AuthState.Unavailable, installable = true,
+            installResult = ToolActionResult.Failed("Este programa não instala no Termux.", "Use outra conta por enquanto."),
+        )
+        show(gateway)
+        waitForText("Instalar Claude")
+        rule.onNodeWithText("Instalar Claude").performScrollTo().performClick()
+        waitForText("Este programa não instala no Termux. Use outra conta por enquanto.")
+        rule.onNodeWithText("Instalar Claude").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun claudeAbreOLinkEAceitaOCodigoColado() {
+        val gateway = LoginGateway(promptCode = null)
+        val opened = mutableListOf<String>()
+        show(gateway, opened)
+        waitForText("Conectar Claude")
+        rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
+        waitForText("Abra o link, entre com a sua conta e cole aqui o código que aparecer.")
+        rule.onNodeWithText("Abrir link").performScrollTo().performClick()
+        assertEquals(listOf("https://example.com/device"), opened)
+
+        rule.onNode(hasSetTextAction()).performScrollTo().performTextInput("COD-123")
+        rule.onNodeWithText("Enviar código").performScrollTo().performClick()
+        waitForText("Claude conectado.")
+        assertEquals(listOf("COD-123"), gateway.codes)
+    }
+
+    @Test
+    fun claudeAceitaTokenColadoENuncaOMostraDepois() {
+        val gateway = LoginGateway(promptCode = null)
+        show(gateway)
+        waitForText("Conectar Claude")
+        rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
+        waitForText("Prefiro colar um token")
+        rule.onNodeWithText("Prefiro colar um token").performScrollTo().performClick()
+        rule.onNode(hasSetTextAction()).performScrollTo().performTextInput("sk-segredo")
+        rule.onNodeWithText("Enviar token").performScrollTo().performClick()
+        waitForText("Claude conectado.")
+        assertEquals(listOf("sk-segredo"), gateway.tokens)
+        rule.onAllNodesWithText("sk-segredo").assertCountEquals(0)
     }
 }
