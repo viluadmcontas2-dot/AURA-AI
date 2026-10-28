@@ -190,13 +190,50 @@ sealed interface AuthStartResult {
     data class Failed(val reason: String, val fix: String) : AuthStartResult
 }
 
+/** Resultado das leituras e ações de memória, skills, saúde e uso: nunca lança por falta de motor. */
+sealed interface EngineResult<out T> {
+    data class Ok<T>(val value: T) : EngineResult<T>
+
+    /** O motor entendeu e recusou; [message] é a mensagem dele, pronta para mostrar. */
+    data class Rejected(val code: String?, val message: String) : EngineResult<Nothing>
+    data class Unavailable(val reason: String) : EngineResult<Nothing>
+}
+
+/** [kind]: preference, project, device ou rule. [createdAtMillis] já em milissegundos (o motor manda segundos). */
+data class MemoryEntry(val id: String, val kind: String, val text: String, val source: String?, val createdAtMillis: Long)
+
+data class SkillInfo(val id: String, val name: String, val description: String, val bundled: Boolean)
+
+data class EngineHealth(val service: String, val version: Int)
+
+data class EngineUsage(
+    val inputTokens: Long,
+    val outputTokens: Long,
+    val cacheReadTokens: Long,
+    val reportedJobs: Int,
+    val unreportedJobs: Int,
+)
+
+private const val NOT_EXPOSED = "Este AURA Engine ainda não expõe isso."
+
 interface EngineGateway {
     suspend fun jobs(): List<Job>
     suspend fun approve(id: String): Job
     suspend fun cancel(id: String): Job
     suspend fun route(text: String): RouteResult
+
+    /** Como [route], num workspace. O padrão ignora o workspace. */
+    suspend fun route(text: String, workspace: String): RouteResult = route(text)
     suspend fun submit(requestId: String, request: JobRequest): Job
     suspend fun capabilities(): List<Capability>
+
+    // Memória, skills, saúde e uso (GET /v1/memory, /v1/skills, /v1/health, /v1/usage). Padrão = indisponível.
+    suspend fun memory(): EngineResult<List<MemoryEntry>> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun forgetMemory(id: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun forgetAllMemory(): EngineResult<Int> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun skills(): EngineResult<List<SkillInfo>> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun health(): EngineResult<EngineHealth> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun usage(): EngineResult<EngineUsage> = EngineResult.Unavailable(NOT_EXPOSED)
 
     /** Eventos duráveis e ordenados (GET /v1/events?since=N); a UI retoma por id. */
     val events: Flow<EngineEvent>

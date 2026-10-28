@@ -30,7 +30,11 @@ import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
 /** Production EngineGateway. Never substitutes FakeEngineGateway for a missing Termux process. */
-class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
+class RealEngineGateway(
+    private val client: EngineApi,
+    /** Escopo do polling de eventos: sem assinantes ele para (WhileSubscribed), então nada fica vivo. */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+) : EngineGateway {
     private val routedRequests = ConcurrentHashMap<String, String>()
     private fun key(request: JobRequest): String =
         request.kind + "\u0000" + request.workspace + "\u0000" + request.prompt
@@ -234,9 +238,6 @@ class RealEngineGateway(private val client: AuraEngineClient) : EngineGateway {
             }
         }
     }
-
-    /** Escopo do gateway: sem assinantes o polling para (WhileSubscribed), então nada fica vivo. */
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Um único polling compartilhado por todas as telas (evita N laços e tempestade de jobs()). */
     override val events: Flow<EngineEvent> = flow {
