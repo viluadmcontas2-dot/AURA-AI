@@ -1,29 +1,61 @@
 #!/usr/bin/env python3
-"""Garante que toda tela e função do design está na matriz docs/design/COBERTURA.md.
-Uso: check_design_coverage.py            (CI normal: falha se faltar linha para alguma tela)
-     check_design_coverage.py --release  (gate do APK: falha se algo não estiver 'feito' com evidência)"""
-import json, re, sys, os
+"""Valida o inventário fixo das 45 telas e 21 funções do Design System.
+
+Modo normal: exige cobertura estrutural de todos os IDs e arquivos.
+Modo --release: também exige status feito e evidência para TODOS os 66 IDs.
+Não atesta a autenticidade da evidência nem substitui o teste no aparelho.
+"""
+import os
+import re
+import sys
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-D = os.path.join(ROOT, 'docs/design')
-telas = sorted(f for f in os.listdir(os.path.join(D, 'telas')) if f.endswith('.dc.html'))
-md = open(os.path.join(D, 'COBERTURA.md'), encoding='utf-8').read()
+DESIGN = os.path.join(ROOT, "docs", "design")
+SCREENS = os.path.join(DESIGN, "telas")
+EXPECTED = {f"UI-{i:02d}" for i in range(1, 46)}
+EXPECTED.update(f"FN-{i:02d}" for i in range(1, 22))
+screens = sorted(name for name in os.listdir(SCREENS) if name.endswith(".dc.html"))
 rows = {}
-for line in md.splitlines():
-    m = re.match(r'\|\s*((?:UI|FN)-\d+)\s*\|(.*)\|\s*$', line)
-    if m:
-        cells = [c.strip() for c in m.group(2).split('|')]
-        rows[m.group(1)] = cells  # [descricao/arquivo, status, evidencia]
-errs = []
-for t in telas:
-    if not any(t in ' '.join(c) for c in rows.values()):
-        errs.append('tela sem linha na matriz: ' + t)
-if '--release' in sys.argv:
-    for k, c in rows.items():
-        status = c[1].lower() if len(c) > 1 else ''
-        ev = c[2] if len(c) > 2 else ''
-        if status != 'feito' or not ev or ev == '-':
-            errs.append(f'{k} não está feito com evidência ({status or "sem status"})')
-total = len(rows); feito = sum(1 for c in rows.values() if len(c) > 2 and c[1].lower() == 'feito' and c[2] not in ('', '-'))
-print(f'{feito}/{total} itens feitos com evidência; {len(telas)} telas no design')
-for e in errs: print('ERRO:', e)
-sys.exit(1 if errs else 0)
+errors = []
+
+with open(os.path.join(DESIGN, "COBERTURA.md"), encoding="utf-8") as handle:
+    for line in handle:
+        match = re.match(r"\|\s*((?:UI|FN)-\d+)\s*\|(.*)\|\s*$", line)
+        if not match:
+            continue
+        ident = match.group(1)
+        cells = [cell.strip() for cell in match.group(2).split("|")]
+        if ident in rows:
+            errors.append(f"ID duplicado: {ident}")
+        if len(cells) != 3:
+            errors.append(f"{ident}: linha exige descrição, status e evidência")
+        rows[ident] = cells
+
+for ident in sorted(EXPECTED - rows.keys()):
+    errors.append(f"ID obrigatório ausente: {ident}")
+for ident in sorted(rows.keys() - EXPECTED):
+    errors.append(f"ID inesperado: {ident}")
+if len(screens) != 45:
+    errors.append(f"esperadas 45 telas .dc.html, encontradas {len(screens)}")
+for screen in screens:
+    matches = [ident for ident, cells in rows.items()
+               if ident.startswith("UI-") and len(cells) == 3 and screen in cells[0]]
+    if len(matches) != 1:
+        errors.append(f"tela sem vínculo UI único: {screen}")
+
+complete = 0
+for ident, cells in rows.items():
+    if len(cells) != 3:
+        continue
+    status = cells[1].lower()
+    evidence = cells[2]
+    verified_cell = status == "feito" and bool(evidence) and evidence != "-"
+    if verified_cell:
+        complete += 1
+    if "--release" in sys.argv and not verified_cell:
+        errors.append(f"{ident} não está feito com evidência ({status or 'sem status'})")
+
+print(f"{complete}/{len(EXPECTED)} itens marcados feitos com evidência; {len(screens)} telas no design")
+for error in errors:
+    print("ERRO:", error)
+sys.exit(1 if errors else 0)
