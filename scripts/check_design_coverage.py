@@ -27,8 +27,8 @@ with open(os.path.join(DESIGN, "COBERTURA.md"), encoding="utf-8") as handle:
         cells = [cell.strip() for cell in match.group(2).split("|")]
         if ident in rows:
             errors.append(f"ID duplicado: {ident}")
-        if len(cells) != 3:
-            errors.append(f"{ident}: linha exige descrição, status e evidência")
+        if len(cells) not in (3, 4):
+            errors.append(f"{ident}: linha exige descrição, status, evidência e Tarefa opcional")
         rows[ident] = cells
 
 for ident in sorted(EXPECTED - rows.keys()):
@@ -39,7 +39,7 @@ if len(screens) != 45:
     errors.append(f"esperadas 45 telas .dc.html, encontradas {len(screens)}")
 for screen in screens:
     matches = [ident for ident, cells in rows.items()
-               if ident.startswith("UI-") and len(cells) == 3 and screen in cells[0]]
+               if ident.startswith("UI-") and len(cells) in (3, 4) and screen in cells[0]]
     if len(matches) != 1:
         errors.append(f"tela sem vínculo UI único: {screen}")
 
@@ -81,7 +81,7 @@ def evidence_reference(ident, raw):
 
 complete = 0
 for ident, cells in rows.items():
-    if len(cells) != 3:
+    if len(cells) not in (3, 4):
         continue
     status = cells[1].lower()
     evidence = cells[2]
