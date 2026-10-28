@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.activity.compose.BackHandler
@@ -144,6 +145,17 @@ fun AuraApp(
         val link by linkState.collectAsState()
         val imeVisible = WindowInsets.isImeVisible
         val go = { next: List<String> -> stackText = next.joinToString(",") }
+        // "Compartilhar para o AURA": um .apk compartilhado abre direto no Escopo da reforma (Voltar volta à escolha).
+        val reform = ai.aura.app.ui.screens.reform.LocalReformController.current
+        val hostActivity = findActivity(LocalContext.current)
+        var shareHandled by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(onboardingDoneState, reform) {
+            if (!onboardingDoneState || shareHandled || reform == null || hostActivity == null) return@LaunchedEffect
+            val shared = ai.aura.app.ui.screens.reform.sharedApkFromIntent(hostActivity, hostActivity.intent) ?: return@LaunchedEffect
+            shareHandled = true
+            reform.select(shared)
+            go(listOf("inicio", "reformar-apps", "reformar-escopo"))
+        }
         // Voltar desempilha; só na raiz (Início) o sistema fecha o app. Telas com Voltar próprio (chat,
         // etapas, Ajustes > Contas) vencem por serem compostas depois.
         BackHandler(enabled = onboardingDoneState && stack.size > 1) { popRoute(stack)?.let(go) }
@@ -187,6 +199,16 @@ fun AuraApp(
             }
         }
     }
+}
+
+/** A Activity por trás do contexto do Compose (ou null em testes sem Activity). */
+private fun findActivity(context: android.content.Context): android.app.Activity? {
+    var c: android.content.Context? = context
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
 }
 
 /**

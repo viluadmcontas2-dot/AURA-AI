@@ -102,8 +102,8 @@ fun ReformAppsScreen(
 
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         ReformKit.Header(
-            onBack = onBack, backDescription = "Voltar para o aparelho",
-            title = deviceLabel, subtitle = "Passo 1 de 2 · Escolher app",
+            onBack = onBack, backDescription = "Voltar",
+            title = deviceLabel, subtitle = "Passo 1 de 5 · Escolher app",
         )
         LazyColumn(
             Modifier.weight(1f).selectableGroup(),

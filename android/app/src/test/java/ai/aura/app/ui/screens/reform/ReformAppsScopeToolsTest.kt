@@ -146,7 +146,7 @@ class ReformAppsScopeToolsScreensTest {
         }
 
         compose.onNodeWithText("Multimídia do carro · 4 apps").assertExists()
-        compose.onNodeWithText("Passo 1 de 2 · Escolher app").assertExists()
+        compose.onNodeWithText("Passo 1 de 5 · Escolher app").assertExists()
         compose.onNodeWithText("Player de música").assertIsSelected()
             .assertTextContains("v2.1 · 2016").assertTextContains("Muito antigo")
             .assertTextContains("Potencial de melhoria").assertTextContains("Alto")
@@ -164,7 +164,7 @@ class ReformAppsScopeToolsScreensTest {
         compose.onNodeWithText("Player de música").assertIsNotSelected()
         compose.onNodeWithText("Escolher escopo").performClick()
         assertEquals(gps, next)
-        compose.onNodeWithContentDescription("Voltar para o aparelho").performClick()
+        compose.onNodeWithContentDescription("Voltar").performClick()
         assertEquals(1, back)
     }
 

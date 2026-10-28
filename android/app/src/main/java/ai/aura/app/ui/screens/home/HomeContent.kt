@@ -113,6 +113,7 @@ fun HomeContent(
     link: LinkState = LinkState.Unknown,
     onEngineAction: ((OfflineReason) -> Unit)? = null,
     onOpenVoice: (() -> Unit)? = null,
+    onOpenReform: (() -> Unit)? = null,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
@@ -136,6 +137,7 @@ fun HomeContent(
         link = link,
         onEngineAction = onEngineAction,
         onOpenVoice = onOpenVoice,
+        onOpenReform = onOpenReform,
     )
 }
 
@@ -152,6 +154,7 @@ internal fun HomeView(
     link: LinkState = LinkState.Unknown,
     onEngineAction: ((OfflineReason) -> Unit)? = null,
     onOpenVoice: (() -> Unit)? = null,
+    onOpenReform: (() -> Unit)? = null,
 ) {
     // Sem motor, o aviso nasce do motivo do elo (ou de a consulta ter falhado) e traz UMA ação.
     val offlineReason = (link as? LinkState.Offline)?.reason
@@ -192,6 +195,11 @@ internal fun HomeView(
                         icon = ShortcutIcon.Phone, modifier = Modifier.weight(1f),
                         onClick = { onOpenChat(ChatEntry(open = true, draft = "Controlar meu aparelho Android: ")) },
                     )
+                }
+                // Reformar apps abre sem motor (escolher o APK é local): nunca fica escondido atrás do chat.
+                if (onOpenReform != null) {
+                    Spacer(Modifier.height(12.dp))
+                    ReformShortcut(onOpenReform)
                 }
             }
             val voice = ai.aura.app.voice.LocalVoiceInput.current
@@ -339,7 +347,36 @@ private fun OfflineCard(reason: OfflineReason, onAction: ((OfflineReason) -> Uni
     }
 }
 
-private enum class ShortcutIcon { Plus, Phone }
+private enum class ShortcutIcon { Plus, Phone, Rebuild }
+
+/** Atalho largo para a reforma de apps (engenharia reversa): um toque até "Escolher APK". */
+@Composable
+private fun ReformShortcut(onClick: () -> Unit) {
+    AuraCard(
+        modifier = Modifier.fillMaxWidth(), onClick = onClick, tint = AuraColors.CategoryLilac,
+        contentDescription = "Reformar apps. Refaça um app que já existe com o visual do AURA",
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(40.dp).clip(AuraShapes.Circle).background(Color.White), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(20.dp)) { drawRebuildIcon() }
+            }
+            Column(Modifier.weight(1f)) {
+                Text("Reformar apps", style = AuraType.Section.copy(fontSize = 17.sp, lineHeight = 22.sp))
+                Text("Refaça um app que já existe", style = AuraType.SecondarySmall)
+            }
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRebuildIcon() {
+    val stroke = Stroke(width = 1.75.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    drawArc(
+        AuraColors.Ink, startAngle = 40f, sweepAngle = 280f, useCenter = false,
+        topLeft = Offset(2.dp.toPx(), 2.dp.toPx()), size = Size(size.width - 4.dp.toPx(), size.height - 4.dp.toPx()), style = stroke,
+    )
+    drawLine(AuraColors.Ink, Offset(size.width - 3.dp.toPx(), 3.dp.toPx()), Offset(size.width - 3.dp.toPx(), 8.dp.toPx()), stroke.width, stroke.cap)
+    drawLine(AuraColors.Ink, Offset(size.width - 3.dp.toPx(), 8.dp.toPx()), Offset(size.width - 8.dp.toPx(), 8.dp.toPx()), stroke.width, stroke.cap)
+}
 
 @Composable
 private fun ShortcutCard(
@@ -359,6 +396,7 @@ private fun ShortcutCard(
                         drawLine(AuraColors.Ink, Offset(size.width / 2, 2.dp.toPx()), Offset(size.width / 2, size.height - 2.dp.toPx()), stroke.width, stroke.cap)
                         drawLine(AuraColors.Ink, Offset(2.dp.toPx(), size.height / 2), Offset(size.width - 2.dp.toPx(), size.height / 2), stroke.width, stroke.cap)
                     }
+                    ShortcutIcon.Rebuild -> drawRebuildIcon()
                     ShortcutIcon.Phone -> drawRoundRect(
                         AuraColors.Ink, topLeft = Offset(size.width * 0.2f, 1.dp.toPx()),
                         size = Size(size.width * 0.6f, size.height - 2.dp.toPx()),
