@@ -121,7 +121,12 @@ val ROUTES: List<Route> = listOf(
     Route("capacidades", "Capacidades", null, true, listOf("capacidade-detalhe")),
     Route("capacidade-detalhe", "Capacidade-Detalhe", null, true, emptyList()),
     Route("memoria", "Memoria", null, true, emptyList()),
-    Route("checkup", "Checkup", null, false, listOf("intercorrencias")),
+    Route("checkup", "Checkup", null, false, listOf("intercorrencias")) { env ->
+        ai.aura.app.ui.screens.checkup.CheckupRoute(
+            env.gateway, env.termuxInstalled, env.termuxPermissionGranted, env.onRequestTermuxPermission,
+            { env.open("ajustes") }, env.onOpenUrl, env.back,
+        )
+    },
     Route("notificacoes", "Notificacoes", null, false, emptyList()),
     Route("conexoes", "Conexoes", null, true, emptyList()),
     Route("permissoes", null, null, false, emptyList()),
