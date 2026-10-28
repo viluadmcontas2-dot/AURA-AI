@@ -65,7 +65,10 @@ class MainActivity : ComponentActivity() {
             // Motor real guardado em disco (sem ele o app mostra o último dado) e o estado do vínculo para o banner.
             val bridge = remember { TermuxBridge(applicationContext) }
             val link = remember { EngineLink(bridge) }
-            val realGateway = remember { RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext))) }
+            val engineClient = remember { AuraEngineClient(EngineCredentialStore(applicationContext)) }
+            val realGateway = remember { RealEngineGateway(engineClient) }
+            val settingsGateway = remember { ai.aura.app.integration.RealSettingsGateway(engineClient) }
+            val queueGateway = remember { ai.aura.app.integration.RealQueueGateway(engineClient) }
             val gateway = remember {
                 OfflineFirstGateway(
                     realGateway,
@@ -94,6 +97,8 @@ class MainActivity : ComponentActivity() {
                     lastCrash = null
                 },
                 gateway = gateway,
+                settingsGateway = settingsGateway,
+                queueGateway = queueGateway,
                 onOpenUrl = openUrl,
                 onRequestTermuxPermission = {
                     runCatching { TermuxBridge(this).askPermission(this) }

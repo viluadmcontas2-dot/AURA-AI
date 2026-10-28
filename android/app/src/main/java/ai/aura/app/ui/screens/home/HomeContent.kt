@@ -112,6 +112,7 @@ fun HomeContent(
     onDraftChange: (String) -> Unit = {},
     link: LinkState = LinkState.Unknown,
     onEngineAction: ((OfflineReason) -> Unit)? = null,
+    onOpenVoice: (() -> Unit)? = null,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
     val data by rememberHomeData(gateway, attempt)
@@ -134,6 +135,7 @@ fun HomeContent(
         onOpenSettings = onOpenSettings,
         link = link,
         onEngineAction = onEngineAction,
+        onOpenVoice = onOpenVoice,
     )
 }
 
@@ -149,6 +151,7 @@ internal fun HomeView(
     onOpenSettings: () -> Unit = {},
     link: LinkState = LinkState.Unknown,
     onEngineAction: ((OfflineReason) -> Unit)? = null,
+    onOpenVoice: (() -> Unit)? = null,
 ) {
     // Sem motor, o aviso nasce do motivo do elo (ou de a consulta ter falhado) e traz UMA ação.
     val offlineReason = (link as? LinkState.Offline)?.reason
@@ -193,14 +196,15 @@ internal fun HomeView(
             }
             val voice = ai.aura.app.voice.LocalVoiceInput.current
             VoiceOrb(
-                available = voice != null,
+                available = voice != null || onOpenVoice != null,
                 onClick = {
-                    if (voice != null) voice { text -> onOpenChat(ChatEntry(open = true, prompt = text)) }
+                    if (onOpenVoice != null) onOpenVoice()
+                    else if (voice != null) voice { text -> onOpenChat(ChatEntry(open = true, prompt = text)) }
                     else onOpenChat(ChatEntry(open = true))
                 }, modifier = Modifier.align(Alignment.TopEnd).offset(x = 72.dp, y = (-6).dp),
             )
         }
-        AuraComposerField(value = draft, onValueChange = onDraftChange, onSend = onSend)
+        AuraComposerField(value = draft, onValueChange = onDraftChange, onSend = onSend, onMic = onOpenVoice)
     }
 }
 
@@ -280,7 +284,7 @@ private fun VoiceOrb(available: Boolean, onClick: () -> Unit, modifier: Modifier
                 .background(Color.White.copy(alpha = 0.94f))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-        ) { Text(if (available) "Toque e fale" else "Sem voz neste aparelho", style = AuraType.Caption.copy(letterSpacing = 0.sp, color = AuraColors.Ink)) }
+        ) { Text(if (available) "Toque para falar" else "Sem voz neste aparelho", style = AuraType.Caption.copy(letterSpacing = 0.sp, color = AuraColors.Ink)) }
     }
 }
 

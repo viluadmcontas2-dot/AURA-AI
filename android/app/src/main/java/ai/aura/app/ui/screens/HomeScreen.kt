@@ -47,6 +47,9 @@ fun HomeScreen(
     store: LocalStore = rememberAuraStore(),
     link: LinkState = LinkState.Unknown,
     onEngineAction: ((OfflineReason) -> Unit)? = null,
+    pendingPrompt: String? = null,
+    onPendingPromptHandled: () -> Unit = {},
+    onOpenVoice: (() -> Unit)? = null,
 ) {
     var entry by rememberSaveable(stateSaver = ChatEntry.Saver) { mutableStateOf(ChatEntry.Closed) }
     var current by remember { mutableStateOf<String?>(null) } // null = ainda lendo o disco
@@ -71,6 +74,13 @@ fun HomeScreen(
             onOpenJobHandled()
         }
     }
+    // Voz pediu para criar o pedido no chat: mesmo caminho do envio do composer.
+    LaunchedEffect(pendingPrompt) {
+        if (!pendingPrompt.isNullOrBlank()) {
+            entry = ChatEntry(open = true, prompt = pendingPrompt.trim())
+            onPendingPromptHandled()
+        }
+    }
     if (entry.open) {
         ChatScreen(
             gateway = gateway,
@@ -85,6 +95,7 @@ fun HomeScreen(
             HomeContent(
                 gateway = gateway, onOpenChat = { entry = it }, modifier = modifier, onOpenSettings = onOpenSettings,
                 initialDraft = start, onDraftChange = saveDraft, link = link, onEngineAction = onEngineAction,
+                onOpenVoice = onOpenVoice,
             )
         }
     }

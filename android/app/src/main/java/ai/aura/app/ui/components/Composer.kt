@@ -60,6 +60,7 @@ fun AuraComposerField(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "Peça algo ao AURA…",
+    onMic: (() -> Unit)? = null,
 ) {
     val canSend = value.isNotBlank()
     val sendSource = remember { MutableInteractionSource() }
@@ -99,6 +100,19 @@ fun AuraComposerField(
                     },
                 )
             }
+            if (onMic != null) {
+                val micSource = remember { MutableInteractionSource() }
+                Box(
+                    Modifier
+                        .size(AuraSpacing.TouchTarget)
+                        .clip(AuraShapes.Circle)
+                        .border(1.dp, AuraColors.Line, AuraShapes.Circle)
+                        .auraFocusRing(micSource, AuraShapes.Circle)
+                        .clickable(interactionSource = micSource, indication = null, role = Role.Button, onClick = onMic)
+                        .semantics { contentDescription = "Falar um pedido pelo microfone" },
+                    contentAlignment = Alignment.Center,
+                ) { MicGlyph() }
+            }
             Box(
                 Modifier
                     .size(AuraSpacing.TouchTarget)
@@ -113,6 +127,23 @@ fun AuraComposerField(
                 contentAlignment = Alignment.Center,
             ) { Text("↑", style = AuraType.Section.copy(color = if (canSend) Color.White else AuraColors.Ink3)) }
         }
+    }
+}
+
+/** Microfone desenhado (sem emoji nem ícone externo). */
+@Composable
+private fun MicGlyph() {
+    androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
+        val ink = AuraColors.Ink
+        val w = size.width
+        val h = size.height
+        drawRoundRect(ink, topLeft = androidx.compose.ui.geometry.Offset(w * 0.36f, h * 0.08f),
+            size = androidx.compose.ui.geometry.Size(w * 0.28f, h * 0.5f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.14f))
+        drawArc(ink, 0f, 180f, false, topLeft = androidx.compose.ui.geometry.Offset(w * 0.22f, h * 0.3f),
+            size = androidx.compose.ui.geometry.Size(w * 0.56f, h * 0.45f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
+        drawLine(ink, androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.75f), androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.92f), 1.6.dp.toPx())
     }
 }
 

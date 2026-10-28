@@ -124,7 +124,8 @@ data class ReformPlan(
 
 // ---------- Reformar 5 · Ferramentas ----------
 
-enum class ReformToolStatus { Unknown, Ready, Installing, Queued, Missing, Failed }
+/** [WaitingWifi] = dados móveis: o motor guardou onde parou e retoma no Wi-Fi. Não é erro. */
+enum class ReformToolStatus { Unknown, Ready, Installing, Queued, WaitingWifi, Missing, Failed }
 
 data class ReformTool(
     val id: String,
@@ -138,6 +139,7 @@ data class ReformTool(
             ReformToolStatus.Ready -> "Pronto"
             ReformToolStatus.Installing -> percent?.let { "Instalando $it%" } ?: "Instalando"
             ReformToolStatus.Queued -> "Na fila"
+            ReformToolStatus.WaitingWifi -> "Aguardando Wi-Fi"
             ReformToolStatus.Missing -> "Falta instalar"
             ReformToolStatus.Failed -> "Falhou"
         }
@@ -159,6 +161,7 @@ data class ReformSessionEntry(val time: String, val text: String, val active: Bo
 enum class ReformToolsAction(val label: String) {
     Install("Instalar o que falta"),
     Busy("Instalando ferramentas"),
+    Retry("Tentar de novo"),
     Done("Voltar ao projeto"),
 }
 
@@ -166,6 +169,10 @@ data class ReformToolsState(
     val tools: List<ReformTool> = emptyList(),
     val session: List<ReformSessionEntry> = emptyList(),
     val problem: ReformProblem? = null,
+    /** Frase do motor para o estado de espera (ex.: "conecte ao Wi-Fi"); aparece como nota, nunca como erro. */
+    val waitMessage: String? = null,
+    /** Download grande (>100 MB) que o motor avisou. Informativo: não bloqueia nenhum botão. */
+    val downloadNotices: List<ai.aura.app.integration.ReformDownloadNotice> = emptyList(),
 ) {
     /** As seis exigidas (com o que o motor contou, por id) e depois as extras que ele trouxer. */
     val rows: List<ReformTool>
@@ -179,6 +186,7 @@ data class ReformToolsState(
         get() {
             val all = rows
             return when {
+                all.any { it.status == ReformToolStatus.WaitingWifi } -> ReformToolsAction.Retry
                 all.any { it.status == ReformToolStatus.Installing || it.status == ReformToolStatus.Queued } ->
                     ReformToolsAction.Busy
                 all.all { it.status == ReformToolStatus.Ready } -> ReformToolsAction.Done

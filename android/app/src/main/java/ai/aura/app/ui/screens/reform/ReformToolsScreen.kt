@@ -18,7 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import ai.aura.app.ui.components.AuraButtonText
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +78,8 @@ fun ReformToolsScreen(
                 )
             }
             if (problem != null) IncidentBanner(IncidentLevel.NeedsYou, problem.title, problem.body)
+            state.waitMessage?.let { ReformKit.Note(it) }
+            if (state.downloadNotices.isNotEmpty()) DownloadNotice(state.downloadNotices)
             Column(
                 Modifier.fillMaxWidth().clip(AuraShapes.Card).background(AuraColors.Surface)
                     .border(1.dp, AuraColors.Line, AuraShapes.Card).padding(horizontal = 16.dp, vertical = 4.dp),
@@ -96,6 +105,38 @@ fun ReformToolsScreen(
     }
 }
 
+/**
+ * Aviso pequeno de download grande (>100 MB). Não bloqueia nada: os botões da tela seguem ativos.
+ * Toque mostra o tamanho em MB; "Entendi" (ou um novo toque no texto) fecha. Some até o motor avisar de novo.
+ */
+@Composable
+private fun DownloadNotice(notices: List<ai.aura.app.integration.ReformDownloadNotice>) {
+    var open by rememberSaveable(notices) { mutableStateOf(false) }
+    var closed by rememberSaveable(notices) { mutableStateOf(false) }
+    if (closed) return
+    val shape = AuraShapes.Chip
+    if (!open) {
+        Text(
+            "Download grande · toque para ver o tamanho",
+            style = AuraType.Chip.copy(color = AuraColors.Info.fg),
+            modifier = Modifier.heightIn(min = 44.dp).clip(shape).background(AuraColors.Info.bg)
+                .clickable(role = Role.Button) { open = true }
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+        )
+    } else {
+        Column(
+            Modifier.fillMaxWidth().clip(shape).background(AuraColors.Info.bg).padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            notices.forEach { n ->
+                val label = REFORM_REQUIRED_TOOLS.firstOrNull { it.id == n.step }?.label ?: n.step
+                Text("$label: cerca de ${n.mb} MB", style = AuraType.SecondarySmall.copy(color = AuraColors.Info.fg))
+            }
+            AuraButtonText("Entendi", { closed = true })
+        }
+    }
+}
+
 /** Uma ferramenta: nome + estado (ponto e texto) e, instalando, a barra com o percentual do motor. */
 @Composable
 private fun ToolRow(tool: ReformTool) {
@@ -110,7 +151,7 @@ private fun ToolRow(tool: ReformTool) {
             StatusChip(
                 when (tool.status) {
                     ReformToolStatus.Ready -> StatusKind.Ready
-                    ReformToolStatus.Installing -> StatusKind.Info
+                    ReformToolStatus.Installing, ReformToolStatus.WaitingWifi -> StatusKind.Info
                     ReformToolStatus.Missing -> StatusKind.NeedsYou
                     ReformToolStatus.Failed -> StatusKind.Risk
                     ReformToolStatus.Queued, ReformToolStatus.Unknown -> StatusKind.Neutral

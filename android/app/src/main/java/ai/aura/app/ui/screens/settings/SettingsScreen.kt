@@ -47,6 +47,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import ai.aura.app.integration.NoEngineSettingsGateway
+import ai.aura.app.integration.SettingsGateway
 import ai.aura.app.ui.components.AuraButtonPrimary
 import ai.aura.app.ui.components.AuraButtonSecondary
 import ai.aura.app.ui.components.AuraButtonText
@@ -61,7 +63,7 @@ import ai.aura.app.ui.theme.AuraTheme
 import ai.aura.app.ui.theme.AuraType
 
 /**
- * Ajustes: autorização, sem limites, gastos, modelos e histórico da política.
+ * Ajustes: autonomia, trava de custo, permissões, sem limites, gastos, modelos e histórico da política.
  * O app não impõe limite: tudo é preferência do dono, lida e gravada no motor (GET/PUT /v1/policy
  * e /v1/models). Não faz parte da navegação do AuraApp; quem hospeda decide como abrir e fechar.
  */
@@ -71,8 +73,14 @@ fun SettingsScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenUrl: (String) -> Unit = {},
+    settings: SettingsGateway = NoEngineSettingsGateway,
 ) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val autonomy = remember(settings) {
+        AutonomyState(settings, PrefsSettingsCache(context.getSharedPreferences("aura_prefs", android.content.Context.MODE_PRIVATE)), scope)
+    }
+    LaunchedEffect(autonomy) { autonomy.reload() }
     val state = remember(gateway) { SettingsState(gateway, scope) }
     LaunchedEffect(state) { state.reload() }
     LaunchedEffect(gateway) {
@@ -91,13 +99,23 @@ fun SettingsScreen(
     Column(modifier.fillMaxSize().background(AuraColors.Bg).statusBarsPadding()) {
         SettingsHeader(onClose = onClose, onStopAll = state::stopAll)
         when (state.load) {
-            SettingsLoad.Loading -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            SettingsLoad.Loading -> Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AutonomySection(autonomy)
                 Text("Carregando ajustes…", style = AuraType.Secondary)
             }
-            SettingsLoad.Unavailable -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                EmptyState("Motor indisponível", state.unavailableHint, "Tentar de novo", state::reload, glyph = "!")
+            SettingsLoad.Unavailable -> Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = AuraSpacing.ScreenGutter, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AutonomySection(autonomy)
+                EmptyState("Motor indisponível", state.unavailableHint, "Tentar de novo", { state.reload(); autonomy.reload() }, glyph = "!")
             }
-            SettingsLoad.Ready -> SettingsBody(state, { showAccounts = true }, Modifier.weight(1f))
+            SettingsLoad.Ready -> SettingsBody(state, autonomy, { showAccounts = true }, Modifier.weight(1f))
         }
         if (state.load == SettingsLoad.Ready) SaveBar(state)
         // "Parar tudo" responde em qualquer estado: a barra de salvar só existe com o motor no ar.
@@ -126,7 +144,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsBody(state: SettingsState, onOpenAccounts: () -> Unit, modifier: Modifier) {
+private fun SettingsBody(state: SettingsState, autonomy: AutonomyState, onOpenAccounts: () -> Unit, modifier: Modifier) {
     val policy = state.policy ?: return
     val models = state.models ?: return
     val key = state.savedPolicy?.version to state.savedModels?.version
@@ -140,6 +158,7 @@ private fun SettingsBody(state: SettingsState, onOpenAccounts: () -> Unit, modif
                 trailing = { AuraButtonSecondary("Conectar contas", onOpenAccounts) },
             )
         }
+        AutonomySection(autonomy)
         AuthorizationSection(policy, state::editPolicy)
         NoLimitsSection(
             p = policy,

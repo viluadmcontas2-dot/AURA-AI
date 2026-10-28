@@ -52,6 +52,14 @@ class ScreenEnv(
     val termuxInstalled: () -> Boolean,
     val termuxPermissionGranted: () -> Boolean,
     val onOnboardingFinished: () -> Unit,
+    // Ajustes e voz
+    val settings: ai.aura.app.integration.SettingsGateway = ai.aura.app.integration.NoEngineSettingsGateway,
+    /** Pedido falado que ainda vai virar mensagem no chat do Início. */
+    val pendingPrompt: String? = null,
+    val onPendingPromptHandled: () -> Unit = {},
+    /** Cria o pedido no chat (mesmo caminho do envio do composer). */
+    val sendPrompt: (String) -> Unit = {},
+    val queue: ai.aura.app.integration.QueueGateway = ai.aura.app.integration.NoEngineQueueGateway,
 )
 
 // id, arquivo do design, aba, needsEngine, arestas. Arestas = Fluxo-do-usuario + grafo do plano; as que
@@ -76,6 +84,9 @@ val ROUTES: List<Route> = listOf(
             onOpenJobHandled = env.onOpenJobHandled,
             draft = env.draft,
             onDraftChange = env.onDraftChange,
+            pendingPrompt = env.pendingPrompt,
+            onPendingPromptHandled = env.onPendingPromptHandled,
+            onOpenVoice = { env.open("voz-ouvindo") },
         )
     },
     Route("chat-entendi", "Chat-1-Entendi", AuraTab.Home, true, listOf("chat-executando")),
@@ -157,7 +168,7 @@ val ROUTES: List<Route> = listOf(
 
     // Ajustes abre pelo avatar do Início; nada aqui exige o motor para abrir.
     Route("ajustes", "Ajustes", null, false, listOf("capacidades", "memoria", "checkup", "notificacoes", "voz-modos", "conexoes", "permissoes")) { env ->
-        SettingsScreen(env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(), onOpenUrl = env.onOpenUrl)
+        SettingsScreen(env.gateway, onClose = env.back, modifier = Modifier.fillMaxSize(), onOpenUrl = env.onOpenUrl, settings = env.settings)
     },
     Route("capacidades", "Capacidades", null, true, listOf("capacidade-detalhe")),
     Route("capacidade-detalhe", "Capacidade-Detalhe", null, true, emptyList()),

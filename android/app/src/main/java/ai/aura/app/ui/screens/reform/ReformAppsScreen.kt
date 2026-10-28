@@ -1,6 +1,7 @@
 package ai.aura.app.ui.screens.reform
 
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -56,6 +57,12 @@ import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraType
 import java.time.Year
 
+/** Abrir documento só com arquivos que se abrem de verdade (CATEGORY_OPENABLE); o contrato padrão não põe isso. */
+private class OpenableDocument : ActivityResultContracts.OpenDocument() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).addCategory(Intent.CATEGORY_OPENABLE)
+}
+
 /** Reformar 1 · Escolher um APK ou usar a lista de apps como atalho. */
 @Composable
 fun ReformAppsScreen(
@@ -73,7 +80,7 @@ fun ReformAppsScreen(
     val listing = problem == null && state.apps.isNotEmpty()
     val context = LocalContext.current
     var pickerError by rememberSaveable { mutableStateOf<String?>(null) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    val picker = rememberLauncherForActivityResult(remember { OpenableDocument() }) { uri ->
         if (uri != null) {
             // Alguns provedores só concedem acesso temporário; isso não impede a escolha.
             runCatching {

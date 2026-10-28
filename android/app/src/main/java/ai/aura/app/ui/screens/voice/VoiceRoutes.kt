@@ -1,7 +1,11 @@
 package ai.aura.app.ui.screens.voice
 
 import ai.aura.app.ui.nav.ROUTES
+import ai.aura.app.ui.AuraTab
 import ai.aura.app.ui.nav.ScreenEnv
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import ai.aura.app.voice.AndroidSpeechRecognizer
 import android.Manifest
 import android.content.Context
@@ -30,6 +34,23 @@ internal object VoiceHandoff {
     var text by mutableStateOf("")
 }
 
+/** Pedido falado que espera a escolha da triagem (dados reais da fila do motor). */
+internal object TriageHolder {
+    var pending by mutableStateOf<VoiceOutcome.Triage?>(null)
+}
+
+/** Enviar na voz: vira mensagem no chat; com trabalho rodando, passa antes pela triagem. */
+private fun routeSpoken(env: ScreenEnv, scope: CoroutineScope, text: String) {
+    VoiceHandoff.text = ""
+    scope.launch {
+        when (val out = planVoiceRequest(env.queue, text)) {
+            is VoiceOutcome.Chat -> env.sendPrompt(out.text)
+            is VoiceOutcome.Triage -> { TriageHolder.pending = out; env.open("voz-triagem") }
+            VoiceOutcome.Stopped -> env.openTab(AuraTab.Home)
+        }
+    }
+}
+
 private const val PREFS = "aura_prefs"
 
 @Composable
@@ -48,18 +69,19 @@ private fun rememberMicGranted(): Pair<Boolean, () -> Unit> {
     return granted to { launcher.launch(Manifest.permission.RECORD_AUDIO) }
 }
 
-/** Voz-1/Voz-2 no app: reconhecedor do Android, microfone pedido na hora do toque. Enviar/Teclado levam o texto ao Início. */
+/** Voz-1/Voz-2 no app: reconhecedor do Android, microfone pedido na hora do toque. Enviar cria o pedido no chat; Teclado leva o texto ao rascunho. */
 @Composable
 internal fun VoiceListeningRoute(env: ScreenEnv, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val settings = rememberVoiceSettings()
     val recognizer = remember { AndroidSpeechRecognizer(context.applicationContext) }
     val (granted, askMic) = rememberMicGranted()
+    val sendScope = rememberCoroutineScope()
     VoiceScreen(
         recognizer = recognizer, micGranted = granted, settings = settings,
         onNeedMicrophone = askMic,
         onKeyboard = { text -> VoiceHandoff.text = ""; env.onDraftChange(text); env.back() },
-        onSend = { text -> VoiceHandoff.text = ""; env.onDraftChange(text); env.back() },
+        onSend = { text -> routeSpoken(env, sendScope, text) },
         onCancel = { VoiceHandoff.text = ""; env.back() },
         onMinimize = { env.open("voz-compacta") },
         modifier = modifier,
@@ -80,7 +102,7 @@ internal fun VoiceCompactRoute(env: ScreenEnv, modifier: Modifier = Modifier) {
     val session = remember(recognizer, granted) {
         VoiceSession(
             recognizer, scope, { latestSettings },
-            { text -> VoiceHandoff.text = ""; env.onDraftChange(text); env.back() },
+            { text -> routeSpoken(env, scope, text) },
             VoiceHandoff.text,
         )
     }
@@ -111,5 +133,25 @@ internal fun VoiceModesRoute(env: ScreenEnv, modifier: Modifier = Modifier) {
 /** Voz-4 no app: sem pedido de voz em andamento mostra a mensagem e a ação "Falar um pedido". */
 @Composable
 internal fun VoiceTriageRoute(env: ScreenEnv, modifier: Modifier = Modifier) {
-    TriageScreen(state = null, onApply = {}, onBack = env.back, onSpeak = { env.open("voz-ouvindo") }, modifier = modifier)
+    val pending = TriageHolder.pending
+    val scope = rememberCoroutineScope()
+    TriageScreen(
+        state = pending?.state,
+        onApply = { choice ->
+            if (pending != null) scope.launch {
+                try {
+                    env.queue.apply(pending.taskId, choice.mode, confirm = choice == TriageChoice.StopAndDoNow)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // O motor não aceitou: o pedido não se perde, vira mensagem no chat (que explica o motor).
+                    TriageHolder.pending = null
+                    env.sendPrompt(pending.state.heard)
+                }
+            }
+        },
+        onBack = { TriageHolder.pending = null; env.back() },
+        onSpeak = { env.open("voz-ouvindo") },
+        modifier = modifier,
+    )
 }

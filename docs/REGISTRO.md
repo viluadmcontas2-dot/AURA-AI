@@ -112,3 +112,9 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Evidência: revisão dos arquivos alterados, buscas por símbolos removidos e `git diff --check`; testes ajustados para seleção livre, início sem confirmação, escolha de APK e cancelamento.
 - Bloqueio: ambiente sem SDK; Gradle e testes Android não executados por instrução do dono. A revisão estática não comprova compilação nem testes verdes.
 - Próximo item: CI compilar e executar os testes. Nenhum APK gerado.
+
+## 2026-10-28 — Autonomia nos Ajustes, voz em tela cheia e triagem com fila real
+- Objetivo: Ajustes com Autonomia (Total/Perguntar antes de apagar/Perguntar tudo) e Trava de custo ligadas ao motor; microfone e orbe abrem `voz-ouvindo`; Enviar na voz cria o pedido no chat; Triagem usa GET /v1/queue e POST /v1/inputs.
+- Estado verificado: só leitura estática; testes escritos antes (SettingsGatewayTest, AutonomyStateTest, AutonomySectionTest, QueueGatewayTest, HomeVoiceEntryTest). Sem SDK: Gradle não rodado, RED/GREEN real fica para a CI.
+- Bloqueio: nenhuma compilação nem teste Android executado neste ambiente.
+- Próximo item: CI compilar e rodar os testes novos; conferir no aparelho a troca offline/online da autonomia.

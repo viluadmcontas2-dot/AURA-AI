@@ -123,6 +123,8 @@ fun AuraApp(
     onDismissCrash: () -> Unit = {},
     linkState: StateFlow<LinkState> = NoLink,
     onEngineAction: (OfflineReason) -> Unit = {},
+    settingsGateway: ai.aura.app.integration.SettingsGateway = ai.aura.app.integration.NoEngineSettingsGateway,
+    queueGateway: ai.aura.app.integration.QueueGateway = ai.aura.app.integration.NoEngineQueueGateway,
 ) {
     AuraTheme {
         if (lastCrash != null) {
@@ -136,6 +138,7 @@ fun AuraApp(
         var stackText by rememberSaveable { mutableStateOf("inicio") }
         var chatOpen by remember { mutableStateOf(false) }
         var pendingJobId by rememberSaveable { mutableStateOf<String?>(null) }
+        var pendingPrompt by rememberSaveable { mutableStateOf<String?>(null) }
         val stack = stackText.split(",").filter { id -> ROUTES.any { it.id == id && it.screen != null } }.ifEmpty { listOf("inicio") }
         val route = ROUTES.first { it.id == stack.last() }
         val link by linkState.collectAsState()
@@ -161,6 +164,11 @@ fun AuraApp(
             termuxInstalled = termuxInstalled,
             termuxPermissionGranted = termuxPermissionGranted,
             onOnboardingFinished = { onboardingDoneState = true; onOnboardingFinished() },
+            settings = settingsGateway,
+            queue = queueGateway,
+            pendingPrompt = pendingPrompt,
+            onPendingPromptHandled = { pendingPrompt = null },
+            sendPrompt = { text -> pendingPrompt = text; go(tabStack(AuraTab.Home)) },
         )
         Column(
             Modifier

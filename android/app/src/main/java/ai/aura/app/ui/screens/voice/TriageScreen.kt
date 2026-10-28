@@ -49,6 +49,7 @@ enum class TriageChoice { AfterCurrent, MergeIntoCurrent, StopAndDoNow }
 data class TriageUiState(
     val heard: String,
     val currentTitle: String,
+    /** Passo do atual; [total] 0 = o motor não informa (a linha some). */
     val step: Int,
     val total: Int,
     val queued: List<String> = emptyList(),
@@ -143,7 +144,7 @@ private fun ColumnScope.TriageBody(state: TriageUiState, onApply: (TriageChoice)
         ) {
             Text("FILA", style = AuraType.Caption)
             Text("Rodando · ${state.currentTitle}", style = AuraType.BodyStrong)
-            Text("Passo ${state.step} de ${state.total}", style = AuraType.SecondarySmall)
+            if (state.total > 0) Text("Passo ${state.step} de ${state.total}", style = AuraType.SecondarySmall)
             state.queued.forEach { Text("Na fila · $it", style = AuraType.Body) }
             Text("Salvo para retomar · ${state.saved.joinToString(", ").ifEmpty { "nenhum" }}", style = AuraType.Body)
         }

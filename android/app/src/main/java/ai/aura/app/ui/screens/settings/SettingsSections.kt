@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ai.aura.app.integration.Autonomy
 import ai.aura.app.ui.components.AuraButtonSecondary
 import ai.aura.app.ui.components.AuraButtonText
 import ai.aura.app.ui.components.StatusChip
@@ -24,7 +25,6 @@ import ai.aura.app.ui.components.StatusKind
 import ai.aura.app.ui.engine.Gate
 import ai.aura.app.ui.engine.ModelsDoc
 import ai.aura.app.ui.engine.PolicyDoc
-import ai.aura.app.ui.engine.PolicyMode
 import ai.aura.app.ui.engine.PolicyVersion
 import ai.aura.app.ui.engine.POLICY_KIND_KEYS
 import ai.aura.app.ui.engine.POLICY_RISK_KEYS
@@ -56,27 +56,13 @@ private fun kindLabel(key: String) = when (key) {
     else -> key
 }
 
-private fun modeLabel(m: PolicyMode) = when (m) {
-    PolicyMode.Pergunta -> "Pergunta" to "Pede o seu ok antes de agir."
-    PolicyMode.Equilibrado -> "Equilibrado" to "Lê sozinho; pergunta antes de gastar ou apagar."
-    PolicyMode.Autonomo -> "Autônomo" to "Faz sozinho e avisa; pergunta só o crítico."
-    PolicyMode.Total -> "Total" to "Faz tudo sozinho, sem perguntar."
-}
-
 internal fun formatUsd(v: Double): String = String.format(PtBr, "US$ %.2f", v)
 
 internal fun parseMoney(text: String): Double? = text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0 }
 
 @Composable
 internal fun AuthorizationSection(p: PolicyDoc, onEdit: ((PolicyDoc) -> PolicyDoc) -> Unit) {
-    SectionLabel("Autorização")
-    SettingsGroup {
-        PolicyMode.entries.forEachIndexed { i, m ->
-            if (i > 0) RowDivider()
-            val (title, sub) = modeLabel(m)
-            ChoiceRow(title, sub, selected = p.mode == m, onClick = { onEdit { it.copy(mode = m) } })
-        }
-    }
+    SectionLabel("Permissões por tipo")
     SettingsGroup {
         Text("Por tipo de ação", style = AuraType.Caption, modifier = Modifier.padding(top = 6.dp))
         POLICY_RISK_KEYS.forEach { k ->
@@ -286,5 +272,31 @@ internal fun HistorySection(history: List<PolicyVersion>, currentVersion: Int?, 
                 }
             }
         }
+    }
+}
+
+/** Autonomia e trava de custo. Aparecem sempre, com ou sem motor (o valor local é o último salvo). */
+@Composable
+internal fun AutonomySection(state: AutonomyState) {
+    SectionLabel("Autonomia")
+    SettingsGroup {
+        Autonomy.entries.forEachIndexed { i, a ->
+            if (i > 0) RowDivider()
+            ChoiceRow(a.label, a.hint, selected = state.autonomy == a, onClick = { state.chooseAutonomy(a) })
+        }
+    }
+    SettingsGroup {
+        SwitchRow(
+            "Trava de custo", checked = state.costLock, onChange = state::toggleCostLock,
+            subtitle = "Nunca usar API paga sem a sua aprovação.",
+        )
+    }
+    if (state.offline) {
+        Text(
+            if (state.pendingSync) "Sem motor: salvo no aparelho e enviado quando ele voltar."
+            else "Sem motor: mostrando o último valor salvo.",
+            style = AuraType.SecondarySmall,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
     }
 }

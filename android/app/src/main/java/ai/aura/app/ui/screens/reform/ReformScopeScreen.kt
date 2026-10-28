@@ -55,6 +55,10 @@ fun ReformScopeScreen(
     onBack: () -> Unit,
     onStart: (ReformPlan) -> Unit,
     modifier: Modifier = Modifier,
+    /** Travando o escopo no motor (copiar o APK + POST /v1/reform): o botão espera, dizendo o quê. */
+    busy: Boolean = false,
+    /** O que deu errado ao travar, em português simples; o botão vira "Tentar de novo". */
+    error: String? = null,
 ) {
     var scope by rememberSaveable(app?.id) { mutableStateOf(ReformScope.default) }
     var carMode by rememberSaveable(app?.id) { mutableStateOf(true) }
@@ -107,8 +111,13 @@ fun ReformScopeScreen(
                             style = AuraType.SecondarySmall.copy(fontSize = 13.sp, lineHeight = 16.sp),
                         )
                     }
+                    if (error != null) {
+                        ai.aura.app.ui.screens.activity.IncidentBanner(
+                            ai.aura.app.ui.screens.activity.IncidentLevel.NeedsYou, "Não consegui travar o escopo", error,
+                        )
+                    }
                     AuraButtonPrimary(
-                        "Travar escopo e começar",
+                        if (busy) "Travando o escopo" else if (error != null) "Tentar de novo" else "Travar escopo e começar",
                         {
                             onStart(
                                 ReformPlan(
@@ -117,7 +126,7 @@ fun ReformScopeScreen(
                                 ),
                             )
                         },
-                        Modifier.fillMaxWidth(), large = true,
+                        Modifier.fillMaxWidth(), enabled = !busy, large = true,
                     )
                 }
             }
