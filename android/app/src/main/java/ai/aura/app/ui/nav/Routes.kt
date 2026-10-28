@@ -122,7 +122,9 @@ val ROUTES: List<Route> = listOf(
     Route("capacidade-detalhe", "Capacidade-Detalhe", null, true, emptyList()),
     Route("memoria", "Memoria", null, true, emptyList()),
     Route("checkup", "Checkup", null, false, listOf("intercorrencias")),
-    Route("notificacoes", "Notificacoes", null, false, emptyList()),
+    Route("notificacoes", "Notificacoes", null, false, emptyList()) { env ->
+        ai.aura.app.ui.screens.settings.NotificationsScreen(onBack = env.back, modifier = Modifier.fillMaxSize())
+    },
     Route("conexoes", "Conexoes", null, true, emptyList()),
     Route("permissoes", null, null, false, emptyList()),
 
