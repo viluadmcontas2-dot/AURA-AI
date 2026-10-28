@@ -24,7 +24,7 @@ class ReformLedgerTest(unittest.TestCase):
         self.ledger = self.module.ReformLedger(self.root)
 
     def scope(self):
-        return self.ledger.lock_scope('org.example.player', 'rebuild', True, 95)
+        return self.ledger.lock_scope('/input/org.example.player.apk', 'rebuild', 95)
 
     def add(self, kind, payload, key=None):
         return self.ledger.append(kind, payload, key or kind)
@@ -41,24 +41,25 @@ class ReformLedgerTest(unittest.TestCase):
         payload.update(changes)
         return self.ledger.record_tool_call(idempotency_key=key, **payload)
 
-    def test_1_scope_required_even_for_raw_append(self):
-        for kind in ('checkpoint', 'tool_call', 'model_call', 'approval', 'step_done'):
-            with self.subTest(kind=kind), self.assertRaises(ActionError):
-                self.add(kind, {})
-        for accepted in (False, 'yes', 1, None):
-            with self.subTest(accepted=accepted), self.assertRaises(ActionError):
-                self.ledger.lock_scope('org.example.player', 'rebuild', accepted, 95)
-        self.scope()
-        self.add('checkpoint', {})
-        with self.assertRaises(ActionError):
-            self.ledger.lock_scope('org.other.app', 'rebuild', True, 90)
+    def test_1_and_2_any_apk_without_legal_acceptance(self):
+        for index, apk in enumerate(('com.android.settings.apk', 'COM.ANDROID.phone.apk',
+                                      'Câmera de ré.apk', 'vendor.rearview.apk',
+                                      'vendor.reverse.apk', 'copyright.apk')):
+            with self.subTest(apk=apk):
+                ledger = self.module.ReformLedger(self.root / str(index))
+                try:
+                    entry = ledger.lock_scope(apk_path=apk, mode='rebuild', goal=95)
+                except (ActionError, TypeError) as exc:
+                    self.fail('Qualquer APK deve ser aceito sem aceite: ' + str(exc))
+                self.assertEqual(apk, entry['payload']['apk_path'])
+                self.assertNotIn('owner_confirmed', entry['payload'])
+                self.assertTrue(ledger.verify_chain())
 
-    def test_1_protected_apps_and_raw_scope_cannot_bypass(self):
-        for app in ('com.android.settings', 'COM.ANDROID.phone', 'camera de re',
-                    'Câmera de ré', 'vendor.rearview', 'vendor.reverse'):
-            with self.subTest(app=app), self.assertRaises(ActionError):
-                self.add('scope_locked', dict(app=app, mode='rebuild', owner_confirmed=True, goal=90))
-        self.assertTrue(self.ledger.verify_chain())
+    def test_scope_is_idempotent_and_fixed(self):
+        entry = self.scope()
+        self.assertEqual(entry, self.scope())
+        with self.assertRaises(ActionError):
+            self.ledger.lock_scope('other.apk', 'rebuild', 90)
 
     def test_2_reversal_uses_last_evaluation(self):
         self.scope()
@@ -97,51 +98,21 @@ class ReformLedgerTest(unittest.TestCase):
             self.add(kind, {field: 0, 'total': 0, 'test_run_id': 'run'})
             self.assertIsNone(read())
 
-    def test_5_mutation_needs_prior_targeted_approval_and_medium_risk(self):
+    def test_tools_are_recorded_without_special_approval(self):
         self.scope()
-        with self.assertRaises(ActionError):
-            self.tool()
-        self.approval('different')
-        with self.assertRaises(ActionError):
-            self.tool()
-        self.approval('install')
-        with self.assertRaises(ActionError):
-            self.tool(risk='read')
-        entry = self.tool()
-        self.assertEqual('tool_call', entry['kind'])
-        self.assertEqual(entry, self.tool())
-        self.ledger.record_tool_call(tool='inventory', input_hash='b' * 64,
-                                    mutates_device=False, risk='read', cost_class='free',
-                                    idempotency_key='inventory')
+        for tool in ('install', 'uninstall', 'adb_uninstall', 'arbitrary_new_tool'):
+            with self.subTest(tool=tool):
+                entry = self.tool(key=tool, tool=tool, risk='read',
+                                  package='org.example.player')
+                self.assertEqual(tool, entry['payload']['tool'])
+                self.assertTrue(entry['payload']['mutates_device'])
+                self.assertEqual(entry, self.tool(key=tool, tool=tool))
+        self.assertTrue(self.ledger.verify_chain())
 
-    def test_5_original_never_removed_or_overwritten(self):
-        self.scope()
-        for action in ('uninstall', 'install'):
-            self.approval(action)
-            with self.subTest(action=action), self.assertRaises(ActionError):
-                self.tool(key=action, action=action, package='org.example.player')
-
-    def test_5_original_protection_cannot_be_hidden_by_tool_or_action(self):
-        self.scope()
-        self.approval('install')
-        for tool, action in (('uninstall', 'inventory'), ('adb_uninstall', 'adb_uninstall'),
-                             ('install', 'inventory')):
-            with self.subTest(tool=tool, action=action), self.assertRaises(ActionError):
-                self.tool(tool=tool, action=action, package='org.example.player')
-
-    def test_5_malformed_action_is_refused_cleanly(self):
-        self.scope()
-        self.approval('install')
-        for action in (None, 123, [], ''):
-            with self.subTest(action=action), self.assertRaises(ActionError):
-                self.tool(action=action)
-
-    def test_5_raw_append_checks_mutation(self):
-        self.scope()
-        with self.assertRaises(ActionError):
-            self.add('tool_call', dict(tool='install', mutates_device=True, risk='write'))
-        with self.assertRaises(ActionError):
-            self.tool(mutates_device='false')
+    def test_raw_scope_has_no_legal_gate(self):
+        entry = self.add('scope_locked', dict(apk_path='com.android.settings.apk',
+                                             mode='rebuild', goal=90))
+        self.assertEqual('scope_locked', entry['kind'])
 
     def test_6_paid_model_needs_specific_cost_approval(self):
         self.scope()

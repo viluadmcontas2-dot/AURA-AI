@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 import sqlite3
 import time
-import unicodedata
 
 from .adapters import ActionError
 
@@ -153,20 +152,13 @@ class ReformLedger:
         scope = _last(entries, 'scope_locked')
         if kind == 'scope_locked':
             _require(scope is None, 'O escopo já está travado: crie outro projeto.')
-            _require(payload.get('owner_confirmed') is True, 'Confirme que tem permissão para reformar.')
-            app = payload.get('app')
-            _require(_text(app), 'Informe o aplicativo.')
-            name = ''.join(c for c in unicodedata.normalize('NFKD', app.casefold())
-                           if not unicodedata.combining(c)).strip()
-            _require(not name.startswith('com.android.') and not any(
-                term in name for term in ('camera de re', 'rear', 'reverse')),
-                'Aplicativo protegido: escolha outro aplicativo.')
+            _require(_text(payload.get('apk_path')), 'Informe o caminho do APK.')
             _require(_text(payload.get('mode')), 'Informe o modo da reforma.')
             goal = payload.get('goal')
             _require(type(goal) in (int, float) and 0 <= goal <= 100,
                      'Informe uma meta entre 0 e 100.')
             return
-        _require(scope is not None, 'Trave o escopo e confirme a permissão antes de continuar.')
+        _require(scope is not None, 'Defina o escopo antes de continuar.')
         if kind in COUNTS:
             done, total = payload.get(COUNTS[kind]), payload.get('total')
             _require(type(done) is int and type(total) is int and 0 <= done <= total,
@@ -182,15 +174,6 @@ class ReformLedger:
             _require(_text(payload.get('tool')) and _text(payload.get('input_hash')),
                      'Informe a ferramenta e o hash da entrada.')
             _require(type(payload.get('mutates_device')) is bool, 'Informe se altera o aparelho.')
-            if payload['mutates_device']:
-                _require(payload.get('risk') in ('write', 'medium', 'high', 'critical', 'destructive'),
-                         'Operação no aparelho exige risco médio ou maior.')
-                _require(self._approved(entries, key, kind), 'Aprove esta operação antes de continuar.')
-                action = payload.get('action', payload['tool']).casefold()
-                if action in ('install', 'uninstall', 'remove', 'delete'):
-                    _require(_text(payload.get('package')) and
-                             payload['package'].casefold() != scope['payload']['app'].casefold(),
-                             'Preserve o aplicativo original: instale a reforma ao lado.')
         elif kind == 'model_call':
             _require(_text(payload.get('provider')) and payload.get('cost_class') in
                      ('free', 'subscription', 'paid'), 'Informe provedor e classe de custo.')
@@ -230,8 +213,8 @@ class ReformLedger:
                        (entry['seq'], idempotency_key, entry['hash']))
             return json.loads(line)
 
-    def lock_scope(self, app, mode, owner_confirmed, goal):
-        payload = dict(app=app, mode=mode, owner_confirmed=owner_confirmed, goal=goal)
+    def lock_scope(self, apk_path, mode, goal):
+        payload = dict(apk_path=apk_path, mode=mode, goal=goal)
         key = 'scope:' + hashlib.sha256(_canonical(payload).encode()).hexdigest()
         return self.append('scope_locked', payload, key)
 
