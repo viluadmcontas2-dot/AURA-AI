@@ -14,6 +14,10 @@ import ai.aura.app.integration.AuraEngineClient
 import ai.aura.app.integration.EngineCredentialStore
 import ai.aura.app.integration.RealEngineGateway
 import ai.aura.app.integration.TermuxBridge
+import ai.aura.app.offline.EngineLink
+import ai.aura.app.offline.LocalStore
+import ai.aura.app.offline.OfflineFirstGateway
+import ai.aura.app.offline.OfflineReason
 import ai.aura.app.permissions.AppPermissions
 import ai.aura.app.ui.AuraApp
 import ai.aura.app.voice.LocalVoiceInput
@@ -62,8 +66,22 @@ class MainActivity : ComponentActivity() {
             runCatching { voiceLauncher.launch(voiceIntent) }
         }
         setContent {
+            // Motor real guardado em disco (sem ele o app mostra o último dado) e o estado do vínculo para o banner.
+            val bridge = remember { TermuxBridge(applicationContext) }
+            val link = remember { EngineLink(bridge) }
             val gateway = remember {
-                RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext)))
+                OfflineFirstGateway(
+                    RealEngineGateway(AuraEngineClient(EngineCredentialStore(applicationContext))),
+                    LocalStore(java.io.File(filesDir, "aura")),
+                    link,
+                )
+            }
+            val openUrl: (String) -> Unit = { url ->
+                val uri = runCatching { Uri.parse(url) }.getOrNull()
+                if (uri?.scheme == "https" && !uri.host.isNullOrBlank()) {
+                    // Sem navegador instalado o app não fecha.
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                }
             }
             var lastCrash by remember { mutableStateOf(runCatching { crashFile.takeIf { it.exists() }?.readText() }.getOrNull()) }
             androidx.compose.runtime.CompositionLocalProvider(LocalVoiceInput provides voiceHook) {
@@ -74,13 +92,7 @@ class MainActivity : ComponentActivity() {
                     lastCrash = null
                 },
                 gateway = gateway,
-                onOpenUrl = { url ->
-                    val uri = runCatching { Uri.parse(url) }.getOrNull()
-                    if (uri?.scheme == "https" && !uri.host.isNullOrBlank()) {
-                        // Sem navegador instalado o app não fecha.
-                        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
-                    }
-                },
+                onOpenUrl = openUrl,
                 onRequestTermuxPermission = {
                     runCatching { TermuxBridge(this).askPermission(this) }
                 },
@@ -100,6 +112,16 @@ class MainActivity : ComponentActivity() {
                 onOnboardingFinished = { prefs.edit().putBoolean("onboarding_done", true).apply() },
                 initialDraft = prefs.getString("draft", "") ?: "",
                 onSaveDraft = { prefs.edit().putString("draft", it).apply() },
+                linkState = link.state,
+                // Uma ação por motivo, com o que a ponte já sabe fazer; o fluxo completo (feedback, tempo limite) é do T6.
+                onEngineAction = { reason ->
+                    when (reason) {
+                        OfflineReason.NoTermux -> openUrl("https://f-droid.org/packages/com.termux/")
+                        OfflineReason.NoPermission -> runCatching { bridge.askPermission(this) }
+                        OfflineReason.NoToken -> runCatching { bridge.pair() }
+                        OfflineReason.EngineStopped -> runCatching { bridge.startEngine() }
+                    }
+                },
             )
             }
         }
