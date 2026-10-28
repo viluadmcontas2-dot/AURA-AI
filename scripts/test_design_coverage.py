@@ -99,6 +99,13 @@ class DesignCoverageGateTest(unittest.TestCase):
                 text=True, capture_output=True, check=False, timeout=10)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             failed_report = report_dir / "FN-10.md"
+            original_report = failed_report.read_text(encoding="utf-8")
+            failed_report.write_text(original_report + "Resultado: falha\n", encoding="utf-8")
+            conflicting = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertNotEqual(conflicting.returncode, 0, conflicting.stdout)
+            failed_report.write_text(original_report, encoding="utf-8")
             failed_report.write_text(
                 failed_report.read_text(encoding="utf-8").replace(
                     "Resultado: aprovado", "Resultado: falha observada"),
