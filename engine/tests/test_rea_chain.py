@@ -7,6 +7,7 @@ import unittest.mock
 from aura_engine import adapters
 from aura_engine.core import Engine
 from test_lote_c import Base
+from consent_helper import allow_installs
 
 STEPS = ["node", "jdk", "jadx", "apktool", "adb", "rea", "mcp"]
 MARK = {"node": "nodejs-lts", "jdk": "openjdk-21", "jadx": "curl", "apktool": "apktool",
@@ -58,6 +59,7 @@ class Fake:
 class ReaChain(Base):
     def setUp(self):
         super().setUp()
+        allow_installs(self)
         script = self.root / "fake_mcp.py"
         script.write_text(FAKE_MCP, "utf-8")
         self.mcp = [sys.executable, str(script)]

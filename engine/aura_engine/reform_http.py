@@ -18,7 +18,8 @@ from .reform_ledger import ReformLedger, choose_model
 
 ID = re.compile(r"^[0-9a-f]{12}$")
 STEPS = ("tools", "inventory", "coverage", "rebuild", "model")
-CODES = {"reform_refused": 400, "invalid_request": 400, "invalid_chain": 409, "cost_blocked": 409}
+CODES = {"reform_refused": 400, "invalid_request": 400, "invalid_chain": 409, "cost_blocked": 409,
+         "consent_required": 403, "plan_changed": 409}
 
 
 def _fail(code, status, message):
@@ -218,5 +219,9 @@ def http(engine, method, path, body, query=""):
             return run_step(engine, parts[3], ledger, parts[5], body())
     except adapters.ActionError as error:
         message = adapters.redact(str(error))[:300]
-        return _fail(error.code, CODES.get(error.code, 502), message)
+        status, body = _fail(error.code, CODES.get(error.code, 502), message)
+        if error.code == "consent_required":
+            # Falta a decisão do dono: o app abre o plano de instalação (C4) para este alvo.
+            body["error"].update(action="review_installation", target="reform_tools", message_pt=message)
+        return status, body
     return None

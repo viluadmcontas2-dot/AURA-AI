@@ -9,7 +9,7 @@ import re
 import subprocess
 import time
 
-from . import adapters
+from . import adapters, install_consent
 from .config import atomic_write_json
 
 REA_VERSION = "6.8.0"
@@ -207,6 +207,8 @@ def setup(engine):
             emit("tool.install", dict(event, state="ready", pct=100))  # ja tem checkpoint: pula
             continue
         if step_downloads(commands):
+            # Nada é baixado sem um plano aceito (docs/FLUXOS_DE_USO.md secao 7).
+            install_consent.require_grant(engine)
             if network_blocks(engine):
                 # Dados moveis: nao falha. Guarda onde parou e espera o Wi-Fi (rodar de novo retoma).
                 atomic_write_json(home / "rea" / "checkpoint.json", {"done": done, "waiting_wifi": name})
@@ -215,10 +217,12 @@ def setup(engine):
                         "checkpoint": last_done(home), "download_notices": notices,
                         "message": "Estou em dados móveis. Conecte ao Wi-Fi e toque em Tentar de novo: "
                                    "continuo do passo %s." % name}
+            install_consent.check_step_size(engine, name, commands)
             mb = estimate_download_mb((name, commands), home, engine)
             if mb is not None and mb > NOTICE_MB:  # aviso discreto: nunca bloqueia
                 notices.append({"step": name, "mb": mb})
                 emit("download.notice", {"id": job_id, "step": name, "mb": mb})
+        install_consent.note_item(engine, name)
         emit("tool.install", dict(event, state="installing", pct=0))
         try:
             for argv in commands:
@@ -241,7 +245,7 @@ def run(request, engine):
     action = request.get("action")
     (engine.home / "rea").mkdir(parents=True, exist_ok=True)
     if action == "setup":
-        return setup(engine)
+        return engine.installs.run_planned(request, "reform_tools", None, lambda: setup(engine))
     if action == "tools":
         return {"tools": [{"name": t.get("name"), "risk": tool_risk(t)} for t in list_tools(engine.home)]}
     if action == "measure":
