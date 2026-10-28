@@ -249,8 +249,8 @@
       "id": "AND-PERM-01",
       "status": "coberto por teste, Actions pendente",
       "source": "android/app/src/main/java/ai/aura/app/permissions/AppPermissions.kt",
-      "test_file": "android/app/src/test/java/ai/aura/app/permissions/AppPermissionsTest.kt",
-      "test_symbol": "AppPermissionsTest",
+      "test_file": "android/app/src/test/java/ai/aura/app/permissions/PermissionsTest.kt",
+      "test_symbol": "PermissionsTest",
       "workflow": ".github/workflows/android-ci.yml",
       "job": "android"
     },
