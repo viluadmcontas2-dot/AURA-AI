@@ -9,12 +9,12 @@ Status: `pendente`, `em andamento`, `feito`. Evidência = teste, captura de tela
 | ID | Tela (arquivo) | Status | Evidência | Tarefa |
 |---|---|---|---|---|
 | UI-01 | 00a · Progresso de UI e UX — `Progresso.dc.html` | pendente | - | T17 |
-| UI-02 | 00 · Fluxo do usuário — `Fluxo-do-usuario.dc.html` | pendente | - | T5, T17 |
+| UI-02 | 00 · Fluxo do usuário — `Fluxo-do-usuario.dc.html` | em andamento | NavGraphTest (CI 40608305338); fecha no T17 | T5, T17 |
 | UI-03 | 00b · Plano e contrato — `Contrato.dc.html` | pendente | - | T17 |
 | UI-04 | 01 · Boas-vindas — `Onb-1-Boas-vindas.dc.html` | pendente | - | T7 |
 | UI-05 | 02 · Conectar o Termux — `Onb-2-Termux.dc.html` | pendente | - | T6 |
 | UI-06 | 03 · Conectar contas — `Onb-3-Contas.dc.html` | pendente | - | T18 |
-| UI-07 | 04 · Início — `Main.dc.html` | pendente | - | T5, T13 |
+| UI-07 | 04 · Início — `Main.dc.html` | em andamento | EngineBannerTest e NavGraphTest (CI 40608305338); T13 faz o resto | T5, T13 |
 | UI-08 | 05 · Voz · ouvindo — `Voz-1-Ouvindo.dc.html` | pendente | - | T16 |
 | UI-09 | 06 · Voz · interrompida — `Voz-2-Interrompida.dc.html` | pendente | - | T16 |
 | UI-10 | 07 · Entendi + plano — `Chat-1-Entendi.dc.html` | pendente | - | T15 |
@@ -45,8 +45,8 @@ Status: `pendente`, `em andamento`, `feito`. Evidência = teste, captura de tela
 | UI-35 | 28 · Notificações do Android — `Notificacoes.dc.html` | pendente | - | T12 |
 | UI-36 | 29 · Quando algo dá errado — `Intercorrencias.dc.html` | pendente | - | T14 |
 | UI-37 | 30 · Telas vazias — `Vazios.dc.html` | pendente | - | T14 |
-| UI-38 | 31 · Cores e tipografia — `Sistema-Cores-Tipo.dc.html` | pendente | - | T5 |
-| UI-39 | 32 · Componentes — `Sistema-Componentes.dc.html` | pendente | - | T5, T17 |
+| UI-38 | 31 · Cores e tipografia — `Sistema-Cores-Tipo.dc.html` | em andamento | NavGraphTest trata como documentação e TokensTest cobre os tokens; fecha no T17 | T5 |
+| UI-39 | 32 · Componentes — `Sistema-Componentes.dc.html` | em andamento | NavGraphTest trata como documentação e TokensTest cobre os tokens; fecha no T17 | T5, T17 |
 | UI-40 | 90 · Escolher o app — `Reformar-1-Apps.dc.html` | pendente | - | T9 |
 | UI-41 | 91 · Travar o escopo — `Reformar-2-Escopo.dc.html` | pendente | - | T9 |
 | UI-42 | 92 · Reversão e reconstrução — `Reformar-3-Reversao.dc.html` | pendente | - | T10 |

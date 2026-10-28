@@ -1,24 +1,24 @@
 # Registro (fonte única de estado)
 
-Atualizado 28/10 00:15Z · branch `claude/telas-sem-termux` · SHA `cf3ebdb` · gerado de `status.json` e `docs/design/COBERTURA.md`.
+Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` · gerado de `status.json` e `docs/design/COBERTURA.md`.
 
 ## Placar
 
-- Tarefas: **0 de 20 feitas** · 15 rodando · 1 em revisão · 4 esperando
+- Tarefas: **2 de 20 feitas** · 13 rodando · 1 em revisão · 4 esperando
 - COBERTURA do design: **0/66** `feito` com evidência (gate de entrega: `python -I scripts/check_design_coverage.py --release`, saída 0)
-- Provas: **0 de 15** feitas, 2 parciais
+- Provas: **1 de 15** feitas, 1 parciais
 - Bloqueio: Nenhum bloqueio. Memória do PC em vermelho (commit 36/28 GB): Gradle local só sob o cadeado, a CI remota é o portão.
-- Falta para o APK: 20 tarefas (T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20); provas P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15
+- Falta para o APK: 18 tarefas (T1, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20); provas P1, P2, P3, P4, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15
 
 ## Tarefas
 
 | # | Tarefa | Onda | Estado | Commits | Prova |
 |---|---|---|---|---|---|
 | T1 | Camada offline (LocalStore, EngineLink, fila) | 1 · Base | rodando (revisão 1: 2 Important (cancelar após a entrega; disco na thread Main) carregados pela T4, que edita o mesmo arquivo; 9 Minor anotados; CI verde no cf3ebdb) | d3adb86 | RED 134 erros de compilação → GREEN local 71/71 (offline 52/52); CI após o push |
-| T2 | Manifesto enxuto, ícone próprio, release pequeno | 1 · Base | em revisão (CI verde no cf3ebdb; revisão em curso) | 0c4ea21 | ManifestTest RED 5/6 → GREEN 6/6; permissões 23→4; release 1,3 MB |
-| T3 | Motor: memória tipada e esquecer | 1 · Base | rodando (revisão 1 aprovada (0 Critical, 0 Important, 4 Minor); correção dos Minor em curso; CI verde no cf3ebdb) | e1a1a58 4110956 3547e0c | RED 19/20 → GREEN 20/20; suíte 131 (mesmas 12 falhas + 1 erro do Windows) |
+| T2 | Manifesto enxuto, ícone próprio, release pequeno | 1 · Base | feita (revisão aprovada (0 Critical, 0 Important, 7 Minor); CI verde no cf3ebdb e no 4978e38) | 0c4ea21 | ManifestTest RED 5/6 → GREEN 6/6; permissões 23→4; release 1,3 MB; revisão conferiu aapt2/apksigner/R8 |
+| T3 | Motor: memória tipada e esquecer | 1 · Base | feita (revisão ✓ + 3 correções Minor mescladas; CI verde no 4978e38 (android-ci 40607983520, Engine contract CI 40607983485 e 40607977399)) | e1a1a58 4110956 3547e0c 06e2855 1789333 d1a7c72 | RED 19/20 → GREEN; revisão sem falha grave; CI Linux verde (py3.12 e 3.14) com as correções |
 | T4 | Gateway ampliado e tolerante | 2 · Gateway e navegação | rodando |  |  |
-| T5 | Navegação, banner global, ligação do app | 2 · Gateway e navegação | rodando |  |  |
+| T5 | Navegação, banner global, ligação do app | 2 · Gateway e navegação | em revisão (mesclada; conferida pelo coordenador; CI verde na branch (40608305338); falta CI do head integrado) | 99ae499 b158652 | 8 testes novos (NavGraphTest 5, EngineBannerTest 3); RED 40608038465 → GREEN 40608305338; 41 rotas, 35 pendentes |
 | T6 | Fluxo do Termux sem travar | 3 · Telas e fluxos | rodando |  |  |
 | T7 | Permissões sob demanda e tela | 3 · Telas e fluxos | rodando |  |  |
 | T8 | Checkup (autodiagnóstico) | 3 · Telas e fluxos | rodando |  |  |
@@ -39,7 +39,7 @@ Atualizado 28/10 00:15Z · branch `claude/telas-sem-termux` · SHA `cf3ebdb` · 
 
 | # | Item | Estado | Depende |
 |---|---|---|---|
-| L1a | Motor real dentro do Termux (emulador S23) | rodando | - |
+| L1a | Motor real dentro do Termux (emulador Taytech 5556; o 5554 é Android 17 de 16 KB e o Termux atual não roda lá) | rodando | - |
 | L1b | Pareamento app→Termux (vira passo do passeio COM Termux no T18) | dobrada | T6 |
 | L2 | Cadeia REA no Termux (Node, JDK, JADX, Apktool, rea-agents) | espera | T20 |
 | L3 | Retomada após o Android matar o app (vira passo do passeio no T18) | dobrada | T13, T15 |
@@ -68,7 +68,7 @@ Atualizado 28/10 00:15Z · branch `claude/telas-sem-termux` · SHA `cf3ebdb` · 
 | P2 | Toda rota abre offline | pendente |
 | P3 | Nenhum botão morto | pendente |
 | P4 | Grafo completo, pending vazio | pendente |
-| P5 | Manifesto sem risco | parcial (teste local e CI verdes no cf3ebdb; falta a revisão da T2) |
+| P5 | Manifesto sem risco | feito (ManifestTest + revisão da T2 + CI verde (cf3ebdb e 4978e38)) |
 | P6 | Fila offline: cada pedido uma vez | parcial (OfflineFirstGatewayTest verde local e na CI (cf3ebdb); falta a revisão da T1) |
 | P7 | v6 instala por cima do v5 | pendente |
 | P8 | Passeio SEM Termux | pendente |
