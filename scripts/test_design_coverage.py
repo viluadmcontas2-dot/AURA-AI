@@ -90,6 +90,30 @@ class DesignCoverageGateTest(unittest.TestCase):
                 text=True, capture_output=True, check=False, timeout=10)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_release_does_not_accept_ci_job_as_physical_termux_proof(self):
+        """CI verde não prova RUN_COMMAND, voz, IME e outros efeitos físicos."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "scripts").mkdir()
+            shutil.copyfile(CHECKER, root / "scripts/check_design_coverage.py")
+            screens = root / "docs/design/telas"
+            screens.mkdir(parents=True)
+            job = "https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456"
+            rows = ["| ID | Tela/Função | Status | Evidência |",
+                    "|---|---|---|---|"]
+            for i in range(1, 46):
+                name = f"Screen-{i:02d}.dc.html"
+                (screens / name).write_text("fixture", encoding="utf-8")
+                rows.append(f"| UI-{i:02d} | `{name}` | feito | {job} |")
+            for i in range(1, 22):
+                rows.append(f"| FN-{i:02d} | Função {i} | feito | {job} |")
+            (root / "docs/design/COBERTURA.md").write_text("\n".join(rows), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
+                text=True, capture_output=True, check=False, timeout=10)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("FN-10", result.stdout + result.stderr)
+
     def test_engine_ci_follows_android_and_design_changes_for_exact_sha(self):
         workflow = (ROOT / ".github/workflows/engine-ci.yml").read_text(encoding="utf-8")
         for dependency in ("android/**", "docs/design/**", ".github/workflows/android-ci.yml",
