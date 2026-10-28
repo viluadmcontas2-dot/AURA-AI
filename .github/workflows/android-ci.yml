@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - "android/**"
+      - "engine/**"
       - ".github/workflows/android-ci.yml"
       - "AGENTS.md"
       - "README.md"
@@ -19,6 +20,7 @@ on:
   pull_request:
     paths:
       - "android/**"
+      - "engine/**"
       - ".github/workflows/android-ci.yml"
       - "AGENTS.md"
       - "README.md"
