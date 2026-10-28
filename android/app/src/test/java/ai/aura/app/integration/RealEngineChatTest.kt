@@ -4,8 +4,6 @@ import ai.aura.app.ui.engine.ChatAction
 import ai.aura.app.ui.engine.ChatEvent
 import ai.aura.app.ui.engine.ChatUnsupportedException
 import ai.aura.app.ui.engine.IntentResult
-import com.sun.net.httpserver.HttpExchange
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -16,7 +14,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
-import java.net.InetSocketAddress
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -25,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * contrato de conversa: POST /v1/chat, GET /v1/chat/{id}, stop, chats, intent e os eventos chat.*.
  */
 class RealEngineChatTest {
-    private lateinit var server: HttpServer
+    private lateinit var server: MiniHttpServer
     private lateinit var gateway: RealEngineGateway
 
     /** Corpo de cada POST /v1/chat, na ordem. */
@@ -40,7 +37,7 @@ class RealEngineChatTest {
     @Volatile private var intentBody = "{}"
     @Volatile private var chatStatus = 202
 
-    private fun reply(ex: HttpExchange, code: Int, body: String) {
+    private fun reply(ex: MiniHttpExchange, code: Int, body: String) {
         val bytes = body.toByteArray(Charsets.UTF_8)
         ex.responseHeaders.add("Content-Type", "application/json")
         ex.sendResponseHeaders(code, bytes.size.toLong())
@@ -49,7 +46,7 @@ class RealEngineChatTest {
 
     @Before
     fun start() {
-        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server = MiniHttpServer.create()
         server.createContext("/v1/chat") { ex ->
             val path = ex.requestURI.path
             when {
