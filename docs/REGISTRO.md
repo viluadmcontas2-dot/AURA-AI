@@ -125,3 +125,10 @@ Atualizado 28/10 00:27Z · branch `claude/telas-sem-termux` · SHA `merge T5` ·
 - Testes escritos antes (sem SDK, RED/GREEN real fica para a CI): ReformGatewayTest, NetworkReporterTest, ReformControllerTest, ReformToolsWifiNoticeTest.
 - Bloqueio: nenhuma compilação nem teste Android executado neste ambiente. O passo `tools` exige uma reforma já criada (Escopo); antes disso "Instalar o que falta" cai no pedido pelo chat.
 - Próximo item: CI compilar e rodar; motor aceitar `tools` sem reforma (ou rota própria); teste real que chame POST /verify.
+
+## 2026-10-28 — Conexões numa tela só: login pelo motor, permissões no primeiro uso, atalhos
+- Objetivo: logar as CLIs dentro do Termux (POST /v1/auth/start, GET /v1/auth/status, eventos auth.*) em vez de abrir o navegador; pedir permissões no passo certo; juntar Termux e motor, contas e permissões em Conexões e deixar Conexões a um toque.
+- Estado (leitura estática, sem SDK): `AccountsAuth.kt` (estado do login, código e link, Copiar código, Abrir link, conferência a cada 2 s até Conectado, Instalar por job `system`); `ConnectionsScreen.kt` (rota `conexoes`); onboarding Onb-3 usa o mesmo estado; `OnboardingFlow` pede RUN_COMMAND ao chegar no passo do Termux e avisos ao chegar em Contas; `EngineBanner` ganhou "Abrir Conexões"; Ajustes e Dispositivos têm "Abrir Conexões"; `RealEngineGateway` mapeia `google` -> `gdrive` e trata `indisponivel`/`prompt` da resposta do start. Removidos: `ConnectAccountsScreen` e o login por página do navegador.
+- Testes escritos: ConnectionsLoginTest, FirstUsePermissionsTest, ConnectionsReachabilityTest. RED/GREEN real fica para a CI (sem SDK nem gradlew aqui).
+- Bloqueio: não há endpoint de instalação de CLI no motor; "Instalar" cria o job `system` "Instalar o programa de X" (aprovação em Atividade). Mensagens de erro do chat e da Reforma ainda dizem "Conexões" em texto; o atalho em botão existe no aviso global, em Ajustes e em Dispositivos.
+- Próximo item: CI compilar e rodar; conferir no aparelho o diálogo do Termux e o login real de cada conta.
