@@ -65,6 +65,8 @@ internal fun ChatHeader(
     onNew: (() -> Unit)? = null,
     /** Abre a tela Sessões (as conversas do Claude Code); nulo = sem o botão. */
     onSessions: (() -> Unit)? = null,
+    /** Mostra/esconde os detalhes técnicos (diagnóstico); nulo = sem o botão. */
+    onDetails: (() -> Unit)? = null,
 ) {
     Row(
         modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 8.dp, end = 12.dp),
@@ -82,6 +84,7 @@ internal fun ChatHeader(
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
+        if (onDetails != null) AuraButtonText("Ver detalhes", onDetails)
         if (onSessions != null) AuraButtonText("Sessões", onSessions)
         if (onNew != null) AuraButtonText("Nova conversa", onNew)
     }
@@ -176,10 +179,10 @@ private fun ToolLine(text: String, busy: Boolean, modifier: Modifier = Modifier)
  * então some quando o texto começa a crescer. Ao terminar, nada de aviso: sobra a resposta.
  */
 @Composable
-internal fun LiveBubble(live: LiveReply, modifier: Modifier = Modifier) {
+internal fun LiveBubble(live: LiveReply, modifier: Modifier = Modifier, status: String = "Pensando…") {
     val parts = remember(live.text, live.tools.size) { liveParts(live) }
     if (parts.isEmpty()) {
-        ThinkingLine("Pensando…", modifier)
+        ThinkingLine(status, modifier)
         return
     }
     val busy = parts.last().tool
@@ -231,9 +234,14 @@ internal fun AnswerActions(onCopy: () -> Unit, onContinue: () -> Unit, modifier:
     }
 }
 
-/** Aviso do app no meio da conversa: o que houve, em português, e UM botão com o que fazer. */
+/** Aviso do app no meio da conversa: o que houve, em português, e o que fazer (um botão, ou as escolhas do aviso). */
 @Composable
-internal fun NoticeBubble(notice: ChatNotice, onAction: () -> Unit, modifier: Modifier = Modifier) {
+internal fun NoticeBubble(
+    notice: ChatNotice,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+    onPress: (NoticeKind) -> Unit = {},
+) {
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
         Column(
             Modifier.widthIn(max = 326.dp).clip(AuraShape).background(AuraColors.NeedsYou.bg)
@@ -242,9 +250,125 @@ internal fun NoticeBubble(notice: ChatNotice, onAction: () -> Unit, modifier: Mo
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(notice.message, style = AuraType.Body.copy(lineHeight = 23.sp, color = AuraColors.NeedsYou.fg, fontWeight = FontWeight.SemiBold))
-            notice.action?.let { AuraButtonSecondary(actionLabel(it), onAction) }
+            if (notice.buttons.isNotEmpty()) {
+                notice.buttons.forEachIndexed { i, b ->
+                    if (i == 0) AuraButtonSecondary(b.label, onClick = { onPress(b.kind) }) else AuraButtonText(b.label, onClick = { onPress(b.kind) })
+                }
+            } else {
+                notice.action?.let { AuraButtonSecondary(actionLabel(it), onAction) }
+            }
         }
     }
+}
+
+/** Aviso de demora/contato/parada da resposta em andamento (mesma cara do aviso do app, com as escolhas dele). */
+@Composable
+internal fun HealthNotice(health: LiveHealth, onPress: (NoticeKind) -> Unit, modifier: Modifier = Modifier) {
+    val notice = when (health) {
+        LiveHealth.Slow -> ChatNotice(
+            "Está demorando mais que o normal.", null,
+            listOf(NoticeButton("Continuar esperando", NoticeKind.KeepWaiting), NoticeButton("Parar", NoticeKind.Stop)),
+        )
+        LiveHealth.Lost -> ChatNotice(
+            "Perdi o contato com o motor.", null,
+            listOf(NoticeButton("Tentar de novo", NoticeKind.CheckProgress)),
+        )
+        LiveHealth.StopUnconfirmed -> ChatNotice(
+            "Ainda não confirmei a parada.", null,
+            listOf(NoticeButton("Verificar andamento", NoticeKind.CheckProgress)),
+        )
+        else -> return
+    }
+    NoticeBubble(notice, onAction = {}, modifier = modifier, onPress = onPress)
+}
+
+/** Mensagem da pessoa que ainda não saiu: bolha escura com a etiqueta e as duas ações. */
+@Composable
+internal fun QueuedBubble(
+    item: QueuedMessage,
+    onSendNow: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Só faz sentido "Enviar agora" quando há algo a enviar (não para uma mensagem que falhou). */
+    canSendNow: Boolean = true,
+) {
+    val label = when {
+        item.failed -> "Não enviada"
+        item.waitingEngine -> "Aguardando o motor"
+        else -> "Na fila"
+    }
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            item.text,
+            style = AuraType.Body.copy(color = Color.White, lineHeight = 23.sp),
+            modifier = Modifier.widthIn(max = 310.dp)
+                .clip(UserShape)
+                .background(AuraColors.Ink2)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .semantics { contentDescription = "Você, $label: ${item.text}" },
+        )
+        Text(label, style = AuraType.SecondarySmall.copy(color = AuraColors.Ink3), modifier = Modifier.padding(end = 6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (canSendNow && !item.failed) AuraButtonText("Enviar agora", onSendNow)
+            AuraButtonText("Cancelar", onCancel)
+        }
+    }
+}
+
+/** "A fila está parada (2 mensagens)." com as duas saídas. */
+@Composable
+internal fun QueuePausedBubble(count: Int, onContinue: () -> Unit, onClear: () -> Unit, modifier: Modifier = Modifier) {
+    val notice = if (count == 1) "A fila está parada (1 mensagem)." else "A fila está parada ($count mensagens)."
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+        Column(
+            Modifier.widthIn(max = 326.dp).clip(AuraShape).background(AuraColors.NeedsYou.bg)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(notice, style = AuraType.Body.copy(lineHeight = 23.sp, color = AuraColors.NeedsYou.fg, fontWeight = FontWeight.SemiBold))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                AuraButtonSecondary("Continuar", onContinue)
+                AuraButtonText("Limpar fila", onClear)
+            }
+        }
+    }
+}
+
+/** Pílula "Mensagens novas ↓": chegou coisa embaixo enquanto a pessoa lia mais acima. */
+@Composable
+internal fun NewMessagesPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier.heightIn(min = 44.dp).clip(AuraShapes.Circle).background(AuraColors.Ink)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 18.dp)
+            .semantics { contentDescription = "Mensagens novas" },
+        contentAlignment = Alignment.Center,
+    ) { Text("Mensagens novas ↓", style = AuraType.BodyStrong.copy(color = Color.White)) }
+}
+
+/** Detalhes técnicos da conversa (atrás de "Ver detalhes"): o estado em frases e o diagnóstico copiável. */
+@Composable
+internal fun DetailsPanel(lines: List<String>, copied: Boolean, onCopy: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxWidth().clip(AuraShapes.Card).background(AuraColors.Surface)
+            .border(1.dp, AuraColors.Line, AuraShapes.Card).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Detalhes", style = AuraType.Caption)
+        lines.forEach { Text(it, style = AuraType.SecondarySmall) }
+        AuraButtonSecondary("Copiar diagnóstico", onCopy)
+        if (copied) Text("Diagnóstico copiado.", style = AuraType.SecondarySmall.copy(color = AuraColors.Ink3))
+    }
+}
+
+/** Linha pequena e calma no meio da conversa (ex.: "Atualizando conversa…"). */
+@Composable
+internal fun QuietLine(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text, style = AuraType.SecondarySmall.copy(color = AuraColors.Ink3),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp).semantics { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 internal fun actionLabel(action: ChatAction): String = when (action) {
@@ -307,6 +431,7 @@ private fun ChatPartsPreview() {
             LiveBubble(LiveReply("Olá! Vou olhar o projeto. Achei três telas.", listOf(LiveReply.ToolMark(21, "Lendo arquivos"))))
             ThinkingLine("Pensando…")
             NoticeBubble(ChatNotice("O motor está desligado.", ChatAction.StartEngine), {})
+            QueuedBubble(QueuedMessage("r1", "Outra pergunta", false), {}, {})
             CommandsPanel(ChatCommands.all, {})
         }
     }

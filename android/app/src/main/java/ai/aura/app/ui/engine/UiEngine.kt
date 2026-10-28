@@ -224,12 +224,15 @@ data class EngineUsage(
 
 private const val NOT_EXPOSED = "Este AURA Engine ainda não expõe isso."
 
+/** Motivo de [EngineResult.Unavailable] quando o motor é de uma versão que ainda não tem a rota (quem chama cai no modo antigo). */
+const val ENGINE_NOT_EXPOSED: String = NOT_EXPOSED
+
 /* ---- Conversa (POST /v1/chat, GET /v1/chat/{id}, /v1/chats, POST /v1/intent) ----
  * O chat não cria job: manda a mensagem, recebe o texto aos poucos e termina. A UI só vê texto em
  * português; nada de rota, aprovação ou JSON do motor. */
 
 /** Resposta de POST /v1/chat. [sessionId] é o que o motor usa para continuar a conversa (--resume). */
-data class ChatStarted(val chatId: String, val sessionId: String?)
+data class ChatStarted(val chatId: String, val sessionId: String?, val requestId: String? = null, val state: String? = null)
 
 /** O que o dono pode fazer para resolver um erro da conversa. Os rótulos são sempre os mesmos. */
 enum class ChatAction { Retry, OpenConnections, StartEngine }
@@ -237,8 +240,32 @@ enum class ChatAction { Retry, OpenConnections, StartEngine }
 /** Erro de conversa já em português simples (message_pt do motor ou texto do app). */
 data class ChatFailure(val code: String, val message: String, val action: ChatAction)
 
+/**
+ * Andamento de uma resposta (evento chat.status ou GET /v1/chat/{id}). [state]: queued, running, awaiting_consent,
+ * stopping, done, error ou interrupted. [phase]: starting, waiting_claude, reading_files, editing_files, running_tool,
+ * responding ou unknown. Tempos em ms; datas em ms desde 1970 (null = o motor não informou). [seq] só cresce por execução.
+ */
+data class ChatStatus(
+    val chatId: String,
+    val sessionId: String?,
+    val seq: Long,
+    val state: String,
+    val phase: String,
+    val elapsedMs: Long,
+    val lastOutputAtMillis: Long?,
+    val heartbeatAtMillis: Long?,
+    val canStop: Boolean,
+) {
+    val isTerminal: Boolean get() = state == "done" || state == "error" || state == "interrupted"
+}
+
+/** Retrato completo de uma execução (GET /v1/chat/{id} e /v1/chat/requests/{request_id}). [failure] só nos estados de erro. */
+data class ChatSnapshot(val status: ChatStatus, val requestId: String?, val text: String, val failure: ChatFailure?)
+
 /** Eventos de uma resposta. [Text] traz o texto acumulado inteiro até agora (nunca só o pedaço). */
 sealed interface ChatEvent {
+    /** Batimento do motor (chat.status): a fase atual e há quanto tempo a execução corre. */
+    data class Status(val status: ChatStatus) : ChatEvent
     data class Text(val text: String) : ChatEvent
     data class Tool(val summary: String) : ChatEvent
     data class Done(val text: String, val sessionId: String?) : ChatEvent
@@ -290,6 +317,47 @@ enum class SessionLineRole { User, Assistant, Tool }
 /** Uma linha do histórico de uma sessão. [Tool] é uma frase curta ("Lendo arquivos…"), nunca argumento. */
 data class SessionLine(val role: SessionLineRole, val text: String)
 
+/** A resposta mais recente de uma conversa, como o motor a conhece. */
+data class LastChat(val chatId: String, val state: String, val requestId: String?)
+
+/**
+ * Estado barato de uma sessão (GET /v1/sessions/{id}/state). [version] muda quando o histórico muda; [running] é
+ * "o motor está respondendo agora"; [externalRunning] é "alguém escreve nesta conversa pelo terminal".
+ */
+data class SessionState(
+    val sessionId: String,
+    val version: String,
+    val revision: String,
+    val messages: Int,
+    val total: Int,
+    val updatedAtMillis: Long,
+    val running: Boolean,
+    val activeChatId: String?,
+    val externalRunning: Boolean,
+    val historyComplete: Boolean,
+    val fromTerminal: Boolean,
+    val active: ChatStatus?,
+    val lastChat: LastChat?,
+)
+
+/** Linha de histórico com identidade estável (o mesmo id em qualquer recorte). */
+data class HistoryLine(val id: String, val role: SessionLineRole, val text: String)
+
+/**
+ * Uma página do histórico (GET /v1/sessions/{id}/messages). [firstIndex] é a posição da primeira linha no histórico
+ * inteiro; [previousCursor] busca a página anterior; [historyComplete] false = o comeco da fonte nao pode ser lido.
+ */
+data class HistoryPage(
+    val lines: List<HistoryLine>,
+    val previousCursor: String?,
+    val hasMore: Boolean,
+    val historyComplete: Boolean,
+    val total: Int,
+    val firstIndex: Int,
+    val revision: String,
+    val activeChatId: String?,
+)
+
 /** Um programa que o motor iniciou no celular. [kind]: claude, agy, gemini, codex ou engine. */
 data class ProcessInfo(val pid: Long, val kind: String, val sessionId: String?, val startedAtMillis: Long?)
 
@@ -324,6 +392,19 @@ interface EngineGateway {
     // Padrão = o motor ainda não conversa; quem falha por falta de motor lança IOException.
     suspend fun startChat(text: String, sessionId: String?, workspace: String = "default"): ChatStarted =
         throw ChatUnsupportedException()
+
+    /**
+     * Como acima, com a chave de idempotência do pedido ([requestId]: repetir a mesma chave nunca executa duas vezes) e o
+     * assistente pedido ([executor]; null = o padrão do motor, hoje o Claude). O padrão ignora os dois e usa a forma antiga.
+     */
+    suspend fun startChat(text: String, sessionId: String?, workspace: String, requestId: String?, executor: String?): ChatStarted =
+        startChat(text, sessionId, workspace)
+
+    /** Retrato de uma execução (GET /v1/chat/{id}). [EngineResult.Unavailable] quando não dá para perguntar. */
+    suspend fun chatSnapshot(chatId: String): EngineResult<ChatSnapshot> = EngineResult.Unavailable(NOT_EXPOSED)
+
+    /** A execução que aceitou este pedido (GET /v1/chat/requests/{request_id}); [EngineResult.Rejected] com `request_not_found` se nunca foi aceito. */
+    suspend fun chatByRequest(requestId: String): EngineResult<ChatSnapshot> = EngineResult.Unavailable(NOT_EXPOSED)
     /** Eventos de uma resposta, na ordem; o fluxo termina depois de [ChatEvent.Done] ou [ChatEvent.Failed]. */
     fun chatStream(chatId: String): Flow<ChatEvent> = emptyFlow()
     suspend fun stopChat(chatId: String) {}
@@ -335,6 +416,12 @@ interface EngineGateway {
     // Padrão = o motor ainda não expõe; falta de motor chega como EngineResult.Unavailable, nunca como exceção.
     suspend fun sessions(): EngineResult<List<SessionInfo>> = EngineResult.Unavailable(NOT_EXPOSED)
     suspend fun sessionMessages(id: String): EngineResult<List<SessionLine>> = EngineResult.Unavailable(NOT_EXPOSED)
+    /** Estado barato da sessão e a próxima página do histórico (GET /v1/sessions/{id}/state e /messages). Padrão = motor antigo. */
+    suspend fun sessionState(id: String): EngineResult<SessionState> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun sessionPage(id: String, limit: Int = 100, before: String? = null, after: Int? = null): EngineResult<HistoryPage> =
+        EngineResult.Unavailable(NOT_EXPOSED)
+    /** Avisa o motor que esta sessão está aberta (POST /v1/sessions/{id}/watch): ele passa a emitir session.updated. */
+    suspend fun watchSession(id: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
     suspend fun renameSession(id: String, title: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
     /** Esconde só no AURA: o histórico do Claude Code no terminal nunca é apagado. */
     suspend fun hideSession(id: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)

@@ -120,6 +120,27 @@ class AuraEngineClient(
             JSONObject().put("text", text).put("workspace", workspace)
                 .also { body -> if (!sessionId.isNullOrBlank()) body.put("session_id", sessionId) },
         )
+    override suspend fun chat(text: String, sessionId: String?, workspace: String, requestId: String?, executor: String?): JSONObject =
+        request(
+            "/v1/chat", "POST",
+            JSONObject().put("text", text).put("workspace", workspace)
+                .also { body ->
+                    if (!sessionId.isNullOrBlank()) body.put("session_id", sessionId)
+                    if (!requestId.isNullOrBlank()) body.put("request_id", requestId)
+                    if (!executor.isNullOrBlank()) body.put("executor", executor)
+                },
+        )
+    override suspend fun chatByRequest(requestId: String) =
+        request("/v1/chat/requests/" + segment(requestId), readTimeoutMs = 5000)
+    override suspend fun sessionState(id: String) = request("/v1/sessions/" + segment(id) + "/state", readTimeoutMs = 5000)
+    override suspend fun sessionPage(id: String, limit: Int, before: String?, after: Int?): JSONObject {
+        val query = StringBuilder("?limit=").append(limit)
+        if (before != null) query.append("&before=").append(java.net.URLEncoder.encode(before, "UTF-8"))
+        if (after != null) query.append("&after=").append(after)
+        return request("/v1/sessions/" + segment(id) + "/messages" + query, readTimeoutMs = 10000)
+    }
+    override suspend fun watchSession(id: String) =
+        request("/v1/sessions/" + segment(id) + "/watch", "POST", readTimeoutMs = 4000)
     override suspend fun chatState(id: String) = request("/v1/chat/" + segment(id), readTimeoutMs = 5000)
     override suspend fun chatStop(id: String) = request("/v1/chat/" + segment(id) + "/stop", "POST", readTimeoutMs = 5000)
     override suspend fun chats() = request("/v1/chats", readTimeoutMs = 5000)

@@ -375,7 +375,12 @@ def _load(engine, session_id):
                 return list(idx.entries), idx.gen, idx.partial, "%d-%d" % (idx.mtime_ns, idx.size)
     if engine.store.chat_conversation(session_id) is None:
         return None
-    return _db_entries(engine, session_id), 0, False, "none"
+    return _db_entries(engine, session_id), -1, False, "none"
+
+
+def _revision(gen):
+    """r<n> para o arquivo do Claude (n sobe se ele for reescrito); "db" para o historico do proprio motor."""
+    return "db" if gen < 0 else "r%d" % gen
 
 
 def _version(engine, session_id, file_version):
@@ -406,10 +411,11 @@ def state(engine, session_id):
     last = engine.store.chat_last_run(session_id)
     return {
         "session_id": session_id, "canonical_id": session_id, "version": _version(engine, session_id, file_version),
-        "revision": "r%d" % gen, "messages": sum(1 for e in entries if e["role"] != "tool"), "total": len(entries),
+        "revision": _revision(gen), "messages": sum(1 for e in entries if e["role"] != "tool"), "total": len(entries),
         "updated_at": updated, "running": info is not None, "active_chat_id": info["chat_id"] if info else None,
         "external_running": external, "history_complete": not partial,
         "source": "terminal" if (conv is None or conv.get("origin") == "terminal") else "aura",
+        "active": info,
         "last_chat": None if last is None else {
             "chat_id": last["id"], "state": last["state"], "request_id": last.get("request_id")},
     }
@@ -448,7 +454,7 @@ def page(engine, session_id, limit=100, before=None, after=None):
         "previous_cursor": _encode({"s": session_id, "g": gen, "i": first}) if first > 0 else None,
         "has_more": first > 0, "history_complete": not partial,
         "source": "terminal" if (conv is None or conv.get("origin") == "terminal") else "aura",
-        "revision": "r%d" % gen, "active_chat_id": info["chat_id"] if info else None,
+        "revision": _revision(gen), "active_chat_id": info["chat_id"] if info else None,
         "total": total, "first_index": first,
     }
     if partial:

@@ -136,24 +136,24 @@ class ChatFlowTest {
         open(gw)
         type("Conserta o login")
 
-        waitText("Pensando…") // entre o envio e a primeira palavra
+        waitText("Pensando", substring = true) // entre o envio e a primeira palavra: "Pensando · 0 s"
         assertFalse(has("Achei o problema"))
         assertEquals(1, rule.onAllNodesWithTag("indicador-resposta", useUnmergedTree = true).fetchSemanticsNodes().size)
 
         g1.complete(Unit)
-        waitText("Lendo arquivos…") // a ferramenta toma o lugar do "Pensando…"
-        assertFalse(has("Pensando…"))
+        waitText("Lendo arquivos…") // a ferramenta toma o lugar do "Pensando"
+        assertFalse(has("Pensando", substring = true))
 
         g2.complete(Unit)
         waitText("Achei o problema") // o texto começa a crescer
-        assertFalse(has("Pensando…"))
+        assertFalse(has("Pensando", substring = true))
         assertEquals("sem indicador enquanto o texto cresce", 0,
             rule.onAllNodesWithTag("indicador-resposta", useUnmergedTree = true).fetchSemanticsNodes().size)
 
         g3.complete(Unit)
         waitText("Achei o problema e corrigi.")
         assertFalse("nada de aviso ruidoso ao terminar", has("Concluído", substring = true))
-        assertFalse(has("Pensando…"))
+        assertFalse(has("Pensando", substring = true))
         assertEquals(0, rule.onAllNodesWithTag("indicador-resposta", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
@@ -193,7 +193,8 @@ class ChatFlowTest {
         assertTrue(gw.started.isEmpty())
         waitText("Oi") // a bolha dela continua
         val store = LocalStore(tmp.root)
-        rule.waitUntil(10_000) { store.read("chat-pending")?.optString("text") == "Oi" }
+        // A fila é uma só, gravada por conversa (a nova ainda não tem id: "novo"), com o estado de cada mensagem.
+        rule.waitUntil(10_000) { queuedOnDisk(store) == listOf("waiting_engine:Oi") }
 
         rule.onNodeWithText("Iniciar o motor").performClick()
         assertEquals(OfflineReason.EngineStopped, engineStarted)
@@ -202,7 +203,7 @@ class ChatFlowTest {
         link = LinkState.Online // o aviso global ficou verde
         waitText("Olá!")
         assertEquals(listOf("Oi" to null), gw.started.toList())
-        rule.waitUntil(10_000) { store.read("chat-pending") == null || store.read("chat-pending")?.optString("text").isNullOrEmpty() }
+        rule.waitUntil(10_000) { queuedOnDisk(store).none { it.startsWith("waiting_engine") } }
         assertFalse(has("O motor está desligado."))
     }
 
@@ -249,12 +250,19 @@ class ChatFlowTest {
         assertEquals("abrir o projeto da loja", gw.started[0].first)
     }
 
-    @Test fun `reabrir recupera a conversa do motor e guarda no disco`() {
+    /** O que a fila tem no disco da conversa (ou da conversa nova, "novo"): "estado:texto" de cada mensagem. */
+    private fun queuedOnDisk(store: LocalStore, key: String = "novo"): List<String> {
+        val items = store.read("chat-q-$key")?.optJSONArray("items") ?: return emptyList()
+        return (0 until items.length()).map { items.getJSONObject(it).let { o -> o.getString("state") + ":" + o.getString("text") } }
+    }
+
+    @Test fun `reabrir recupera a conversa do motor e guarda no disco, um arquivo por conversa`() {
         val lines = listOf(ChatLine(true, "Oi antiga"), ChatLine(false, "Resposta antiga"))
-        open(ScriptedChatGateway(history = lines))
+        open(ScriptedChatGateway(history = lines), entry = ChatEntry(open = true, sessionId = "sess_1"))
         waitText("Resposta antiga")
         val store = LocalStore(tmp.root)
-        rule.waitUntil(10_000) { (store.read("chat-history")?.optJSONArray("items")?.length() ?: 0) == 2 }
-        assertEquals("Oi antiga", store.read("chat-history")!!.getJSONArray("items").getJSONObject(0).getString("text"))
+        rule.waitUntil(10_000) { (store.read("chat-h-sess_1")?.optJSONArray("items")?.length() ?: 0) == 2 }
+        assertEquals("Oi antiga", store.read("chat-h-sess_1")!!.getJSONArray("items").getJSONObject(0).getString("text"))
+        assertEquals("nada de histórico global", null, store.read("chat-history"))
     }
 }

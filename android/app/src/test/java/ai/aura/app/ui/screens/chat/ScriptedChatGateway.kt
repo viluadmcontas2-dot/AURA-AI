@@ -49,6 +49,9 @@ internal class ScriptedChatGateway(
     /** session_id que o motor "não conhece mais": o POST com ele recebe 404 session_not_found. */
     @Volatile var unknownSession: String? = null
     val rejected = CopyOnWriteArrayList<String?>()
+
+    /** (request_id, executor) de cada POST /v1/chat que veio com a chave de idempotência. */
+    val requests = CopyOnWriteArrayList<Pair<String?, String?>>()
     private var counter = 0
 
     override val events: Flow<EngineEvent> = emptyFlow()
@@ -62,6 +65,12 @@ internal class ScriptedChatGateway(
         started += text to sessionId
         counter++
         return ChatStarted("chat_$counter", sessionId ?: "sess_1")
+    }
+
+    override suspend fun startChat(text: String, sessionId: String?, workspace: String, requestId: String?, executor: String?): ChatStarted {
+        val started = startChat(text, sessionId, workspace)
+        requests += requestId to executor
+        return started
     }
 
     override fun chatStream(chatId: String): Flow<ChatEvent> = flow {

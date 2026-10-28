@@ -79,13 +79,44 @@ internal fun LocalStore.savePending(items: List<String>) {
     else write("chat-pending", JSONObject().put("text", items.joinToString("\n\n")).put("items", org.json.JSONArray(items)))
 }
 
-/** Aviso do próprio app dentro da conversa, em português, com no máximo uma ação. */
-class ChatNotice(val message: String, val action: ChatAction?)
+/** O que cada botão de um aviso faz. O rótulo vem de [NoticeButton.label]; a ação, daqui. */
+enum class NoticeKind { Retry, OpenConnections, StartEngine, BackToSessions, NewConversation, CheckProgress, KeepWaiting, Stop }
 
-/** Texto que chega aos poucos e as linhas de ferramenta, cada uma na posição do texto em que apareceu. */
-class LiveReply(val text: String, val tools: List<ToolMark>) {
+class NoticeButton(val label: String, val kind: NoticeKind)
+
+/**
+ * Aviso do próprio app dentro da conversa, em português. [action] é o botão único das versões simples; [buttons]
+ * (quando não vazio) manda no lugar dele e pode ter mais de uma escolha ("Tentar retomar" / "Criar outra conversa").
+ */
+class ChatNotice(val message: String, val action: ChatAction?, val buttons: List<NoticeButton> = emptyList())
+
+/**
+ * Texto que chega aos poucos e as linhas de ferramenta, cada uma na posição do texto em que apareceu.
+ * Os tempos (ms do relógio do chat) alimentam o "Pensando · 12 s" e os avisos de demora.
+ */
+data class LiveReply(
+    val text: String,
+    val tools: List<ToolMark>,
+    /** Quando a resposta começou (ms). 0 = não medido (versões simples dos testes). */
+    val startedAt: Long = 0L,
+    /** Fase que o motor informou (starting, waiting_claude, reading_files, editing_files, running_tool, responding). */
+    val phase: String = "starting",
+    /** Último sinal de que o Claude avançou (texto novo, ferramenta, fase nova ou saída nova segundo o motor). */
+    val lastProgressAt: Long = 0L,
+    /** Último sinal de vida do motor (evento, batimento ou consulta que respondeu). */
+    val lastSignalAt: Long = 0L,
+    /** Quando a pessoa tocou em Parar (0 = não tocou). */
+    val stopRequestedAt: Long = 0L,
+    /** O motor disse que a resposta está parando (ainda não terminou de verdade). */
+    val stopping: Boolean = false,
+    /** A data (ms) da última saída do Claude que o motor informou: uma data nova é avanço. */
+    val lastOutputSeen: Long = 0L,
+) {
     class ToolMark(val offset: Int, val summary: String)
 }
+
+/** Mensagem da pessoa que ainda não saiu: "Na fila" atrás de uma resposta ou "Aguardando o motor". */
+class QueuedMessage(val requestId: String, val text: String, val waitingEngine: Boolean, val failed: Boolean = false)
 
 /** Para onde um comando "/" leva dentro do app. */
 enum class AppTarget { Projects, Reform, Connections, Settings, Activity, Voice, Devices, Sessions }

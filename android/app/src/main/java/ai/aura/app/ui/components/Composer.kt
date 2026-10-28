@@ -1,5 +1,6 @@
 package ai.aura.app.ui.components
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,7 +52,8 @@ private val ComposerShape = RoundedCornerShape(30.dp)
 /**
  * Composer sem estado (valor vem de fora). Ancorado embaixo com imePadding: sobe com o teclado.
  * Texto nunca é apagado por rotação/recomposição; só é limpo por quem chama após enviar.
- * Enviar fica desabilitado com texto vazio. Altura 60 dp, raio 30, sombra suave.
+ * Enviar fica desabilitado só com texto vazio e NUNCA vira "Parar": enquanto o AURA responde, "Parar" é um botão
+ * pequeno à parte, ao lado de Enviar (a mensagem enviada nesse momento entra na fila). Altura 60 dp, raio 30, sombra suave.
  */
 @Composable
 fun AuraComposerField(
@@ -61,8 +63,10 @@ fun AuraComposerField(
     modifier: Modifier = Modifier,
     placeholder: String = "Peça algo ao AURA…",
     onMic: (() -> Unit)? = null,
-    /** Não nulo enquanto o AURA responde: o botão de enviar vira "Parar resposta". */
+    /** Não nulo enquanto o AURA responde: aparece o botão "Parar resposta", separado de Enviar. */
     onStop: (() -> Unit)? = null,
+    /** O microfone está ouvindo agora (pulso e rótulo "Parar de ouvir"). */
+    listening: Boolean = false,
 ) {
     val canSend = value.isNotBlank()
     val sendSource = remember { MutableInteractionSource() }
@@ -104,43 +108,54 @@ fun AuraComposerField(
             }
             if (onMic != null) {
                 val micSource = remember { MutableInteractionSource() }
+                val pulse = if (listening) {
+                    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "microfone")
+                    transition.animateFloat(
+                        0.35f, 1f,
+                        androidx.compose.animation.core.infiniteRepeatable(
+                            androidx.compose.animation.core.tween(650), androidx.compose.animation.core.RepeatMode.Reverse,
+                        ),
+                        label = "pulso",
+                    ).value
+                } else 1f
                 Box(
                     Modifier
                         .size(AuraSpacing.TouchTarget)
                         .clip(AuraShapes.Circle)
-                        .border(1.dp, AuraColors.Line, AuraShapes.Circle)
+                        .background(if (listening) AuraColors.Link.copy(alpha = 0.18f * pulse + 0.06f) else Color.Transparent)
+                        .border(if (listening) 2.dp else 1.dp, if (listening) AuraColors.Link else AuraColors.Line, AuraShapes.Circle)
                         .auraFocusRing(micSource, AuraShapes.Circle)
                         .clickable(interactionSource = micSource, indication = null, role = Role.Button, onClick = onMic)
-                        .semantics { contentDescription = "Falar um pedido pelo microfone" },
+                        .semantics { contentDescription = if (listening) "Parar de ouvir" else "Falar um pedido pelo microfone" },
                     contentAlignment = Alignment.Center,
                 ) { MicGlyph() }
             }
             if (onStop != null) {
+                val stopSource = remember { MutableInteractionSource() }
                 Box(
                     Modifier
                         .size(AuraSpacing.TouchTarget)
                         .clip(AuraShapes.Circle)
-                        .background(AuraColors.Ink)
-                        .auraFocusRing(sendSource, AuraShapes.Circle)
-                        .clickable(interactionSource = sendSource, indication = null, role = Role.Button, onClick = onStop)
+                        .border(1.dp, AuraColors.LineStrong, AuraShapes.Circle)
+                        .auraFocusRing(stopSource, AuraShapes.Circle)
+                        .clickable(interactionSource = stopSource, indication = null, role = Role.Button, onClick = onStop)
                         .semantics { contentDescription = "Parar resposta" },
                     contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(14.dp).clip(RoundedCornerShape(3.dp)).background(Color.White)) }
-            } else {
-                Box(
-                    Modifier
-                        .size(AuraSpacing.TouchTarget)
-                        .clip(AuraShapes.Circle)
-                        .background(if (canSend) AuraColors.Ink else AuraColors.Line)
-                        .auraFocusRing(sendSource, AuraShapes.Circle)
-                        .clickable(
-                            interactionSource = sendSource, indication = null, enabled = canSend,
-                            role = Role.Button, onClick = onSend,
-                        )
-                        .semantics { contentDescription = "Enviar mensagem" },
-                    contentAlignment = Alignment.Center,
-                ) { Text("↑", style = AuraType.Section.copy(color = if (canSend) Color.White else AuraColors.Ink3)) }
+                ) { Box(Modifier.size(14.dp).clip(RoundedCornerShape(3.dp)).background(AuraColors.Ink)) }
             }
+            Box(
+                Modifier
+                    .size(AuraSpacing.TouchTarget)
+                    .clip(AuraShapes.Circle)
+                    .background(if (canSend) AuraColors.Ink else AuraColors.Line)
+                    .auraFocusRing(sendSource, AuraShapes.Circle)
+                    .clickable(
+                        interactionSource = sendSource, indication = null, enabled = canSend,
+                        role = Role.Button, onClick = onSend,
+                    )
+                    .semantics { contentDescription = "Enviar mensagem" },
+                contentAlignment = Alignment.Center,
+            ) { Text("↑", style = AuraType.Section.copy(color = if (canSend) Color.White else AuraColors.Ink3)) }
         }
     }
 }

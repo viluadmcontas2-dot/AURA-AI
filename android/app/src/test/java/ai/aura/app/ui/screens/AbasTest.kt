@@ -121,7 +121,8 @@ class PersistenciaTest {
             first.send("Corrigir o login")
             waitFor { first.messages.any { !it.fromUser && it.text == "Olá!" } }
             waitFor { LocalStore(tmp.root).read("chat-session")?.optString("session_id") == "sess_1" }
-            waitFor { (LocalStore(tmp.root).read("chat-history")?.optJSONArray("items")?.length() ?: 0) == 2 }
+            // Um arquivo POR conversa (chat-h-<id>); nada de histórico global.
+            waitFor { (LocalStore(tmp.root).read("chat-h-sess_1")?.optJSONArray("items")?.length() ?: 0) == 2 }
 
             // Reabrir com o motor desligado: a conversa aparece do disco, sem erro e sem spinner.
             val second = ChatController(ScriptedChatGateway(down = true), scope, ChatEntry(open = true), store = LocalStore(tmp.root))

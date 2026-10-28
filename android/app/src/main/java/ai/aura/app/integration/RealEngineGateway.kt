@@ -10,6 +10,13 @@ import ai.aura.app.ui.engine.ToolActionResult
 import ai.aura.app.ui.engine.Capability
 import ai.aura.app.ui.engine.ChatAction
 import ai.aura.app.ui.engine.ChatEvent
+import ai.aura.app.ui.engine.ChatSnapshot
+import ai.aura.app.ui.engine.ChatStatus
+import ai.aura.app.ui.engine.ENGINE_NOT_EXPOSED
+import ai.aura.app.ui.engine.HistoryLine
+import ai.aura.app.ui.engine.HistoryPage
+import ai.aura.app.ui.engine.LastChat
+import ai.aura.app.ui.engine.SessionState
 import ai.aura.app.ui.engine.ChatFailure
 import ai.aura.app.ui.engine.ChatLine
 import ai.aura.app.ui.engine.ChatStarted
@@ -475,13 +482,129 @@ class RealEngineGateway(
 
     // ---- Conversa ------------------------------------------------------------------------
 
-    override suspend fun startChat(text: String, sessionId: String?, workspace: String): ChatStarted = try {
-        val raw = client.chat(text, sessionId, workspace)
+    override suspend fun startChat(text: String, sessionId: String?, workspace: String): ChatStarted =
+        startChat(text, sessionId, workspace, null, null)
+
+    override suspend fun startChat(
+        text: String, sessionId: String?, workspace: String, requestId: String?, executor: String?,
+    ): ChatStarted = try {
+        val raw = client.chat(text, sessionId, workspace, requestId, executor)
         val id = raw.text("chat_id") ?: throw AuraEngineException(502, "O motor não informou o chat_id.")
-        ChatStarted(id, raw.text("session_id"))
+        ChatStarted(id, raw.text("session_id"), raw.text("request_id"), raw.text("state"))
     } catch (e: AuraEngineException) {
-        if (notExposed(e)) throw ChatUnsupportedException() else throw e
+        // 404 session_not_found é resposta do motor ("não conheço essa conversa"), não "motor sem a rota".
+        if (e.code != "session_not_found" && notExposed(e)) throw ChatUnsupportedException() else throw e
     }
+
+    // ---- C1/C2: retratos, estado da sessão e páginas ------------------------------------------
+
+    private fun isoMillis(value: String?): Long? =
+        value?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
+
+    private fun statusFrom(o: JSONObject, fallbackChatId: String = ""): ChatStatus = ChatStatus(
+        chatId = o.text("chat_id") ?: fallbackChatId,
+        sessionId = o.text("session_id"),
+        seq = o.optLong("seq", 0L),
+        state = o.text("state") ?: "running",
+        phase = o.text("phase") ?: "unknown",
+        elapsedMs = o.optLong("elapsed_ms", 0L),
+        lastOutputAtMillis = isoMillis(o.text("last_output_at")),
+        heartbeatAtMillis = isoMillis(o.text("heartbeat_at")),
+        canStop = o.optBoolean("can_stop", false),
+    )
+
+    /** O payload de um evento chat.status chega como mapa de textos; reaproveita o mesmo leitor. */
+    private fun statusFrom(payload: Map<String, String>): ChatStatus = statusFrom(JSONObject().also { o ->
+        payload.forEach { (k, v) ->
+            when (k) {
+                "seq", "elapsed_ms" -> o.put(k, v.toLongOrNull() ?: 0L)
+                "can_stop" -> o.put(k, v == "true")
+                else -> o.put(k, v)
+            }
+        }
+    })
+
+    private fun snapshotFrom(raw: JSONObject, chatId: String = ""): ChatSnapshot {
+        val status = statusFrom(raw, chatId)
+        val err = raw.optJSONObject("error")
+        val failure = when {
+            status.state == "interrupted" -> chatFailureFor(err?.text("code") ?: "stopped", err?.text("message_pt"))
+            err != null -> chatFailureFor(err.text("code"), err.text("message_pt"))
+            status.state == "error" -> chatFailureFor(null, null)
+            else -> null
+        }
+        return ChatSnapshot(status, raw.text("request_id"), raw.text("text").orEmpty(), failure)
+    }
+
+    override suspend fun chatSnapshot(chatId: String): EngineResult<ChatSnapshot> =
+        engineCall("a resposta") { snapshotFrom(client.chatState(chatId), chatId) }
+
+    override suspend fun chatByRequest(requestId: String): EngineResult<ChatSnapshot> =
+        engineCall("o pedido") { snapshotFrom(client.chatByRequest(requestId)) }
+
+    /** Rota que o motor antigo não tem: 404 "Unknown endpoint" vira "não expõe"; 404 com outra frase é a sessão que sumiu. */
+    private suspend fun <T> sessionCall(what: String, block: suspend () -> T): EngineResult<T> = try {
+        EngineResult.Ok(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: AuraEngineException) {
+        when {
+            e.httpStatus == 501 || (e.httpStatus == 404 && e.message == "Unknown endpoint") ->
+                EngineResult.Unavailable(ENGINE_NOT_EXPOSED)
+            e.code != null && e.httpStatus in 400..499 && e.httpStatus != 401 ->
+                EngineResult.Rejected(if (e.httpStatus == 404) "session_not_found" else e.code, e.message ?: "O motor recusou o pedido.")
+            else -> EngineResult.Unavailable(reasonFor(e, what))
+        }
+    } catch (e: Exception) {
+        EngineResult.Unavailable(reasonFor(e, what))
+    }
+
+    private fun roleOf(raw: String): SessionLineRole = when (raw) {
+        "user", "human" -> SessionLineRole.User
+        "assistant" -> SessionLineRole.Assistant
+        "tool" -> SessionLineRole.Tool
+        else -> error("papel desconhecido")
+    }
+
+    override suspend fun sessionState(id: String): EngineResult<SessionState> = sessionCall("o estado da conversa") {
+        val o = client.sessionState(id)
+        val last = o.optJSONObject("last_chat")
+        SessionState(
+            sessionId = o.text("session_id") ?: id,
+            version = o.text("version").orEmpty(),
+            revision = o.text("revision").orEmpty(),
+            messages = o.optInt("messages", 0),
+            total = o.optInt("total", 0),
+            updatedAtMillis = (o.optDouble("updated_at", 0.0) * 1000).toLong(),
+            running = o.optBoolean("running", false),
+            activeChatId = o.text("active_chat_id"),
+            externalRunning = o.optBoolean("external_running", false),
+            historyComplete = o.optBoolean("history_complete", true),
+            fromTerminal = o.optString("source") == "terminal",
+            active = o.optJSONObject("active")?.let { statusFrom(it) },
+            lastChat = last?.let { LastChat(it.optString("chat_id"), it.optString("state"), it.text("request_id")) }
+                ?.takeIf { it.chatId.isNotEmpty() },
+        )
+    }
+
+    override suspend fun sessionPage(id: String, limit: Int, before: String?, after: Int?): EngineResult<HistoryPage> =
+        sessionCall("a conversa") {
+            val o = client.sessionPage(id, limit, before, after)
+            val array = o.optJSONArray("messages") ?: JSONArray()
+            HistoryPage(
+                lines = array.mapObjects { HistoryLine(it.getString("id"), roleOf(it.optString("role")), it.text("text") ?: error("linha vazia")) },
+                previousCursor = o.text("previous_cursor"),
+                hasMore = o.optBoolean("has_more", false),
+                historyComplete = o.optBoolean("history_complete", true),
+                total = o.optInt("total", array.length()),
+                firstIndex = o.optInt("first_index", 0),
+                revision = o.text("revision").orEmpty(),
+                activeChatId = o.text("active_chat_id"),
+            )
+        }
+
+    override suspend fun watchSession(id: String): EngineResult<Unit> =
+        sessionCall("a conversa") { client.watchSession(id); Unit }
 
     /**
      * Junta os eventos chat.delta/chat.tool/chat.done/chat.error com a leitura de GET /v1/chat/{id}:
@@ -503,10 +626,12 @@ class RealEngineGateway(
             var acc = ""
             var lastSent = ""
             var failures = 0
+            var lastSeq = 0L
             while (true) {
                 while (true) {
                     val ev = pending.poll() ?: break
                     when (ev.type) {
+                        "chat.status" -> send(ChatEvent.Status(statusFrom(ev.payload)))
                         "chat.delta" -> acc += ev.payload["text"].orEmpty()
                         "chat.tool" -> {
                             if (acc != lastSent) { send(ChatEvent.Text(acc)); lastSent = acc }
@@ -533,7 +658,16 @@ class RealEngineGateway(
                     continue
                 }
                 val snapshot = state.text("text").orEmpty()
+                if (state.optLong("seq", 0L) > lastSeq && state.optLong("seq", 0L) < TERMINAL_SEQ) {
+                    lastSeq = state.optLong("seq", 0L)
+                    send(ChatEvent.Status(statusFrom(state, chatId)))
+                }
                 when (state.optString("state")) {
+                    "interrupted" -> {
+                        val err = state.optJSONObject("error")
+                        send(ChatEvent.Failed(chatFailureFor(err?.text("code") ?: "stopped", err?.text("message_pt"))))
+                        return@channelFlow
+                    }
                     "done" -> {
                         send(ChatEvent.Done(snapshot.ifBlank { acc }, state.text("session_id")))
                         return@channelFlow
@@ -852,6 +986,7 @@ class RealEngineGateway(
     private companion object {
         const val MAX_ROUTED = 200
         const val MAX_CHAT_POLL_FAILURES = 5
+        const val TERMINAL_SEQ = 1_000_000_000L
         const val WORKSPACE = "default"
     }
 }
