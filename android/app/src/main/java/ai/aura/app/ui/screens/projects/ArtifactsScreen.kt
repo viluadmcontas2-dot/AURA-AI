@@ -122,12 +122,6 @@ internal fun ArtifactStatus(a: Artifact) {
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 780)
-@Composable
-private fun ArtifactsPreview() {
-    AuraTheme { ArtifactsScreen("Minhas Finanças", ExampleData.artifacts, {}, {}, {}) }
-}
-
 @Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 500)
 @Composable
 private fun ArtifactsEmptyPreview() {

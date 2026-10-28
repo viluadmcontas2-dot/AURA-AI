@@ -7,7 +7,6 @@ import ai.aura.app.ui.components.ResultBlocksData
 import ai.aura.app.ui.components.StatusChip
 import ai.aura.app.ui.components.StatusKind
 import ai.aura.app.ui.engine.EngineEvent
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.JobRisk
@@ -450,11 +449,8 @@ internal fun CommandsPanel(
     }
 }
 
-// ---- previews ------------------------------------------------------------------------------
-
-private val sample = FakeEngineGateway.sampleJobs()
 private val route = RouteResult(JobRequest("claude_cli", "Corrigir tela de login"), "Pedido de alteração de código", 0.82, true, JobRisk.Write)
-private const val PreviewBg = 0xFFF5F4F1L
+internal const val PreviewBg = 0xFFF5F4F1L
 
 @Preview(showBackground = true, backgroundColor = PreviewBg)
 @Composable
@@ -474,30 +470,6 @@ private fun UnderstoodBlockedPreview() {
             )
         }
     }
-}
-
-@Preview(showBackground = true, backgroundColor = PreviewBg)
-@Composable
-private fun RunningPreview() {
-    AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[0], emptyList(), false, false, {}, {}, {}, {}, {}) } }
-}
-
-@Preview(showBackground = true, backgroundColor = PreviewBg)
-@Composable
-private fun AwaitingPreview() {
-    AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[1], emptyList(), true, false, {}, {}, {}, {}, {}) } }
-}
-
-@Preview(showBackground = true, backgroundColor = PreviewBg)
-@Composable
-private fun CompletedPreview() {
-    AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[2], emptyList(), false, false, {}, {}, {}, {}, {}) } }
-}
-
-@Preview(showBackground = true, backgroundColor = PreviewBg)
-@Composable
-private fun FailedPreview() {
-    AuraTheme { Column(Modifier.padding(20.dp)) { JobPanel(sample[3], emptyList(), false, false, {}, {}, {}, {}, {}) } }
 }
 
 @Preview(showBackground = true, backgroundColor = PreviewBg)

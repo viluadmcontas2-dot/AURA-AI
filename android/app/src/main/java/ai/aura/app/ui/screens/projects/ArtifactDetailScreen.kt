@@ -131,15 +131,3 @@ private fun InfoCard(title: String, content: @Composable () -> Unit) {
         content()
     }
 }
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 860)
-@Composable
-private fun ArtifactDetailPreview() {
-    AuraTheme { ArtifactDetailScreen(ExampleData.artifacts[1], "Minhas Finanças", null, null, false, {}, {}, {}, {}, {}, {}) }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 560)
-@Composable
-private fun ArtifactDetailPlainPreview() {
-    AuraTheme { ArtifactDetailScreen(ExampleData.artifacts[4], "Minhas Finanças", null, null, false, {}, {}, {}, {}, {}, {}) }
-}

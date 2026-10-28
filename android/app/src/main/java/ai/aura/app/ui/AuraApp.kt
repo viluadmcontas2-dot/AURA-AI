@@ -65,7 +65,6 @@ import ai.aura.app.ui.components.auraFocusRing
 import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.screens.ActivityScreen
 import ai.aura.app.ui.screens.DevicesScreen
 import ai.aura.app.ui.screens.HomeScreen
@@ -97,7 +96,7 @@ enum class AuraTab(val label: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AuraApp(
-    gateway: EngineGateway = remember { FakeEngineGateway() },
+    gateway: EngineGateway,
     onOpenUrl: (String) -> Unit = {},
     onRequestTermuxPermission: () -> Unit = {},
     onOpenTermux: () -> Unit = {},
@@ -332,12 +331,6 @@ private fun TabIcon(tab: AuraTab, tint: Color) {
             }, tint, style = stroke)
         }
     }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun AuraAppPreview() {
-    AuraApp(FakeEngineGateway())
 }
 
 @Preview(showBackground = true, widthDp = 390)

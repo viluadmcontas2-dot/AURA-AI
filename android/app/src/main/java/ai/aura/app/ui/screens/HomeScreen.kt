@@ -1,7 +1,6 @@
 package ai.aura.app.ui.screens
 
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.screens.chat.ChatEntry
 import ai.aura.app.ui.screens.chat.ChatScreen
 import ai.aura.app.ui.screens.home.HomeContent
@@ -56,10 +55,4 @@ fun HomeScreen(
         HomeContent(gateway = gateway, onOpenChat = { entry = it }, modifier = modifier, onOpenSettings = onOpenSettings,
             initialDraft = draft, onDraftChange = onDraftChange)
     }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, widthDp = 390, heightDp = 844)
-@Composable
-private fun HomeScreenPreview() {
-    AuraTheme { HomeScreen(FakeEngineGateway()) }
 }

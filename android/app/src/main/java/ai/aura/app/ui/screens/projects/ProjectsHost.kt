@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.theme.AuraTheme
@@ -225,13 +224,5 @@ internal fun ProjectsHost(
             onOpenArtifact = { id -> artifactId = id; artifactScope = ""; go(Route.Artifact) },
             modifier = modifier,
         )
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 780)
-@Composable
-private fun ProjectsHostPreview() {
-    AuraTheme {
-        ProjectsHost(FakeEngineGateway(ExampleData.jobs), initialProjects = ExampleData.projects, initialArtifacts = ExampleData.artifacts)
     }
 }

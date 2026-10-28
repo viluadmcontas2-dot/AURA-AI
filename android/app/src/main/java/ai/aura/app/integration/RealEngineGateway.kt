@@ -39,7 +39,7 @@ import org.json.JSONObject
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicLong
 
-/** Production EngineGateway. Never substitutes FakeEngineGateway for a missing Termux process. */
+/** Production EngineGateway. Never substitutes a fake for a missing Termux process. */
 class RealEngineGateway(
     private val client: EngineApi,
     /** Escopo do polling de eventos: sem assinantes ele para (WhileSubscribed), então nada fica vivo. */

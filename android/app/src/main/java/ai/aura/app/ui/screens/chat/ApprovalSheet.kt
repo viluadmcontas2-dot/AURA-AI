@@ -4,7 +4,6 @@ import ai.aura.app.ui.components.AuraButtonDestructive
 import ai.aura.app.ui.components.AuraButtonPrimary
 import ai.aura.app.ui.components.AuraButtonSecondary
 import ai.aura.app.ui.components.AuraButtonText
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRisk
 import ai.aura.app.ui.engine.JobStatus
@@ -149,27 +148,4 @@ private fun DetailRow(label: String, value: String, mono: Boolean = false) {
             style = if (mono) AuraType.Mono.copy(color = AuraColors.Ink) else AuraType.SecondarySmall.copy(color = AuraColors.Ink, fontWeight = FontWeight.SemiBold),
         )
     }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun ApprovalPreview() {
-    AuraTheme { ApprovalSheet(FakeEngineGateway.sampleJobs()[1], busy = false, onApprove = {}, onDecline = {}, onDismiss = {}) }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun ApprovalCriticalPreview() {
-    AuraTheme {
-        ApprovalSheet(
-            FakeEngineGateway.sampleJobs()[1].copy(title = "Apagar builds antigos", risk = JobRisk.Critical),
-            busy = false, onApprove = {}, onDecline = {}, onDismiss = {},
-        )
-    }
-}
-
-@Preview(showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-private fun ApprovalNotAwaitingPreview() {
-    AuraTheme { ApprovalSheet(FakeEngineGateway.sampleJobs()[0], busy = false, onApprove = {}, onDecline = {}, onDismiss = {}) }
 }

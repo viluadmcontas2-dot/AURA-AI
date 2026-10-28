@@ -9,7 +9,6 @@ import ai.aura.app.ui.components.StatusChip
 import ai.aura.app.ui.components.StatusKind
 import ai.aura.app.ui.engine.Capability
 import ai.aura.app.ui.engine.EngineGateway
-import ai.aura.app.ui.engine.FakeEngineGateway
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobStatus
 import ai.aura.app.ui.screens.chat.ChatEntry
@@ -351,16 +350,7 @@ private fun ShortcutCard(
     }
 }
 
-// ---- previews ------------------------------------------------------------------------------
-
-private val previewJobs = FakeEngineGateway.sampleJobs()
-private val previewCaps = listOf(Capability("termux", "Termux", true))
-
-@Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 844, widthDp = 390)
-@Composable
-private fun HomeReadyPreview() {
-    AuraTheme { HomeView(HomeData.Ready(previewJobs, previewCaps), "", {}, {}, {}, {}) }
-}
+internal val previewCaps = listOf(Capability("termux", "Termux", true))
 
 @Preview(showBackground = true, backgroundColor = 0xFFF5F4F1, heightDp = 844, widthDp = 390)
 @Composable
