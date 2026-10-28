@@ -47,7 +47,9 @@ class DesignCoverageGateTest(unittest.TestCase):
         self.assertIn(gate, workflow)
         self.assertIn(upload, workflow)
         self.assertLess(workflow.index(gate), workflow.index(upload))
-        self.assertIn("if: success() && steps.release_coverage.outputs.ready == 'true'", workflow)
+        self.assertIn(
+            "if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.release_coverage.outputs.ready == 'true'",
+            workflow)
 
 
 if __name__ == "__main__":
