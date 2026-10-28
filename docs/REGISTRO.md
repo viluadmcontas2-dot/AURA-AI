@@ -1,10 +1,10 @@
 # Registro (fonte única de estado)
 
-Atualizado 28/10 00:01Z · branch `claude/telas-sem-termux` · SHA `0cba5ae` · gerado de `status.json` e `docs/design/COBERTURA.md`.
+Atualizado 28/10 00:15Z · branch `claude/telas-sem-termux` · SHA `cf3ebdb` · gerado de `status.json` e `docs/design/COBERTURA.md`.
 
 ## Placar
 
-- Tarefas: **0 de 20 feitas** · 8 rodando · 3 em revisão · 9 esperando
+- Tarefas: **0 de 20 feitas** · 15 rodando · 1 em revisão · 4 esperando
 - COBERTURA do design: **0/66** `feito` com evidência (gate de entrega: `python -I scripts/check_design_coverage.py --release`, saída 0)
 - Provas: **0 de 15** feitas, 2 parciais
 - Bloqueio: Nenhum bloqueio. Memória do PC em vermelho (commit 36/28 GB): Gradle local só sob o cadeado, a CI remota é o portão.
@@ -14,19 +14,19 @@ Atualizado 28/10 00:01Z · branch `claude/telas-sem-termux` · SHA `0cba5ae` · 
 
 | # | Tarefa | Onda | Estado | Commits | Prova |
 |---|---|---|---|---|---|
-| T1 | Camada offline (LocalStore, EngineLink, fila) | 1 · Base | em revisão | d3adb86 | RED 134 erros de compilação → GREEN local 71/71 (offline 52/52); CI após o push |
-| T2 | Manifesto enxuto, ícone próprio, release pequeno | 1 · Base | em revisão | 0c4ea21 | ManifestTest RED 5/6 → GREEN 6/6; permissões 23→4; release 1,3 MB |
-| T3 | Motor: memória tipada e esquecer | 1 · Base | em revisão | e1a1a58 4110956 3547e0c | RED 19/20 → GREEN 20/20; suíte 131 (mesmas 12 falhas + 1 erro do Windows) |
+| T1 | Camada offline (LocalStore, EngineLink, fila) | 1 · Base | rodando (revisão 1: 2 Important (cancelar após a entrega; disco na thread Main) carregados pela T4, que edita o mesmo arquivo; 9 Minor anotados; CI verde no cf3ebdb) | d3adb86 | RED 134 erros de compilação → GREEN local 71/71 (offline 52/52); CI após o push |
+| T2 | Manifesto enxuto, ícone próprio, release pequeno | 1 · Base | em revisão (CI verde no cf3ebdb; revisão em curso) | 0c4ea21 | ManifestTest RED 5/6 → GREEN 6/6; permissões 23→4; release 1,3 MB |
+| T3 | Motor: memória tipada e esquecer | 1 · Base | rodando (revisão 1 aprovada (0 Critical, 0 Important, 4 Minor); correção dos Minor em curso; CI verde no cf3ebdb) | e1a1a58 4110956 3547e0c | RED 19/20 → GREEN 20/20; suíte 131 (mesmas 12 falhas + 1 erro do Windows) |
 | T4 | Gateway ampliado e tolerante | 2 · Gateway e navegação | rodando |  |  |
 | T5 | Navegação, banner global, ligação do app | 2 · Gateway e navegação | rodando |  |  |
-| T6 | Fluxo do Termux sem travar | 3 · Telas e fluxos | espera |  |  |
-| T7 | Permissões sob demanda e tela | 3 · Telas e fluxos | espera |  |  |
-| T8 | Checkup (autodiagnóstico) | 3 · Telas e fluxos | espera |  |  |
+| T6 | Fluxo do Termux sem travar | 3 · Telas e fluxos | rodando |  |  |
+| T7 | Permissões sob demanda e tela | 3 · Telas e fluxos | rodando |  |  |
+| T8 | Checkup (autodiagnóstico) | 3 · Telas e fluxos | rodando |  |  |
 | T9 | Reformar telas 1, 2 e 5 | 3 · Telas e fluxos | rodando |  |  |
 | T10 | Reformar telas 3, 4 e 6 | 3 · Telas e fluxos | rodando |  |  |
-| T11 | Memória, Capacidades e Detalhe | 3 · Telas e fluxos | espera |  |  |
+| T11 | Memória, Capacidades e Detalhe | 3 · Telas e fluxos | rodando |  |  |
 | T12 | Notificações (T12a), Conexões e Ajustes (T12b) | 3 · Telas e fluxos | rodando (T12a roda; T12b espera T4) |  |  |
-| T13 | Regra nº 1 nas abas (primeiro da onda 3) | 3 · Telas e fluxos | espera |  |  |
+| T13 | Regra nº 1 nas abas (primeiro da onda 3) | 3 · Telas e fluxos | rodando |  |  |
 | T14 | Bastidores, intercorrências, link, vazios | 3 · Telas e fluxos | rodando |  |  |
 | T15 | Chat 1–5 e Artefatos completos | 3 · Telas e fluxos | espera |  |  |
 | T16 | Voz 1–5 | 3 · Telas e fluxos | rodando |  |  |
@@ -40,10 +40,10 @@ Atualizado 28/10 00:01Z · branch `claude/telas-sem-termux` · SHA `0cba5ae` · 
 | # | Item | Estado | Depende |
 |---|---|---|---|
 | L1a | Motor real dentro do Termux (emulador S23) | rodando | - |
-| L1b | Pareamento app→Termux e partida pelo app | espera | T6 |
+| L1b | Pareamento app→Termux (vira passo do passeio COM Termux no T18) | dobrada | T6 |
 | L2 | Cadeia REA no Termux (Node, JDK, JADX, Apktool, rea-agents) | espera | T20 |
-| L3 | Retomada após o Android matar o app | espera | T13, T15 |
-| F | Capturas do design (feitas) + teste que clica em tudo | espera | T17 |
+| L3 | Retomada após o Android matar o app (vira passo do passeio no T18) | dobrada | T13, T15 |
+| F | Capturas do design (feitas) + clicar em tudo (vira o ClickEverythingTest do T17) | dobrada | T17 |
 
 ## Pedidos de processo (branco e preto)
 
@@ -58,6 +58,7 @@ Atualizado 28/10 00:01Z · branch `claude/telas-sem-termux` · SHA `0cba5ae` · 
 | branco | Hook novo para o agy (hooks e settings são do dono) | aguarda o dono | já existe delegar.ps1 + guarda; criar hook novo muda configuração do dono e pede o OK dele no chat |
 | preto | Tarefas longas L1–L3 em segundo plano, lotes A–F em paralelo | em andamento | L1a rodando; L1b, L2, L3 esperam T6, T20, T13/T15 |
 | preto | Menos teste repetido: um teste JVM que clica em tudo; teste só do que mudou | em uso | regra nos briefs; ClickEverythingTest na T17 |
+| dono | Simplicidade total: tarefas curtas, economia e otimização (28/10) | em uso | common-simples.md enviado a 15 agentes (código mínimo, ~8 testes, sem esperar a CI do RED, prazo 15 min); revisão por subagente só em dados/permissões/motor; L1b, L3 e F dobradas em T17/T18 |
 
 ## Provas
 
@@ -67,15 +68,15 @@ Atualizado 28/10 00:01Z · branch `claude/telas-sem-termux` · SHA `0cba5ae` · 
 | P2 | Toda rota abre offline | pendente |
 | P3 | Nenhum botão morto | pendente |
 | P4 | Grafo completo, pending vazio | pendente |
-| P5 | Manifesto sem risco | parcial (teste local verde; falta CI e revisão) |
-| P6 | Fila offline: cada pedido uma vez | parcial (OfflineFirstGatewayTest verde local; falta CI) |
+| P5 | Manifesto sem risco | parcial (teste local e CI verdes no cf3ebdb; falta a revisão da T2) |
+| P6 | Fila offline: cada pedido uma vez | parcial (OfflineFirstGatewayTest verde local e na CI (cf3ebdb); falta a revisão da T1) |
 | P7 | v6 instala por cima do v5 | pendente |
 | P8 | Passeio SEM Termux | pendente |
 | P9 | Passeio COM Termux | pendente |
 | P10 | Multimídia por ADB | pendente |
 | P11 | Fidelidade 40 telas | pendente |
 | P12 | Leve: tamanho, partida, memória | pendente |
-| P13 | Motor no Linux (CI) | pendente |
+| P13 | Motor no Linux (CI) | pendente (Engine contract CI verde (py3.12 e 3.14) no cf3ebdb; falta a suíte inteira comparada com T20) |
 | P14 | Cobertura 66/66 | pendente |
 | P15 | Cadeia REA no Termux | pendente |
 
@@ -88,5 +89,5 @@ Atualizado 28/10 00:01Z · branch `claude/telas-sem-termux` · SHA `0cba5ae` · 
 
 **23:14Z–00:00Z**
 - Feito: T1, T2, T3 implementadas e mescladas localmente (0cba5ae); lote 2 (T9, T10, T12a, T14, T16, T20) despachado 23:43Z; T4, T5 e L1a despachadas 23:53–23:54Z; 1ª delegação ao agy
-- Provado: testes locais: T1 71/71, T2 25/25, T3 131 (mesmas falhas do Windows); a CI ainda não rodou nos merges
-- Próximo: revisores de T1, T2, T3; push; CI verde
+- Provado: testes locais: T1 71/71, T2 25/25, T3 131 (mesmas falhas do Windows); CI do cf3ebdb VERDE: android-ci 40606139883 e 40606136046, Engine contract CI 40606139873 e 40606136105, design-coverage 40606139870
+- Próximo: revisões de T1 e T2; correções Minor da T3; lote 3 (T6, T7, T8, T11, T13) rodando
