@@ -68,22 +68,31 @@ class DesignCoverageGateTest(unittest.TestCase):
             screens.mkdir(parents=True)
             report_dir = root / "docs/design/evidence"
             report_dir.mkdir()
-            report = report_dir / "FN-10.md"
-            report.write_text(
-                "Dispositivo: fixture-sintetico\n"
-                "Procedimento: procedimento-fixture\n"
-                "Resultado: sucesso-sintetico\n"
-                "Registro: id-fixture\n", encoding="utf-8")
+            device_ids = {
+                "UI-05", "UI-06", "UI-08", "UI-09", "UI-14",
+                "UI-15", "UI-16", "UI-35", "UI-43", "UI-44",
+                "FN-01", "FN-02", "FN-10", "FN-11", "FN-13",
+                "FN-15", "FN-16", "FN-18", "FN-20",
+            }
+            for ident in device_ids:
+                (report_dir / f"{ident}.md").write_text(
+                    "Dispositivo: fixture-sintetico\n"
+                    "Procedimento: procedimento-fixture\n"
+                    "Resultado: sucesso-sintetico\n"
+                    "Registro: id-fixture\n", encoding="utf-8")
             job = "https://github.com/viluadmcontas2-dot/AURA-AI/actions/runs/123/job/456"
             rows = ["| ID | Tela/Função | Status | Evidência |",
                     "|---|---|---|---|"]
             for i in range(1, 46):
                 name = f"Screen-{i:02d}.dc.html"
                 (screens / name).write_text("fixture", encoding="utf-8")
-                rows.append(f"| UI-{i:02d} | `{name}` | feito | {job} |")
+                ident = f"UI-{i:02d}"
+                evidence = f"docs/design/evidence/{ident}.md" if ident in device_ids else job
+                rows.append(f"| {ident} | `{name}` | feito | {evidence} |")
             for i in range(1, 22):
-                evidence = "docs/design/evidence/FN-10.md" if i == 10 else job
-                rows.append(f"| FN-{i:02d} | Função {i} | feito | {evidence} |")
+                ident = f"FN-{i:02d}"
+                evidence = f"docs/design/evidence/{ident}.md" if ident in device_ids else job
+                rows.append(f"| {ident} | Função {i} | feito | {evidence} |")
             (root / "docs/design/COBERTURA.md").write_text("\n".join(rows), encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(root / "scripts/check_design_coverage.py"), "--release"],
