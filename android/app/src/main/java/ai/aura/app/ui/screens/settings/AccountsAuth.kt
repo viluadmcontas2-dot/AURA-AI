@@ -84,6 +84,9 @@ internal class AccountsAuthState(
     var notice by mutableStateOf<SettingsNotice?>(null); private set
     var copied by mutableStateOf(false)
 
+    /** Conta cujo programa está sendo instalado (do toque em Instalar até o resultado). Impede o toque duplo. */
+    var installing by mutableStateOf<String?>(null); private set
+
     fun statusOf(provider: String): AuthStatus? = statuses.firstOrNull { it.provider == provider }
 
     suspend fun refresh() {
@@ -112,9 +115,12 @@ internal class AccountsAuthState(
             return
         }
         if (e.type == "tool.install") {
-            val state = e.payload["state"]
-            if (state == "aguardando_wifi") notice = SettingsNotice(true, "Aguardando Wi-Fi. Conecte ao Wi-Fi e eu continuo de onde parei.")
-            else if (state == "concluido" || state == "instalado" || state == "failed" || state == "falhou") refresh()
+            // O motor diz installing | ready | failed | waiting_wifi; os nomes em português vêm de motores antigos.
+            when (e.payload["state"]) {
+                "aguardando_wifi", "waiting_wifi" ->
+                    notice = SettingsNotice(true, "Aguardando Wi-Fi. Conecte ao Wi-Fi e eu continuo de onde parei.")
+                "ready", "concluido", "instalado", "failed", "falhou" -> refresh()
+            }
             return
         }
         val p = e.payload["provider"]?.let { if (it == "google") "gdrive" else it } ?: return
@@ -179,15 +185,21 @@ internal class AccountsAuthState(
     }
 
     fun install(provider: String) {
-        notice = null
+        if (installing != null) return // toque duplo: já tem uma instalação em andamento
+        installing = provider
+        val label = providerLabel(provider)
+        notice = SettingsNotice(true, "Instalando $label. Pode levar alguns minutos; pode sair desta tela.")
         scope.launch {
-            val label = providerLabel(provider)
-            notice = when (val r = runCatchingNotCancelled { gateway.installTool(provider) }) {
-                is ToolActionResult.Ok -> SettingsNotice(true, "$label: ${r.message}")
-                is ToolActionResult.Failed -> SettingsNotice(false, "${r.reason} ${r.fix}")
-                null -> SettingsNotice(false, ENGINE_DOWN_HINT)
+            try {
+                notice = when (val r = runCatchingNotCancelled { gateway.installTool(provider) }) {
+                    is ToolActionResult.Ok -> SettingsNotice(true, "$label: ${r.message}")
+                    is ToolActionResult.Failed -> SettingsNotice(false, "${r.reason} ${r.fix}")
+                    null -> SettingsNotice(false, ENGINE_DOWN_HINT)
+                }
+                refresh()
+            } finally {
+                installing = null
             }
-            refresh()
         }
     }
 
@@ -295,7 +307,7 @@ internal fun AccountsList(auth: AccountsAuthState) {
         auth.statuses.forEachIndexed { i, st ->
             if (i > 0) RowDivider()
             AccountRow(
-                st = st, busy = auth.starting != null,
+                st = st, busy = auth.starting != null || auth.installing != null,
                 onConnect = { auth.connect(st.provider) }, onInstall = { auth.install(st.provider) },
             )
         }

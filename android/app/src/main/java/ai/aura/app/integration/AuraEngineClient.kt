@@ -92,7 +92,7 @@ class AuraEngineClient(
         request("/v1/route", "POST", JSONObject().put("text", text).put("workspace", workspace))
     override suspend fun submit(command: JSONObject, requestId: String): JSONObject =
         request("/v1/jobs", "POST", JSONObject().put("request_id", requestId).put("request", command))
-    suspend fun job(id: String) = request("/v1/jobs/" + segment(id))
+    override suspend fun job(id: String) = request("/v1/jobs/" + segment(id))
     override suspend fun approve(id: String) = request("/v1/jobs/" + segment(id) + "/approve", "POST")
     override suspend fun cancel(id: String) = request("/v1/jobs/" + segment(id) + "/cancel", "POST")
     /** Login contract: state only; tokens/cookies never cross this boundary. */

@@ -64,7 +64,9 @@ import ai.aura.app.ui.theme.AuraTheme
 import ai.aura.app.ui.theme.AuraType
 
 /** Linha que o usuário cola no Termux (passo 3 do Termux). */
-const val TERMUX_ALLOW_EXTERNAL_COMMAND = "echo \"allow-external-apps=true\" >> ~/.termux/termux.properties"
+const val TERMUX_ALLOW_EXTERNAL_COMMAND =
+    "mkdir -p ~/.termux && (grep -qs '^allow-external-apps=true' ~/.termux/termux.properties || " +
+        "echo \"allow-external-apps=true\" >> ~/.termux/termux.properties) && termux-reload-settings"
 
 /**
  * Estado verificado do Termux. Quem preenche é a camada de integração (fora desta UI);

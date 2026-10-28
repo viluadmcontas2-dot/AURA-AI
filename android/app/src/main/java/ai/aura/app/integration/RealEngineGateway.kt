@@ -59,6 +59,10 @@ class RealEngineGateway(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** Espera entre duas leituras de GET /v1/chat/{id} enquanto o motor responde. */
     private val chatPollMillis: Long = 400L,
+    /** Espera entre duas leituras de GET /v1/jobs/{id} enquanto uma CLI é instalada. */
+    private val installPollMillis: Long = 2_000L,
+    /** Quanto tempo o app acompanha uma instalação antes de mandar olhar a Atividade. */
+    private val installWaitMillis: Long = 15 * 60_000L,
 ) : EngineGateway {
     // Só os últimos MAX_ROUTED comandos interpretados ficam guardados; o mais velho sai primeiro.
     private val routedRequests = Collections.synchronizedMap(object : LinkedHashMap<String, String>() {
@@ -285,6 +289,48 @@ class RealEngineGateway(
     /** Ids do app -> ids do contrato de /v1/tools/install. */
     private fun toolId(provider: String) = when (provider) { "github" -> "gh"; "gdrive" -> "rclone"; else -> provider }
 
+    /** Segue o job de instalação até um estado final; erro passageiro de leitura não derruba o acompanhamento. */
+    private suspend fun followInstall(jobId: String): ToolActionResult {
+        var waited = 0L
+        var failures = 0
+        while (waited <= installWaitMillis) {
+            val job = try {
+                client.job(jobId).also { failures = 0 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (++failures >= 3) return ToolActionResult.Failed(
+                    "Perdi a conexão com o motor durante a instalação.",
+                    "Abra o Termux e toque em Instalar de novo.",
+                )
+                null
+            }
+            if (job != null) {
+                val result = job.optJSONObject("result")
+                when (job.optString("status")) {
+                    "completed" -> return when {
+                        result?.optString("state") == "waiting_wifi" -> ToolActionResult.Failed(
+                            "Estou em dados móveis e esperei o Wi-Fi.", "Conecte ao Wi-Fi e toque em Instalar de novo.",
+                        )
+                        result?.optBoolean("already_installed") == true -> ToolActionResult.Ok("Já estava instalado.")
+                        else -> ToolActionResult.Ok("Instalado. Agora toque em Conectar.")
+                    }
+                    "failed" -> return ToolActionResult.Failed(
+                        "Não consegui instalar este programa.", "Confira a internet e toque em Instalar de novo.",
+                    )
+                    "cancelled", "interrupted" -> return ToolActionResult.Failed(
+                        "A instalação foi interrompida.", "Toque em Instalar para tentar de novo.",
+                    )
+                }
+            }
+            delay(installPollMillis)
+            waited += installPollMillis
+        }
+        return ToolActionResult.Failed(
+            "A instalação está demorando mais que o normal.", "Veja o andamento na aba Atividade ou toque em Instalar de novo.",
+        )
+    }
+
     private fun toolFailure(e: Exception, doing: String): ToolActionResult.Failed = when {
         e is AuraEngineException && e.code == "indisponivel_no_termux" -> ToolActionResult.Failed(
             "Este programa não instala no Termux.",
@@ -302,16 +348,22 @@ class RealEngineGateway(
         else -> ToolActionResult.Failed("Não foi possível $doing.", "Tente de novo.")
     }
 
+    /**
+     * POST /v1/tools/install devolve 202 + job: o app acompanha o job até o fim e devolve o resultado em
+     * português (instalado, sem Wi-Fi ou falhou), em vez de mandar a pessoa procurar na Atividade.
+     */
     override suspend fun installTool(provider: String): ToolActionResult = try {
         val r = client.installTool(toolId(provider))
         val notices = r.optJSONArray("download_notices")?.length() ?: 0
-        ToolActionResult.Ok(
-            when {
-                r.optBoolean("already_installed") -> "Já estava instalado."
-                notices > 0 -> "Instalando. Há download grande (mais de 100 MB): prefira o Wi-Fi. Acompanhe em Atividade."
-                else -> "Instalando. Acompanhe em Atividade."
-            },
-        )
+        val jobId = r.text("id")
+        when {
+            r.optBoolean("already_installed") -> ToolActionResult.Ok("Já estava instalado.")
+            jobId == null -> ToolActionResult.Ok(
+                if (notices > 0) "Instalando. Há download grande (mais de 100 MB): prefira o Wi-Fi. Acompanhe em Atividade."
+                else "Instalando. Acompanhe em Atividade.",
+            )
+            else -> followInstall(jobId)
+        }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
