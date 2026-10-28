@@ -41,6 +41,9 @@ class TraceabilityGateTest(unittest.TestCase):
         bad["requirements"][0]["status"] = "implementado e comprovado por Actions"
         self.assert_gate(bad, 1)
 
+    def test_manifest_list_is_rejected_without_crash(self):
+        self.assert_gate([], 1)
+
     def test_device_requires_reason(self):
         bad = copy.deepcopy(self.good)
         bad["requirements"][-1]["reason"] = ""
