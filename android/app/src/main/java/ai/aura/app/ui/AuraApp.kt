@@ -31,8 +31,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -61,35 +64,42 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ai.aura.app.offline.LinkState
+import ai.aura.app.offline.OfflineReason
+import ai.aura.app.ui.components.EngineBanner
 import ai.aura.app.ui.components.auraFocusRing
 import ai.aura.app.ui.engine.AuthState
 import ai.aura.app.ui.engine.AuthStartResult
 import ai.aura.app.ui.engine.EngineGateway
 import ai.aura.app.ui.engine.FakeEngineGateway
-import ai.aura.app.ui.screens.ActivityScreen
-import ai.aura.app.ui.screens.DevicesScreen
-import ai.aura.app.ui.screens.HomeScreen
-import ai.aura.app.ui.screens.ProjectsScreen
+import ai.aura.app.ui.nav.ROUTES
+import ai.aura.app.ui.nav.ScreenEnv
+import ai.aura.app.ui.nav.popRoute
+import ai.aura.app.ui.nav.pushRoute
+import ai.aura.app.ui.nav.tabStack
 import ai.aura.app.ui.screens.onboarding.AccountId
 import ai.aura.app.ui.screens.onboarding.AccountState
 import ai.aura.app.ui.screens.onboarding.OnboardingFlow
 import ai.aura.app.ui.screens.onboarding.TermuxSetupState
 import ai.aura.app.ui.screens.onboarding.termuxSetupFrom
 import ai.aura.app.ui.screens.onboarding.defaultAccounts
-import ai.aura.app.ui.screens.settings.SettingsScreen
 import ai.aura.app.ui.theme.AuraColors
 import ai.aura.app.ui.theme.AuraShapes
 import ai.aura.app.ui.theme.AuraSpacing
 import ai.aura.app.ui.theme.AuraTheme
 import ai.aura.app.ui.theme.AuraType
 
+/** Padrão de [AuraApp] sem motor real ligado: tudo online, sem banner. */
+private val NoLink: StateFlow<LinkState> = MutableStateFlow(LinkState.Online)
+
 enum class AuraTab(val label: String) {
     Home("Início"), Projects("Projetos"), Devices("Dispositivos"), Activity("Atividade"),
 }
 
 /**
- * Shell do app: 4 abas por estado (sem navigation-compose), aba guardada com rememberSaveable.
+ * Shell do app: pilha de rotas por estado (sem navigation-compose; `ui/nav/Routes.kt`), guardada com rememberSaveable.
  * Primeira abertura mostra o OnboardingFlow; Ajustes abre por cima da Home (engrenagem) e volta com Voltar.
+ * [linkState] e [onEngineAction] alimentam o banner global "Motor desligado".
  * A barra inferior some com o teclado e com o chat aberto; o espaço do teclado é vazio de propósito.
  * [onOpenUrl] é ligado pela MainActivity ao navegador (login de contas).
  * Requer enableEdgeToEdge() + windowSoftInputMode=adjustResize na Activity (fora desta pasta).
@@ -109,6 +119,8 @@ fun AuraApp(
     onSaveDraft: (String) -> Unit = {},
     lastCrash: String? = null,
     onDismissCrash: () -> Unit = {},
+    linkState: StateFlow<LinkState> = NoLink,
+    onEngineAction: (OfflineReason) -> Unit = {},
 ) {
     AuraTheme {
         if (lastCrash != null) {
@@ -118,60 +130,50 @@ fun AuraApp(
         // O valor de fora manda; rememberSaveable é só espelho para rotação.
         var onboardingDoneState by rememberSaveable(onboardingDone) { mutableStateOf(onboardingDone) }
         var draft by rememberSaveable(initialDraft) { mutableStateOf(initialDraft) }
-        var showSettings by rememberSaveable { mutableStateOf(false) }
-        var selected by rememberSaveable { mutableIntStateOf(0) }
+        // Pilha de rotas salva como texto ("inicio,ajustes"). Só entram ids com tela; vazio cai no Início.
+        var stackText by rememberSaveable { mutableStateOf("inicio") }
         var chatOpen by remember { mutableStateOf(false) }
         var pendingJobId by rememberSaveable { mutableStateOf<String?>(null) }
-        val tab = AuraTab.entries[selected.coerceIn(0, AuraTab.entries.lastIndex)]
+        val stack = stackText.split(",").filter { id -> ROUTES.any { it.id == id && it.screen != null } }.ifEmpty { listOf("inicio") }
+        val route = ROUTES.first { it.id == stack.last() }
+        val link by linkState.collectAsState()
         val imeVisible = WindowInsets.isImeVisible
-        BackHandler(enabled = showSettings && onboardingDoneState) { showSettings = false }
-        // Voltar numa aba que não é o Início leva ao Início em vez de fechar o app.
-        BackHandler(enabled = onboardingDoneState && !showSettings && selected != AuraTab.Home.ordinal) {
-            selected = AuraTab.Home.ordinal
-        }
+        val go = { next: List<String> -> stackText = next.joinToString(",") }
+        // Voltar desempilha; só na raiz (Início) o sistema fecha o app. Telas com Voltar próprio (chat,
+        // etapas, Ajustes > Contas) vencem por serem compostas depois.
+        BackHandler(enabled = onboardingDoneState && stack.size > 1) { popRoute(stack)?.let(go) }
+        val env = ScreenEnv(
+            gateway = gateway,
+            open = { go(pushRoute(stack, it)) },
+            openTab = { go(tabStack(it)) },
+            back = { popRoute(stack)?.let(go) },
+            onOpenUrl = onOpenUrl,
+            onChatOpenChange = { chatOpen = it },
+            openJobId = pendingJobId,
+            onOpenJobHandled = { pendingJobId = null },
+            openJob = { id -> pendingJobId = id; go(tabStack(AuraTab.Home)) },
+            draft = draft,
+            onDraftChange = { draft = it; onSaveDraft(it) },
+            onRequestTermuxPermission = onRequestTermuxPermission,
+            onOpenTermux = onOpenTermux,
+            termuxInstalled = termuxInstalled,
+            termuxPermissionGranted = termuxPermissionGranted,
+            onOnboardingFinished = { onboardingDoneState = true; onOnboardingFinished() },
+        )
         Column(
             Modifier
                 .fillMaxSize()
                 .background(AuraColors.Bg)
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
-            if (!onboardingDoneState) {
-                OnboardingHost(
-                    gateway, onOpenUrl,
-                    onRequestTermuxPermission = onRequestTermuxPermission,
-                    onOpenTermux = onOpenTermux,
-                    termuxInstalled = termuxInstalled,
-                    termuxPermissionGranted = termuxPermissionGranted,
-                    onFinished = { onboardingDoneState = true; onOnboardingFinished() },
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-            } else if (showSettings) {
-                SettingsScreen(gateway, onClose = { showSettings = false }, modifier = Modifier.weight(1f).fillMaxWidth(), onOpenUrl = onOpenUrl)
-            } else {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when (tab) {
-                        AuraTab.Home -> HomeScreen(
-                            gateway, Modifier.fillMaxSize(),
-                            onChatOpenChange = { chatOpen = it },
-                            onOpenSettings = { showSettings = true },
-                            openJobId = pendingJobId,
-                            onOpenJobHandled = { pendingJobId = null },
-                            draft = draft,
-                            onDraftChange = { draft = it; onSaveDraft(it) },
-                        )
-                        AuraTab.Projects -> ProjectsScreen(gateway, Modifier.fillMaxSize())
-                        AuraTab.Devices -> DevicesScreen(gateway, Modifier.fillMaxSize())
-                        AuraTab.Activity -> ActivityScreen(
-                            gateway, Modifier.fillMaxSize(),
-                            onStartRequest = { selected = AuraTab.Home.ordinal },
-                            // Reabre a tarefa no chat: HomeScreen restaura por jobId (ChatEntry.jobId).
-                            onOpenJob = { id -> pendingJobId = id; selected = AuraTab.Home.ordinal },
-                        )
-                    }
-                }
-                if (!imeVisible && !(chatOpen && tab == AuraTab.Home)) {
-                    AuraBottomBar(tab, onSelect = { selected = it.ordinal })
-                }
+            // O banner vale para o app inteiro; o onboarding tem o próprio passo do Termux e não leva banner.
+            if (onboardingDoneState) EngineBanner(link, onEngineAction)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                // Sem pilha no onboarding: enquanto não termina, ele é a única tela.
+                (if (onboardingDoneState) route else ROUTES.first { it.id == "onb-boas-vindas" }).screen?.invoke(env)
+            }
+            if (onboardingDoneState && route.tab != null && !imeVisible && !(chatOpen && route.tab == AuraTab.Home)) {
+                AuraBottomBar(route.tab, onSelect = env.openTab)
             }
         }
     }
@@ -183,7 +185,7 @@ fun AuraApp(
  * Os ganchos onRequestTermuxPermission / onOpenTermux vêm da MainActivity (RUN_COMMAND, intent do Termux).
  */
 @Composable
-private fun OnboardingHost(
+internal fun OnboardingHost(
     gateway: EngineGateway,
     onOpenUrl: (String) -> Unit,
     onRequestTermuxPermission: () -> Unit,

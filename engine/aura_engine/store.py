@@ -10,6 +10,10 @@ def packed(x):
     return json.dumps(x, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+MEMORY_KINDS = ("preference", "project", "device", "rule")
+MEMORY_SOURCE_MAX = 60
+
+
 class Store:
     def __init__(self, filename):
         self.lock = threading.RLock()
@@ -17,6 +21,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
+        self.db.execute("PRAGMA secure_delete=ON")  # esquecer zera o texto nas paginas, nao so some da lista
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS jobs(
                 id TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL,
@@ -32,6 +37,7 @@ class Store:
                 id TEXT PRIMARY KEY, seconds INTEGER NOT NULL, request TEXT NOT NULL,
                 next_run REAL NOT NULL, enabled INTEGER NOT NULL);
         """)
+        self._upgrade_memory()
         with self.lock, self.db:
             columns = {r["name"] for r in self.db.execute("PRAGMA table_info(jobs)")}
             if "note" not in columns:
@@ -41,6 +47,24 @@ class Store:
                 (time.time(),)).rowcount
             if changed:
                 self._emit("engine.recovered", {"interrupted": changed})
+
+    def _upgrade_memory(self):
+        """Completa a tabela memory de um motor antigo (sem id, kind, source, created).
+
+        Uma transacao so: ou tudo fica completo, ou a tabela fica como estava. Nenhuma linha se perde.
+        """
+        with self.lock, self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            have = {r["name"] for r in self.db.execute("PRAGMA table_info(memory)")}
+            for name, ddl in (("id", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'preference'"),
+                              ("source", "TEXT NOT NULL DEFAULT 'user'"), ("created", "REAL")):
+                if name not in have:
+                    self.db.execute("ALTER TABLE memory ADD COLUMN %s %s" % (name, ddl))
+            for row in self.db.execute("SELECT rowid FROM memory WHERE id IS NULL").fetchall():
+                self.db.execute("UPDATE memory SET id=? WHERE rowid=?", (str(uuid.uuid4()), row[0]))
+            # so existia a data da ultima gravacao: ela vira a data de criacao
+            self.db.execute("UPDATE memory SET created=updated WHERE created IS NULL")
+            self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS memory_id ON memory(id)")
 
     def close(self):
         with self.lock:
@@ -169,19 +193,53 @@ class Store:
                 self._emit("job.cancelled", {"id": job_id})
             return self.job(job_id)
 
-    def remember(self, workspace, key, value):
+    def remember(self, workspace, key, value, kind=None, source=None):
+        if kind is not None and kind not in MEMORY_KINDS:
+            raise ValueError("invalid memory kind")
+        if source is not None and (not isinstance(source, str) or not source.strip()
+                                   or len(source) > MEMORY_SOURCE_MAX):
+            raise ValueError("invalid memory source")
+        now = time.time()
         with self.lock, self.db:
-            self.db.execute("""INSERT INTO memory(workspace,key,value,updated) VALUES(?,?,?,?)
+            # kind/source omitidos: a lembranca nova recebe o padrao, a que ja existe fica como estava
+            self.db.execute("""INSERT INTO memory(id,workspace,key,value,kind,source,created,updated)
+                VALUES(?,?,?,?,COALESCE(?,'preference'),COALESCE(?,'user'),?,?)
                 ON CONFLICT(workspace,key) DO UPDATE SET value=excluded.value,
-                updated=excluded.updated""", (workspace, key, value, time.time()))
+                kind=COALESCE(?,kind), source=COALESCE(?,source), updated=excluded.updated""",
+                (str(uuid.uuid4()), workspace, key, value, kind, source, now, now, kind, source))
 
     def recall(self, workspace, query=""):
+        """Itens novos (id, kind, text, source, createdAt) mais os campos de antes (key, value, updated)."""
         with self.lock:
-            rows = self.db.execute("""SELECT key,value,updated FROM memory
+            rows = self.db.execute("""SELECT id,kind,source,key,value,updated,
+                COALESCE(created,updated) AS created FROM memory
                 WHERE workspace=? AND (key LIKE ? OR value LIKE ?)
                 ORDER BY updated DESC LIMIT 50""",
                 (workspace, "%" + query + "%", "%" + query + "%")).fetchall()
-            return [dict(r) for r in rows]
+            return [{"id": r["id"], "kind": r["kind"], "text": r["value"], "source": r["source"],
+                     "createdAt": r["created"], "key": r["key"], "value": r["value"],
+                     "updated": r["updated"]} for r in rows]
+
+    def forget(self, memory_id):
+        """Esquece uma lembranca pelo id. False se nao existe (ja esquecida ou id errado)."""
+        with self.lock:
+            with self.db:
+                gone = self.db.execute("DELETE FROM memory WHERE id=?", (memory_id,)).rowcount
+            if gone:  # o log -wal ainda guarda as paginas antigas: o checkpoint as leva ao arquivo e o esvazia
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            return gone > 0
+
+    def forget_all(self, workspace=None):
+        """Esquece tudo (de um workspace, se informado). Devolve quantas lembrancas sairam."""
+        with self.lock:
+            with self.db:
+                if workspace is None:
+                    gone = self.db.execute("DELETE FROM memory").rowcount
+                else:
+                    gone = self.db.execute("DELETE FROM memory WHERE workspace=?", (workspace,)).rowcount
+            if gone:
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            return gone
 
     def usage(self):
         """Summarise reported tokens only; never fabricate monetary costs."""
