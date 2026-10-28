@@ -50,13 +50,13 @@ def tool_summary(name, tool_input):
 def friendly_error(code, kind=None):
     who = NAME.get(kind, "Claude")
     table = {
-        "cli_missing": ("O %s não está instalado neste aparelho." % who, "Instalar o %s em Conexões" % who),
+        "cli_missing": ("O %s ainda não está instalado neste Termux." % who, "Instalar o %s em Conexões" % who),
         "not_logged_in": ("O %s não está conectado à sua conta." % who, "Entrar no %s em Conexões" % who),
         "timeout": ("A resposta demorou demais e foi interrompida.", "Tentar de novo"),
         "network": ("Sem conexão com a internet para responder.", "Verificar a internet e tentar de novo"),
         "stopped": ("Resposta interrompida.", "Enviar de novo"),
         "failed": ("Não consegui responder agora.", "Tentar de novo"),
-        "no_executor": ("Nenhum assistente está instalado neste aparelho.", "Instalar o Claude em Conexões"),
+        "no_executor": ("O Claude ainda não está instalado neste Termux.", "Instalar o Claude em Conexões"),
     }
     msg, act = table.get(code, table["failed"])
     return {"code": code, "message_pt": msg, "action_pt": act}
