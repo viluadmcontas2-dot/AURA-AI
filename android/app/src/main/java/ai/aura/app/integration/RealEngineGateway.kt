@@ -15,6 +15,7 @@ import ai.aura.app.ui.engine.ChatLine
 import ai.aura.app.ui.engine.ChatStarted
 import ai.aura.app.ui.engine.ChatSummary
 import ai.aura.app.ui.engine.ChatUnsupportedException
+import ai.aura.app.ui.engine.ImproveResult
 import ai.aura.app.ui.engine.IntentOption
 import ai.aura.app.ui.engine.IntentResult
 import ai.aura.app.ui.engine.EngineEvent
@@ -31,7 +32,11 @@ import ai.aura.app.ui.engine.ModelsDoc
 import ai.aura.app.ui.engine.ModelsResult
 import ai.aura.app.ui.engine.PolicyDoc
 import ai.aura.app.ui.engine.PolicyResult
+import ai.aura.app.ui.engine.ProcessInfo
 import ai.aura.app.ui.engine.RouteResult
+import ai.aura.app.ui.engine.SessionInfo
+import ai.aura.app.ui.engine.SessionLine
+import ai.aura.app.ui.engine.SessionLineRole
 import ai.aura.app.ui.engine.SkillInfo
 import ai.aura.app.ui.engine.SpendResult
 import kotlinx.coroutines.CancellationException
@@ -562,6 +567,133 @@ class RealEngineGateway(
         }
         return ChatFailure(c, message ?: fallback, action)
     }
+
+    // ---- Sessões do Claude Code, processos, melhorar pedido e chave do Gemini ----------------
+
+    /**
+     * Como [call], para as rotas deste bloco: o motor recusar com um código (404 de sessão que sumiu, 400)
+     * é a resposta e a mensagem dele chega à tela; sem motor, ou motor sem a rota, vira indisponível.
+     */
+    private suspend fun <T> engineCall(what: String, block: suspend () -> T): EngineResult<T> = try {
+        EngineResult.Ok(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: AuraEngineException) {
+        val code = e.code
+        if (code != null && e.httpStatus in 400..499 && e.httpStatus != 401) {
+            EngineResult.Rejected(code, e.message ?: "O motor recusou o pedido.")
+        } else {
+            EngineResult.Unavailable(reasonFor(e, what))
+        }
+    } catch (e: Exception) {
+        EngineResult.Unavailable(reasonFor(e, what))
+    }
+
+    override suspend fun sessions(): EngineResult<List<SessionInfo>> = engineCall("as sessões") {
+        val raw = client.sessions()
+        val array = raw.optJSONArray("sessions") ?: raw.optJSONArray("items") ?: JSONArray()
+        array.mapObjects { sessionFrom(it) }
+    }
+
+    private fun sessionFrom(o: JSONObject): SessionInfo {
+        val id = o.getString("id")
+        require(id.isNotBlank())
+        return SessionInfo(
+            id = id,
+            title = o.text("title") ?: "Conversa sem título",
+            project = o.text("project").orEmpty(),
+            updatedAtMillis = (o.optDouble("updated_at", 0.0) * 1000).toLong(), // o motor manda segundos
+            messages = o.optInt("messages", 0),
+            fromTerminal = o.optString("source") == "terminal",
+            running = o.optBoolean("running", false),
+        )
+    }
+
+    override suspend fun sessionMessages(id: String): EngineResult<List<SessionLine>> = engineCall("a conversa") {
+        val raw = client.sessionMessages(id)
+        val array = raw.optJSONArray("messages") ?: raw.optJSONArray("items") ?: JSONArray()
+        array.mapObjects {
+            val role = when (it.optString("role")) {
+                "user", "human" -> SessionLineRole.User
+                "assistant" -> SessionLineRole.Assistant
+                "tool" -> SessionLineRole.Tool
+                else -> error("papel desconhecido")
+            }
+            SessionLine(role, it.text("text") ?: error("linha vazia"))
+        }
+    }
+
+    override suspend fun renameSession(id: String, title: String): EngineResult<Unit> =
+        engineCall("renomear a sessão") { client.renameSession(id, title.trim()); Unit }
+
+    override suspend fun hideSession(id: String): EngineResult<Unit> =
+        engineCall("esconder a sessão") { client.deleteSession(id); Unit }
+
+    override suspend fun stopSession(id: String): EngineResult<Unit> =
+        engineCall("parar a sessão") { client.stopSession(id); Unit }
+
+    override suspend fun processes(): EngineResult<List<ProcessInfo>> = engineCall("os processos") {
+        val raw = client.processes()
+        val array = raw.optJSONArray("processes") ?: raw.optJSONArray("items") ?: JSONArray()
+        array.mapObjects {
+            ProcessInfo(
+                pid = it.getLong("pid"),
+                kind = it.text("kind") ?: "claude",
+                sessionId = it.text("session_id"),
+                startedAtMillis = if (it.isNull("started_at")) null else (it.optDouble("started_at") * 1000).toLong(),
+            )
+        }
+    }
+
+    override suspend fun stopProcess(pid: Long): EngineResult<Unit> =
+        engineCall("parar o processo") { client.stopProcess(pid); Unit }
+
+    override suspend fun improvePrompt(text: String): ImproveResult = try {
+        val improved = client.improvePrompt(text).text("improved")
+        if (improved == null) {
+            ImproveResult.Failed("empty", "O Gemini não devolveu um pedido melhor. Tente de novo.", ChatAction.Retry)
+        } else {
+            ImproveResult.Improved(improved)
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: AuraEngineException) {
+        improveFailure(e)
+    } catch (e: java.io.IOException) {
+        ImproveResult.Failed("engine_down", "O motor está desligado. Inicie o motor e toque em Tentar de novo.", ChatAction.Retry)
+    } catch (e: Exception) {
+        ImproveResult.Failed("failed", "Não consegui melhorar o pedido agora.", ChatAction.Retry)
+    }
+
+    private fun improveFailure(e: AuraEngineException): ImproveResult.Failed = when {
+        e.code == "gemini_key_missing" -> ImproveResult.Failed(
+            "gemini_key_missing", "Cole a chave do Gemini em Conexões para melhorar pedidos.", ChatAction.OpenConnections,
+        )
+        e.code == "gemini_key_rejected" -> ImproveResult.Failed(
+            "gemini_key_rejected", "O Gemini não aceitou a chave. Cole uma chave nova em Conexões.", ChatAction.OpenConnections,
+        )
+        e.httpStatus == 401 -> ImproveResult.Failed(
+            "no_token", "O AURA ainda não está conectado ao Termux. Abra Conexões.", ChatAction.OpenConnections,
+        )
+        notExposed(e) && e.code == null -> ImproveResult.Failed(
+            "unsupported", "Este motor ainda não melhora pedidos. Atualize o AURA no Termux.", null,
+        )
+        else -> ImproveResult.Failed(
+            e.code ?: "failed",
+            e.message?.takeIf { it.isNotBlank() && !it.startsWith("AURA Engine HTTP") } ?: "Não consegui melhorar o pedido agora.",
+            ChatAction.Retry,
+        )
+    }
+
+    override suspend fun geminiKeyConfigured(): EngineResult<Boolean> =
+        engineCall("a chave do Gemini") { client.geminiKey().optBoolean("configured", false) }
+
+    /** A chave só passa daqui para o motor: nunca vai a log, evento nem mensagem de erro. */
+    override suspend fun saveGeminiKey(key: String): EngineResult<Unit> =
+        engineCall("a chave do Gemini") { client.putGeminiKey(key.trim()); Unit }
+
+    override suspend fun removeGeminiKey(): EngineResult<Unit> =
+        engineCall("a chave do Gemini") { client.deleteGeminiKey(); Unit }
 
     // ---- Memória, skills, saúde e uso ----------------------------------------------------
 

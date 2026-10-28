@@ -41,17 +41,20 @@ data class ChatEntry(
     }
 }
 
-data class ChatMessage(val id: Int, val fromUser: Boolean, val text: String)
+/** [tool]: linha discreta de ferramenta vinda do histórico de uma sessão ("Lendo arquivos…"), sem balão. */
+data class ChatMessage(val id: Int, val fromUser: Boolean, val text: String, val tool: Boolean = false)
 
 /** Histórico do chat no disco (FN-12): volta ao reabrir a conversa, mesmo sem motor. */
 internal fun LocalStore.loadChat(): List<ChatMessage> = readList("chat-history") { o ->
-    ChatMessage(o.optInt("id", -1), o.optBoolean("fromUser", false), o.optString("text", ""))
+    ChatMessage(o.optInt("id", -1), o.optBoolean("fromUser", false), o.optString("text", ""), o.optBoolean("tool", false))
         .takeIf { it.id >= 0 && it.text.isNotEmpty() }
 }
 
 internal fun LocalStore.saveChat(messages: List<ChatMessage>) = writeList(
     "chat-history",
-    messages.takeLast(200).map { JSONObject().put("id", it.id).put("fromUser", it.fromUser).put("text", it.text) },
+    messages.takeLast(200).map {
+        JSONObject().put("id", it.id).put("fromUser", it.fromUser).put("text", it.text).also { o -> if (it.tool) o.put("tool", true) }
+    },
 )
 
 internal fun LocalStore.loadSessionId(): String = read("chat-session")?.optString("session_id").orEmpty()
@@ -76,7 +79,7 @@ class LiveReply(val text: String, val tools: List<ToolMark>) {
 }
 
 /** Para onde um comando "/" leva dentro do app. */
-enum class AppTarget { Projects, Reform, Connections, Settings, Activity, Voice, Devices }
+enum class AppTarget { Projects, Reform, Connections, Settings, Activity, Voice, Devices, Sessions }
 
 class ChatCommand(val name: String, val description: String, val target: AppTarget, val opened: String)
 
@@ -89,6 +92,7 @@ object ChatCommands {
         ChatCommand("/ajustes", "Mudar como o AURA trabalha", AppTarget.Settings, "Abri Ajustes."),
         ChatCommand("/atividade", "Ver o que está rodando", AppTarget.Activity, "Abri Atividade."),
         ChatCommand("/aparelho", "TV, celular ou multimídia", AppTarget.Devices, "Abri Dispositivos."),
+        ChatCommand("/sessoes", "Conversas do Claude Code", AppTarget.Sessions, "Abri Sessões."),
         ChatCommand("/voz", "Falar em vez de digitar", AppTarget.Voice, "Abri a voz."),
     )
 

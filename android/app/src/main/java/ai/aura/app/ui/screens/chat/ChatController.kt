@@ -8,7 +8,9 @@ import ai.aura.app.ui.engine.ChatAction
 import ai.aura.app.ui.engine.ChatEvent
 import ai.aura.app.ui.engine.ChatUnsupportedException
 import ai.aura.app.ui.engine.EngineGateway
+import ai.aura.app.ui.engine.EngineResult
 import ai.aura.app.ui.engine.JobStatus
+import ai.aura.app.ui.engine.SessionLineRole
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +61,8 @@ class ChatController(
     private var streamJob: kotlinx.coroutines.Job? = null
     private var waiter: kotlinx.coroutines.Job? = null
     private var resending = false
+    /** Aberta pela tela Sessões: o histórico vem do motor, nunca do disco (que é de outra conversa). */
+    private var openedSession = false
     // Uma fila só para o disco: as gravações saem na ordem em que foram pedidas e sobrevivem a sair da tela.
     private val disk = java.util.concurrent.ThreadPoolExecutor(
         0, 1, 5, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(),
@@ -150,8 +154,16 @@ class ChatController(
         respond(text)
     }
 
-    /** O motor voltou (o aviso global ficou verde): manda o que estava guardado. */
-    fun engineBack() = resendNow()
+    /** O motor voltou (o aviso global ficou verde): manda o que estava guardado e, se faltou, carrega a sessão. */
+    fun engineBack() {
+        resendNow()
+        if (openedSession && messages.isEmpty() && live == null && pendingText.isEmpty() && notice?.action == ChatAction.StartEngine) {
+            scope.launch {
+                syncFromEngine()
+                if (messages.isNotEmpty() && notice?.action == ChatAction.StartEngine) notice = null
+            }
+        }
+    }
 
     /** Começa uma conversa nova: some o histórico daqui, o motor guarda o antigo. */
     fun newConversation() {
@@ -296,8 +308,19 @@ class ChatController(
     // ---- disco e motor ------------------------------------------------------------------
 
     private suspend fun restoreLocal() {
-        val s = store ?: return
+        val s = store
+        if (s == null) {
+            openedSession = sessionId.isNotEmpty()
+            return
+        }
         val saved = withContext(Dispatchers.IO) { Triple(s.loadChat(), s.loadSessionId(), s.loadPending()) }
+        if (sessionId.isNotEmpty() && saved.second != sessionId) {
+            // Sessão escolhida na tela Sessões: o disco guarda outra conversa. Troca a guardada para esta.
+            openedSession = true
+            persistSession()
+            persistMessages()
+            return
+        }
         if (messages.isEmpty() && saved.first.isNotEmpty()) {
             messages = saved.first
             nextMessageId = saved.first.maxOf { it.id } + 1
@@ -311,17 +334,31 @@ class ChatController(
         try {
             val id = sessionId.ifEmpty { if (messages.isEmpty()) gateway.chats().firstOrNull()?.id.orEmpty() else "" }
             if (id.isEmpty()) return
-            val lines = gateway.chatMessages(id)
+            val lines = historyOf(id)
             if (lines.isEmpty() || live != null || pendingText.isNotEmpty()) return
-            messages = lines.mapIndexed { i, l -> ChatMessage(i, l.fromUser, l.text) }
+            messages = lines
             nextMessageId = lines.size
             if (sessionId.isEmpty()) adoptSession(id)
             persistMessages()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // Sem motor: fica o que está no disco.
+            // Sem motor: fica o que está no disco. Numa sessão escolhida não há nada no disco: avisa e oferece ligar.
+            if (openedSession && messages.isEmpty() && live == null && notice == null) {
+                notice = ChatNotice("O motor está desligado. A conversa aparece quando ele ligar.", ChatAction.StartEngine)
+            }
         }
+    }
+
+    /** A sessão traz também as linhas de ferramenta; se o motor não expõe a rota, vale o histórico de chats. */
+    private suspend fun historyOf(id: String): List<ChatMessage> {
+        val fromSession = (gateway.sessionMessages(id) as? EngineResult.Ok)?.value.orEmpty()
+        if (fromSession.isNotEmpty()) {
+            return fromSession.mapIndexed { i, l ->
+                ChatMessage(i, l.role == SessionLineRole.User, l.text, tool = l.role == SessionLineRole.Tool)
+            }
+        }
+        return gateway.chatMessages(id).mapIndexed { i, l -> ChatMessage(i, l.fromUser, l.text) }
     }
 
     /** Resumo de um trabalho da Atividade, em texto. O andamento fica na aba Atividade. */

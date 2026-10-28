@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -62,6 +63,8 @@ internal fun ChatHeader(
     modifier: Modifier = Modifier,
     /** Nulo = sem o botão (conversa em branco). */
     onNew: (() -> Unit)? = null,
+    /** Abre a tela Sessões (as conversas do Claude Code); nulo = sem o botão. */
+    onSessions: (() -> Unit)? = null,
 ) {
     Row(
         modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 8.dp, end = 12.dp),
@@ -79,6 +82,7 @@ internal fun ChatHeader(
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
+        if (onSessions != null) AuraButtonText("Sessões", onSessions)
         if (onNew != null) AuraButtonText("Nova conversa", onNew)
     }
 }
@@ -87,7 +91,15 @@ internal fun ChatHeader(
 
 @Composable
 internal fun MessageBubble(message: ChatMessage, modifier: Modifier = Modifier) {
-    if (message.fromUser) {
+    if (message.tool) {
+        // Histórico de uma sessão: o que o AURA fez entre as respostas, em uma linha discreta e sem balão.
+        Text(
+            message.text,
+            style = AuraType.SecondarySmall.copy(color = AuraColors.Ink3),
+            modifier = modifier.fillMaxWidth().padding(horizontal = 4.dp)
+                .semantics { contentDescription = "AURA usou uma ferramenta: ${message.text}" },
+        )
+    } else if (message.fromUser) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             Text(
                 message.text,
@@ -115,49 +127,77 @@ internal fun MessageBubble(message: ChatMessage, modifier: Modifier = Modifier) 
     }
 }
 
-/** Três pontinhos: o AURA está escrevendo. Parados quando o aparelho pede menos movimento. */
+/** Ponto que pulsa enquanto o AURA trabalha. Parado quando o aparelho pede menos movimento. */
 @Composable
-internal fun TypingBubble(modifier: Modifier = Modifier) {
+internal fun ResponseIndicator(modifier: Modifier = Modifier) {
     val reduced = rememberReducedMotion()
-    val transition = rememberInfiniteTransition(label = "typing")
+    val transition = rememberInfiniteTransition(label = "resposta")
     val pulse by transition.animateFloat(
-        0.35f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dots",
+        0.35f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "ponto",
     )
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-        Row(
-            Modifier.clip(AuraShape).background(AuraColors.Surface).border(1.dp, AuraColors.Line, AuraShape)
-                .padding(horizontal = 18.dp, vertical = 16.dp)
-                .semantics { contentDescription = "AURA está escrevendo"; liveRegion = LiveRegionMode.Polite },
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            repeat(3) { i ->
-                val a = if (reduced) 0.7f else if (i == 1) 1.35f - pulse else pulse
-                Box(Modifier.size(8.dp).alpha(a.coerceIn(0.2f, 1f)).clip(AuraShapes.Circle).background(AuraColors.Ink2))
-            }
-        }
+    Box(
+        modifier.testTag("indicador-resposta").size(10.dp).alpha(if (reduced) 0.8f else pulse)
+            .clip(AuraShapes.Circle).background(AuraColors.Ink2).clearAndSetSemantics { },
+    )
+}
+
+/** Linha de estado, sem balão: "Pensando…" entre o envio e a primeira palavra (e a frase da ferramenta, depois). */
+@Composable
+internal fun ThinkingLine(label: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 32.dp).padding(horizontal = 4.dp)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ResponseIndicator()
+        Text(label, style = AuraType.Secondary.copy(color = AuraColors.Ink2))
     }
 }
 
-/** Resposta que chega aos poucos: o texto cresce e as linhas de ferramenta ficam entre os trechos. */
+@Composable
+private fun ToolLine(text: String, busy: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier.semantics(mergeDescendants = true) {
+            contentDescription = "AURA está usando uma ferramenta: $text"
+            if (busy) liveRegion = LiveRegionMode.Polite
+        },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (busy) ResponseIndicator()
+        Text(text, style = AuraType.SecondarySmall.copy(color = AuraColors.Ink3))
+    }
+}
+
+/**
+ * Resposta que chega aos poucos, estilo Claude no celular: "Pensando…" até a primeira palavra; frases de
+ * ferramenta ("Lendo arquivos…") entre os trechos; o indicador só fica enquanto a última linha é uma ferramenta,
+ * então some quando o texto começa a crescer. Ao terminar, nada de aviso: sobra a resposta.
+ */
 @Composable
 internal fun LiveBubble(live: LiveReply, modifier: Modifier = Modifier) {
     val parts = remember(live.text, live.tools.size) { liveParts(live) }
+    if (parts.isEmpty()) {
+        ThinkingLine("Pensando…", modifier)
+        return
+    }
+    val busy = parts.last().tool
+    if (live.text.isBlank()) {
+        Column(modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            parts.forEachIndexed { i, part -> ToolLine(part.text, busy = busy && i == parts.lastIndex) }
+        }
+        return
+    }
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
         Column(
             Modifier.widthIn(max = 326.dp).clip(AuraShape).background(AuraColors.Surface)
                 .border(1.dp, AuraColors.Line, AuraShape).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            parts.forEach { part ->
-                if (part.tool) {
-                    Text(
-                        part.text,
-                        style = AuraType.SecondarySmall.copy(color = AuraColors.Ink3),
-                        modifier = Modifier.semantics { contentDescription = "AURA está usando uma ferramenta: ${part.text}" },
-                    )
-                } else {
-                    Text(part.text, style = AuraType.Body.copy(lineHeight = 23.sp))
-                }
+            parts.forEachIndexed { i, part ->
+                if (part.tool) ToolLine(part.text, busy = busy && i == parts.lastIndex)
+                else Text(part.text, style = AuraType.Body.copy(lineHeight = 23.sp))
             }
         }
     }
@@ -265,7 +305,7 @@ private fun ChatPartsPreview() {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             MessageBubble(ChatMessage(0, true, "Ola"))
             LiveBubble(LiveReply("Olá! Vou olhar o projeto. Achei três telas.", listOf(LiveReply.ToolMark(21, "Lendo arquivos"))))
-            TypingBubble()
+            ThinkingLine("Pensando…")
             NoticeBubble(ChatNotice("O motor está desligado.", ChatAction.StartEngine), {})
             CommandsPanel(ChatCommands.all, {})
         }

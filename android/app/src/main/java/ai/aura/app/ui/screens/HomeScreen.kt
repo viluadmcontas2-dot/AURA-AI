@@ -54,6 +54,9 @@ fun HomeScreen(
     onOpenReform: (() -> Unit)? = null,
     /** Comandos "/" do chat abrem telas do app (o texto é o que veio depois do comando). */
     onNavigate: (AppTarget, String) -> Unit = { _, _ -> },
+    /** A tela Sessões pediu para continuar uma conversa do Claude Code: o chat abre nela. */
+    openSessionId: String? = null,
+    onOpenSessionHandled: () -> Unit = {},
 ) {
     var entry by rememberSaveable(stateSaver = ChatEntry.Saver) { mutableStateOf(ChatEntry.Closed) }
     var current by remember { mutableStateOf<String?>(null) } // null = ainda lendo o disco
@@ -76,6 +79,13 @@ fun HomeScreen(
         if (!openJobId.isNullOrEmpty()) {
             entry = ChatEntry(open = true, jobId = openJobId)
             onOpenJobHandled()
+        }
+    }
+    // Sessões pediu para abrir uma conversa: o chat carrega o histórico dela e a próxima mensagem continua com o id.
+    LaunchedEffect(openSessionId) {
+        if (!openSessionId.isNullOrEmpty()) {
+            entry = ChatEntry(open = true, sessionId = openSessionId)
+            onOpenSessionHandled()
         }
     }
     // Voz pediu para criar o pedido no chat: mesmo caminho do envio do composer.
@@ -105,6 +115,8 @@ fun HomeScreen(
                 initialDraft = start, onDraftChange = saveDraft, link = link, onEngineAction = onEngineAction,
                 onOpenVoice = onOpenVoice, onOpenReform = onOpenReform,
                 onOpenActivity = { onNavigate(AppTarget.Activity, "") },
+                onOpenSessions = { onNavigate(AppTarget.Sessions, "") },
+                onOpenConnections = { onNavigate(AppTarget.Connections, "") },
             )
         }
     }

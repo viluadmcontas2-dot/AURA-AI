@@ -267,6 +267,39 @@ sealed interface IntentResult {
 /** O motor é de uma versão que ainda não conversa (404/501 em /v1/chat). */
 class ChatUnsupportedException(message: String = "Este motor ainda não conversa.") : Exception(message)
 
+/* ---- Sessões do Claude Code (GET /v1/sessions, /v1/processes) ----
+ * Conversas que o Claude Code guarda no Termux (as do AURA e as do terminal). A tela fala de
+ * "conversa" e "sessão"; nunca de job, rota ou session_id. */
+
+/** Uma conversa do Claude Code. [fromTerminal]: nasceu no terminal do Termux; senão foi iniciada pelo AURA. */
+data class SessionInfo(
+    val id: String,
+    val title: String,
+    /** Últimas duas pastas do projeto ("meu/projeto"); vazio se o motor não soube. */
+    val project: String,
+    val updatedAtMillis: Long,
+    val messages: Int,
+    val fromTerminal: Boolean,
+    /** Há uma resposta sendo escrita agora. */
+    val running: Boolean,
+)
+
+enum class SessionLineRole { User, Assistant, Tool }
+
+/** Uma linha do histórico de uma sessão. [Tool] é uma frase curta ("Lendo arquivos…"), nunca argumento. */
+data class SessionLine(val role: SessionLineRole, val text: String)
+
+/** Um programa que o motor iniciou no celular. [kind]: claude, agy, gemini, codex ou engine. */
+data class ProcessInfo(val pid: Long, val kind: String, val sessionId: String?, val startedAtMillis: Long?)
+
+/** Resultado de POST /v1/prompt/improve. */
+sealed interface ImproveResult {
+    data class Improved(val text: String) : ImproveResult
+
+    /** [action] nulo = nada a fazer pelo botão (ex.: o motor ainda não sabe melhorar pedidos). */
+    data class Failed(val code: String, val message: String, val action: ChatAction?) : ImproveResult
+}
+
 interface EngineGateway {
     suspend fun jobs(): List<Job>
     suspend fun approve(id: String): Job
@@ -296,6 +329,25 @@ interface EngineGateway {
     suspend fun chats(): List<ChatSummary> = emptyList()
     suspend fun chatMessages(id: String): List<ChatLine> = emptyList()
     suspend fun intent(text: String): IntentResult = IntentResult.Chat
+
+    // Sessões do Claude Code e processos do motor (GET/POST/DELETE /v1/sessions, GET/POST /v1/processes).
+    // Padrão = o motor ainda não expõe; falta de motor chega como EngineResult.Unavailable, nunca como exceção.
+    suspend fun sessions(): EngineResult<List<SessionInfo>> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun sessionMessages(id: String): EngineResult<List<SessionLine>> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun renameSession(id: String, title: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
+    /** Esconde só no AURA: o histórico do Claude Code no terminal nunca é apagado. */
+    suspend fun hideSession(id: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun stopSession(id: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun processes(): EngineResult<List<ProcessInfo>> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun stopProcess(pid: Long): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
+
+    // Melhorar pedido e a chave do Gemini (POST /v1/prompt/improve, /v1/settings/gemini_key). A chave só
+    // viaja do campo para o motor: o app nunca a guarda, mostra nem registra.
+    suspend fun improvePrompt(text: String): ImproveResult =
+        ImproveResult.Failed("unsupported", "Este motor ainda não melhora pedidos. Atualize o AURA no Termux.", null)
+    suspend fun geminiKeyConfigured(): EngineResult<Boolean> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun saveGeminiKey(key: String): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
+    suspend fun removeGeminiKey(): EngineResult<Unit> = EngineResult.Unavailable(NOT_EXPOSED)
 
     /** Eventos duráveis e ordenados (GET /v1/events?since=N); a UI retoma por id. */
     val events: Flow<EngineEvent>

@@ -124,6 +124,8 @@ fun ConnectionsScreen(
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
 
+                GeminiKeyCard(gateway, Modifier.padding(top = 8.dp))
+
                 SectionTitle("Permissões do Android", Modifier.padding(top = 8.dp))
                 Text("O AURA só pede quando você usa a função. Negar nunca trava o app.", style = AuraType.Secondary)
                 permissions.rows.forEach { row ->

@@ -18,6 +18,7 @@ import android.content.Context
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.onAllNodesWithText
@@ -201,7 +202,7 @@ class ConnectionsLoginTest {
         rule.onNodeWithText("Abrir link").performScrollTo().performClick()
         assertEquals(listOf("https://example.com/device"), opened)
 
-        rule.onNode(hasSetTextAction()).performScrollTo().performTextInput("COD-123")
+        rule.onNode(hasSetTextAction() and hasText("Código do Claude")).performScrollTo().performTextInput("COD-123")
         rule.onNodeWithText("Enviar código").performScrollTo().performClick()
         waitForText("Claude conectado.")
         assertEquals(listOf("COD-123"), gateway.codes)
@@ -215,7 +216,7 @@ class ConnectionsLoginTest {
         rule.onNodeWithText("Conectar Claude").performScrollTo().performClick()
         waitForText("Prefiro colar um token")
         rule.onNodeWithText("Prefiro colar um token").performScrollTo().performClick()
-        rule.onNode(hasSetTextAction()).performScrollTo().performTextInput("sk-segredo")
+        rule.onNode(hasSetTextAction() and hasText("Token do Claude")).performScrollTo().performTextInput("sk-segredo")
         rule.onNodeWithText("Enviar token").performScrollTo().performClick()
         waitForText("Claude conectado.")
         assertEquals(listOf("sk-segredo"), gateway.tokens)

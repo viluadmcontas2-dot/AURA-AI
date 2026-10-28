@@ -7,9 +7,12 @@ import ai.aura.app.ui.engine.ChatStarted
 import ai.aura.app.ui.engine.ChatSummary
 import ai.aura.app.ui.engine.EngineEvent
 import ai.aura.app.ui.engine.EngineGateway
+import ai.aura.app.ui.engine.EngineResult
+import ai.aura.app.ui.engine.ImproveResult
 import ai.aura.app.ui.engine.Job
 import ai.aura.app.ui.engine.JobRequest
 import ai.aura.app.ui.engine.RouteResult
+import ai.aura.app.ui.engine.SessionLine
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CompletableDeferred
@@ -31,10 +34,18 @@ internal class ScriptedChatGateway(
     @Volatile var down: Boolean = false,
     @Volatile var script: () -> List<Step> = { listOf(Step.Emit(ChatEvent.Done("Olá!", "sess_1"))) },
     var history: List<ChatLine> = emptyList(),
+    /** Histórico de GET /v1/sessions/{id}/messages (null = o motor não expõe a rota). */
+    var sessionLines: List<SessionLine>? = null,
+    /** Resposta de "Melhorar pedido": recebe o texto e devolve o resultado; trava em [Step.Wait] se o teste quiser. */
+    @Volatile var improve: suspend (String) -> ImproveResult = { ImproveResult.Improved("melhorado: $it") },
 ) : EngineGateway {
     /** (texto, session_id) de cada POST /v1/chat. */
     val started = CopyOnWriteArrayList<Pair<String, String?>>()
     val stopped = CopyOnWriteArrayList<String>()
+    /** Textos enviados a POST /v1/prompt/improve, na ordem. */
+    val improved = CopyOnWriteArrayList<String>()
+    /** Ids pedidos em GET /v1/sessions/{id}/messages. */
+    val sessionsRead = CopyOnWriteArrayList<String>()
     private var counter = 0
 
     override val events: Flow<EngineEvent> = emptyFlow()
@@ -64,6 +75,17 @@ internal class ScriptedChatGateway(
 
     override suspend fun chatMessages(id: String): List<ChatLine> =
         if (down) throw IOException("Termux não responde") else history
+
+    override suspend fun sessionMessages(id: String): EngineResult<List<SessionLine>> {
+        sessionsRead += id
+        if (down) return EngineResult.Unavailable("Termux não responde")
+        return sessionLines?.let { EngineResult.Ok(it) } ?: EngineResult.Unavailable("sem rota")
+    }
+
+    override suspend fun improvePrompt(text: String): ImproveResult {
+        improved += text
+        return improve(text)
+    }
 
     // Nada de tarefas no chat: se o chat chamar qualquer uma destas, o teste quebra.
     override suspend fun jobs(): List<Job> = throw UnsupportedOperationException("o chat não usa tarefas")

@@ -142,6 +142,7 @@ fun AuraApp(
         var pendingJobId by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingPrompt by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingProjectIdea by rememberSaveable { mutableStateOf("") }
+        var pendingSessionId by rememberSaveable { mutableStateOf<String?>(null) }
         val stack = stackText.split(",").filter { id -> ROUTES.any { it.id == id && it.screen != null } }.ifEmpty { listOf("inicio") }
         val route = ROUTES.first { it.id == stack.last() }
         val link by linkState.collectAsState()
@@ -189,6 +190,9 @@ fun AuraApp(
             projectIdea = pendingProjectIdea,
             onProjectIdeaHandled = { pendingProjectIdea = "" },
             startProjectIdea = { idea -> pendingProjectIdea = idea; go(tabStack(AuraTab.Projects)) },
+            openSession = { id -> pendingSessionId = id; go(tabStack(AuraTab.Home)) },
+            openSessionId = pendingSessionId,
+            onOpenSessionHandled = { pendingSessionId = null },
         )
         Column(
             Modifier

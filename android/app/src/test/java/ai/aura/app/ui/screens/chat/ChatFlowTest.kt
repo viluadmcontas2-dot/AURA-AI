@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -116,6 +117,44 @@ class ChatFlowTest {
         assertFalse(has("Lendo arquivos…"))
         assertNoTaskUi()
         rule.onNodeWithContentDescription("Enviar mensagem").assertExists()
+    }
+
+    @Test fun `Pensando aparece antes do primeiro texto, vira a ferramenta e o indicador some quando o texto cresce`() {
+        val g1 = CompletableDeferred<Unit>()
+        val g2 = CompletableDeferred<Unit>()
+        val g3 = CompletableDeferred<Unit>()
+        val gw = ScriptedChatGateway(script = {
+            listOf(
+                Step.Wait(g1),
+                Step.Emit(ChatEvent.Tool("Lendo arquivos")),
+                Step.Wait(g2),
+                Step.Emit(ChatEvent.Text("Achei o problema")),
+                Step.Wait(g3),
+                Step.Emit(ChatEvent.Done("Achei o problema e corrigi.", "sess_1")),
+            )
+        })
+        open(gw)
+        type("Conserta o login")
+
+        waitText("Pensando…") // entre o envio e a primeira palavra
+        assertFalse(has("Achei o problema"))
+        assertEquals(1, rule.onAllNodesWithTag("indicador-resposta", useUnmergedTree = true).fetchSemanticsNodes().size)
+
+        g1.complete(Unit)
+        waitText("Lendo arquivos…") // a ferramenta toma o lugar do "Pensando…"
+        assertFalse(has("Pensando…"))
+
+        g2.complete(Unit)
+        waitText("Achei o problema") // o texto começa a crescer
+        assertFalse(has("Pensando…"))
+        assertEquals("sem indicador enquanto o texto cresce", 0,
+            rule.onAllNodesWithTag("indicador-resposta", useUnmergedTree = true).fetchSemanticsNodes().size)
+
+        g3.complete(Unit)
+        waitText("Achei o problema e corrigi.")
+        assertFalse("nada de aviso ruidoso ao terminar", has("Concluído", substring = true))
+        assertFalse(has("Pensando…"))
+        assertEquals(0, rule.onAllNodesWithTag("indicador-resposta", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
     @Test fun `comando com barra abre a tela e nunca chama o chat da IA`() {

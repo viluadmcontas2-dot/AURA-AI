@@ -9,10 +9,16 @@ Legenda: **[aba]** barra inferior · **[tela]** rota com tela · *(interno)* tel
 
 ```
 Início [aba]
-├─ Chat *(interno)*: composer, atalhos "Criar aplicativo" e "Controlar Android", retomar tarefa
+├─ Chat *(interno)*: composer, atalhos "Criar aplicativo" e "Controlar Android", retomar tarefa,
+│   "Melhorar pedido" (texto > 160 caracteres), botão "Sessões" no cabeçalho
+├─ Sessões (ícone de conversas no cabeçalho, botão "Sessões" do Chat, Ajustes > "Ver sessões")   [tela]
+│   ├─ Conversas do Claude Code (AURA e terminal): tocar abre o Chat nela (volta ao Início com a sessão)
+│   │   └─ Renomear · Esconder (confirma; no terminal só esconde no AURA) · Parar resposta (só se estiver respondendo)
+│   └─ "No celular agora": programas que o motor iniciou, com Parar (o motor não tem botão)
 ├─ Voz → Ouvindo → Compacta → Triagem                       [tela x3]
 ├─ Ajustes (engrenagem)                                      [tela]
 │   ├─ Contas *(interno)*: conectar Claude, Gemini, Codex, GitHub
+│   ├─ Ver sessões → Sessões                                 [tela]
 │   ├─ Abrir check-up → Check-up                             [tela]
 │   ├─ Ajustar avisos → Notificações                         [tela]
 │   ├─ Escolher modo de voz → Modos de voz                   [tela]
@@ -38,6 +44,7 @@ Reformar apps (assistente em tela cheia, sem barra de abas) ◄─┘
 
 ## Alcançável hoje (tem tela e tem caminho)
 Início, Voz (4 telas + Modos), Projetos, Dispositivos, Atividade, Ajustes, Check-up, Notificações, Bastidores,
+Sessões (rota `sessoes`, sem arquivo de design), Conexões (com o cartão "Melhorar pedidos (Gemini)"),
 Reformar (6 telas), Onboarding (só na primeira abertura).
 
 ## Órfãs: a tela existe, nada abria, e agora abre
@@ -63,6 +70,10 @@ Reformar (6 telas), Onboarding (só na primeira abertura).
 | Programas de apoio | **Ferramentas** |
 | Termux + contas + permissões | **Conexões** (tela da outra frente) |
 | Motor sem resposta | **Iniciar o motor** (ação única) |
+| Conversas do Claude Code no Termux | **Sessões** (tela) · "No AURA" / "No terminal" · "Respondendo agora" |
+| Programas rodando no celular | **No celular agora** (seção de Sessões) |
+| Deixar o pedido mais claro | **Melhorar pedido** → "Melhorando…" → **Desfazer** (nunca envia sozinho) |
+| Chave para Melhorar pedido | **Chave do Gemini** (Conexões: Salvar chave · Chave salva · Remover chave) |
 | Dado que o motor não mandou | **O motor ainda não informa** (nunca número inventado) |
 
 ## Limites conhecidos do fluxo de Reforma

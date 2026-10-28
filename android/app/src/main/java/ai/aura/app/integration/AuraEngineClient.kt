@@ -127,6 +127,27 @@ class AuraEngineClient(
     override suspend fun intent(text: String) =
         request("/v1/intent", "POST", JSONObject().put("text", text), readTimeoutMs = 4000)
 
+    override suspend fun sessions() = request("/v1/sessions?limit=100", readTimeoutMs = 10000)
+    override suspend fun sessionMessages(id: String) =
+        request("/v1/sessions/" + segment(id) + "/messages?limit=500", readTimeoutMs = 10000)
+    override suspend fun renameSession(id: String, title: String) =
+        request("/v1/sessions/" + segment(id) + "/rename", "POST", JSONObject().put("title", title), readTimeoutMs = 8000)
+    override suspend fun deleteSession(id: String) =
+        request("/v1/sessions/" + segment(id), "DELETE", readTimeoutMs = 8000)
+    override suspend fun stopSession(id: String) =
+        request("/v1/sessions/" + segment(id) + "/stop", "POST", readTimeoutMs = 8000)
+    override suspend fun processes() = request("/v1/processes", readTimeoutMs = 8000)
+    override suspend fun stopProcess(pid: Long) =
+        request("/v1/processes/" + segment(pid.toString()) + "/stop", "POST", readTimeoutMs = 8000)
+
+    /** O motor espera até 30 s pela Gemini: a leitura aguarda um pouco mais. */
+    override suspend fun improvePrompt(text: String) =
+        request("/v1/prompt/improve", "POST", JSONObject().put("text", text), readTimeoutMs = 40000)
+    override suspend fun geminiKey() = request("/v1/settings/gemini_key", readTimeoutMs = 5000)
+    override suspend fun putGeminiKey(key: String) =
+        request("/v1/settings/gemini_key", "PUT", JSONObject().put("key", key), readTimeoutMs = 8000)
+    override suspend fun deleteGeminiKey() = request("/v1/settings/gemini_key", "DELETE", readTimeoutMs = 8000)
+
     override suspend fun skills() = request("/v1/skills", readTimeoutMs = 5000)
     override suspend fun usage() = request("/v1/usage", readTimeoutMs = 5000)
     override suspend fun memory(workspace: String) =
