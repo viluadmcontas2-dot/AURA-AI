@@ -191,6 +191,64 @@ class SessaoDesconhecidaETimeout(ChatBase):
         self.assertEqual(msgs["messages"][-1]["role"], "assistant")
 
 
+class PodaDeEventos(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.arquivo = pathlib.Path(temp.name) / "e.sqlite3"
+
+    def semear(self, total, velhos):
+        from aura_engine.store import Store
+        store = Store(self.arquivo)
+        for n in range(total):
+            store.emit("teste", {"n": n})
+        with store.lock, store.db:
+            store.db.execute("UPDATE events SET created=? WHERE id<=?", (time.time() - 3 * 86400, velhos))
+        return store
+
+    def ids(self, store, since=0):
+        return [e["id"] for e in store.events(since, 1000)]
+
+    def test_PU8_ao_iniciar_apaga_velho_que_esta_fora_dos_ultimos_N(self):
+        from aura_engine.store import Store
+        self.semear(20, velhos=15).close()
+        with unittest.mock.patch.object(Store, "EVENTS_KEEP_LAST", 3):
+            store = Store(self.arquivo)
+        self.assertEqual(self.ids(store), [16, 17, 18, 19, 20])
+        self.assertEqual(self.ids(store, since=17), [18, 19, 20])  # contrato do cursor
+
+    def test_PU8_velho_mas_entre_os_ultimos_N_fica(self):
+        from aura_engine.store import Store
+        self.semear(20, velhos=15).close()
+        with unittest.mock.patch.object(Store, "EVENTS_KEEP_LAST", 10):
+            store = Store(self.arquivo)
+        self.assertEqual(self.ids(store), list(range(11, 21)))
+
+    def test_PU8_recente_nunca_e_apagado_e_ids_nao_voltam(self):
+        from aura_engine.store import Store
+        self.semear(20, velhos=0).close()
+        with unittest.mock.patch.object(Store, "EVENTS_KEEP_LAST", 1):
+            store = Store(self.arquivo)
+        self.assertEqual(len(self.ids(store)), 20)
+        with store.lock, store.db:
+            store.db.execute("UPDATE events SET created=? WHERE id<=20", (time.time() - 3 * 86400,))
+        with unittest.mock.patch.object(Store, "EVENTS_KEEP_LAST", 0):
+            store.prune_events()
+        self.assertEqual(self.ids(store), [])
+        store.emit("novo", {})
+        self.assertEqual(self.ids(store), [21])
+
+    def test_PU8_poda_sozinha_a_cada_N_inserts(self):
+        from aura_engine.store import Store
+        store = self.semear(10, velhos=10)
+        with unittest.mock.patch.object(Store, "EVENTS_KEEP_LAST", 2), \
+                unittest.mock.patch.object(Store, "EVENTS_PRUNE_EVERY", 5):
+            for _ in range(5):
+                store.emit("novo", {})
+        self.assertEqual(self.ids(store), [11, 12, 13, 14, 15])  # os 10 velhos sumiram; os 5 novos (recentes) ficam
+
+
 class VersaoDoMotor(ChatBase):
     def test_PU3_health_traz_engine_build_do_conteudo_de_aura_engine(self):
         code, body = self.call("GET", "/v1/health")
