@@ -1,11 +1,14 @@
 name: Engine contract CI
 on:
   push:
-    paths: ["engine/**", ".github/workflows/engine-ci.yml"]
+    paths: ["engine/**", ".github/workflows/engine-ci.yml", "AGENTS.md", "README.md", "docs/ENGINE_CONTRACT.md", "docs/CONSTRAINTS.md", "docs/ENGINE_IMPLEMENTATION_STATE.md", "docs/TRACEABILITY.md", "docs/MATRIZ_DE_TESTES.md", "docs/superpowers/plans/**"]
   pull_request:
-    paths: ["engine/**", ".github/workflows/engine-ci.yml"]
+    paths: ["engine/**", ".github/workflows/engine-ci.yml", "AGENTS.md", "README.md", "docs/ENGINE_CONTRACT.md", "docs/CONSTRAINTS.md", "docs/ENGINE_IMPLEMENTATION_STATE.md", "docs/TRACEABILITY.md", "docs/MATRIZ_DE_TESTES.md", "docs/superpowers/plans/**"]
+permissions:
+  contents: read
 jobs:
   engine-tests:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
