@@ -277,6 +277,35 @@ class ForgetAll(MemoryBase):
         self.assertEqual(len(self.entries("default")) + len(self.entries("projeto-x")), 3)
 
 
+class ForgetIsPhysical(MemoryBase):
+    def test_FORGET_leaves_no_text_in_the_database_files(self):
+        """Esquecer apaga de verdade: o texto some dos bytes do banco e do log -wal, nao so da lista."""
+        self.make_engine()
+        um, dois = "ZQ81-marca-um", "ZQ81-marca-dois"
+
+        def left(*marks):  # (arquivo, marca) que ainda estao nos bytes do motor
+            found = []
+            for name in ("engine.sqlite3", "engine.sqlite3-wal"):
+                with contextlib.suppress(FileNotFoundError):
+                    data = (self.home / name).read_bytes()
+                    found += [(name, mark) for mark in marks if mark.encode() in data]
+            return found
+        # texto longo (paginas de overflow do SQLite) e a marca tambem na chave
+        self.remember("a", "y" * 9000 + um + "z" * 9000)
+        self.remember(dois, "texto b")
+        self.assertEqual({mark for _, mark in left(um, dois)}, {um, dois})  # controle: elas estao la
+        (item,) = [e for e in self.entries() if e["key"] == "a"]
+        self.assertEqual(self.call("DELETE", "/v1/memory/" + item["id"])[0], 204)
+        self.assertEqual(left(um), [])
+        self.assertEqual([e["key"] for e in self.entries()], [dois])
+        self.assertEqual(self.call("DELETE", "/v1/memory"), (200, {"deleted": 1}))
+        self.assertEqual(left(um, dois), [])
+        self.remember("nova", "depois")  # o motor segue gravando depois de esvaziar o log
+        self.assertEqual([e["text"] for e in self.entries()], ["depois"])
+        self.engine.close()
+        self.assertEqual(left(um, dois), [])
+
+
 class LegacyMemory(MemoryBase):
     def build_legacy_db(self, trigger=None):
         self.home.mkdir(parents=True)

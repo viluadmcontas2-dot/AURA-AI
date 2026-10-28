@@ -110,6 +110,8 @@ DELETE `/v1/memory/{id}` -> 204, sem corpo e sem `Content-Length` (nao leia JSON
 
 DELETE `/v1/memory` -> 200 `{"deleted":N}`: esquece TODAS as lembrancas de TODOS os workspaces (nao so as 50 da lista) e diz quantas; `{"deleted":0}` se ja estava vazio (nao e erro). `?workspace=nome` limita a esse workspace. So o caminho exato apaga tudo: `/v1/memory/` (barra no fim, id vazio) e `/v1/memory;x` respondem 404 e nao apagam nada. Query desconhecida, `workspace` vazio ou invalido -> 400 `invalid_request`, sem apagar nada. Nao ha desfazer.
 
+Os dois DELETE apagam de verdade: o texto sai da lista e tambem dos arquivos do motor (o banco zera o conteudo apagado e o log `-wal` e esvaziado em seguida; se outro programa estiver lendo o banco naquele instante, o log so esvazia no proximo checkpoint). So vale para esquecer: trocar o texto de uma lembranca (POST na mesma `key`) pode deixar o texto antigo no log ate o proximo checkpoint.
+
 Compatibilidade: um motor anterior a esta versao guardava a tabela sem `id`, `kind`, `source` e `created`. Ao iniciar, o motor completa cada linha numa transacao so (tudo ou nada): `id` novo, `kind:"preference"`, `source:"user"`, `createdAt` igual a `updated` (a data da ultima gravacao era a unica que existia). Nenhuma lembranca se perde e os ids ficam os mesmos nos proximos inicios. Se a conversao falhar, a base fica como estava e o motor nao inicia.
 Nao existe: filtro por `kind` no GET (a tela filtra), evento no log de eventos, desfazer.
 
