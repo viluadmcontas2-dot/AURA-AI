@@ -249,6 +249,39 @@ class PodaDeEventos(unittest.TestCase):
         self.assertEqual(self.ids(store), [11, 12, 13, 14, 15])  # os 10 velhos sumiram; os 5 novos (recentes) ficam
 
 
+class Resposta401ComCorpo(ChatBase):
+    def post_cru(self, token, corpo, caminho="/v1/chat"):
+        """POST por socket, como o OkHttp: manda o corpo inteiro e so entao le a resposta."""
+        import socket
+        host, porta = self.base.replace("http://", "").split(":")
+        sock = socket.create_connection((host, int(porta)), timeout=8)
+        self.addCleanup(sock.close)
+        cabecalho = ("POST %s HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer %s\r\nContent-Type: application/json\r\n"
+                     "Content-Length: %d\r\n\r\n" % (caminho, token, len(corpo))).encode()
+        sock.sendall(cabecalho)
+        sock.sendall(corpo[:1000])
+        time.sleep(0.4)  # cliente lento: o servidor ja respondeu e fechou antes de o corpo acabar
+        sock.sendall(corpo[1000:])  # sem a correcao: ConnectionReset/BrokenPipe aqui (o app ve IOException)
+        dados = b""
+        while True:
+            parte = sock.recv(65536)
+            if not parte:
+                break
+            dados += parte
+        return dados
+
+    def test_PU9_corpo_grande_com_token_errado_recebe_401_de_verdade(self):
+        corpo = json.dumps({"text": "a" * 900000}).encode()
+        resposta = self.post_cru("token-errado", corpo)
+        self.assertTrue(resposta.startswith(b"HTTP/1.0 401") or resposta.startswith(b"HTTP/1.1 401"), resposta[:60])
+        self.assertIn(b"unauthorized", resposta)
+
+    def test_PU9_corpo_grande_em_rota_inexistente_recebe_404_de_verdade(self):
+        corpo = json.dumps({"x": "a" * 900000}).encode()
+        resposta = self.post_cru(self.engine.token, corpo, caminho="/v1/nao-existe")
+        self.assertIn(b" 404 ", resposta.split(b"\r\n")[0])
+
+
 class VersaoDoMotor(ChatBase):
     def test_PU3_health_traz_engine_build_do_conteudo_de_aura_engine(self):
         code, body = self.call("GET", "/v1/health")
