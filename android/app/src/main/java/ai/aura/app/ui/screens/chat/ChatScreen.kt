@@ -57,7 +57,8 @@ fun ChatScreen(
     onStartEngine: (OfflineReason) -> Unit = {},
     store: LocalStore = rememberAuraStore(),
 ) {
-    val scope = rememberCoroutineScope()
+    // Estado de tela só se escreve na thread principal, mesmo quando uma etapa passou por Dispatchers.IO.
+    val scope = rememberCoroutineScope { kotlinx.coroutines.Dispatchers.Main.immediate }
     val navigate by rememberUpdatedState(onNavigate)
     val startEngine by rememberUpdatedState(onStartEngine)
     val controller = remember(gateway) {

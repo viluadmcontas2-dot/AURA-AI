@@ -30,11 +30,13 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import kotlinx.coroutines.CompletableDeferred
 
 /** O chat de verdade, clicando de verdade (Compose + Robolectric, sem emulador). */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = "w390dp-h844dp")
+@GraphicsMode(GraphicsMode.Mode.NATIVE) // Path.op real: sem isso o Robolectric descarta toques em balões de cantos desiguais
 class ChatFlowTest {
     @get:Rule val rule = createComposeRule()
     @get:Rule val tmp = TemporaryFolder()
@@ -66,7 +68,14 @@ class ChatFlowTest {
     private fun has(text: String, substring: Boolean = false) =
         rule.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitText(text: String, substring: Boolean = false) = rule.waitUntil(10_000) { has(text, substring) }
+    private fun waitText(text: String, substring: Boolean = false) {
+        val end = System.currentTimeMillis() + 10_000
+        while (!has(text, substring)) {
+            check(System.currentTimeMillis() < end) { "não apareceu: $text" }
+            rule.waitForIdle() // aplica o que voltou de IO na fila da thread principal e recompõe
+            Thread.sleep(20)
+        }
+    }
 
     private fun type(text: String) {
         rule.onNodeWithContentDescription("Mensagem para o AURA").performTextInput(text)
