@@ -83,7 +83,8 @@ def evidence_reference(ident, raw):
         re.search(rf"(?m)^{field}:\s*\S", body)
         for field in ("Dispositivo", "Procedimento", "Resultado", "Registro")
     )
-    passed = re.search(r"(?mi)^Resultado:[ \t]*aprovado[ \t]*$", body)
+    results = re.findall(r"(?mi)^Resultado:[ \t]*([^\r\n]*)$", body)
+    passed = len(results) == 1 and results[0].strip().lower() == "aprovado"
     return bool(fields_present and passed)
 
 
