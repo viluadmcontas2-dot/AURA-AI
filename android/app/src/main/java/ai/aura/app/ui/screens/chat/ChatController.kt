@@ -164,6 +164,7 @@ class ChatController(
                 initial.prompt.isNotEmpty() -> { consumeEntry(); send(initial.prompt) }
             }
             ensureLoop()
+            pump() // mensagem escrita antes de o disco terminar de ler: sai agora
             if (turns.any { it.state == TurnState.WaitingEngine }) {
                 notice = ChatNotice("O motor está desligado.", ChatAction.StartEngine)
                 startWaiter()
@@ -608,7 +609,7 @@ class ChatController(
 
     /** A resposta acabou (bem ou parada com o que veio): a mensagem fica como respondida e a fila anda. */
     private fun completeTurn(turn: Turn, reply: String?) {
-        if (stateSupported == false) {
+        if (stateSupported != true) {
             // Motor antigo, sem histórico próprio: esta conversa passa a ser o histórico daqui.
             val base = history.size
             history = history + HistoryLine("local:$base", SessionLineRole.User, turn.text) +
@@ -649,7 +650,7 @@ class ChatController(
 
     /** Resposta parcial guardada + o pedido marcado como não concluído: "Tentar de novo" manda o texto de novo. */
     private fun completeTurnKeepingFailure(turn: Turn, partial: String) {
-        if (stateSupported == false) {
+        if (stateSupported != true) {
             val base = history.size
             history = history + HistoryLine("local:$base", SessionLineRole.User, turn.text) +
                 HistoryLine("local:${base + 1}", SessionLineRole.Assistant, partial)
@@ -692,7 +693,7 @@ class ChatController(
     }
 
     private fun completeTurnPartial(turn: Turn, partial: String?) {
-        if (stateSupported == false) {
+        if (stateSupported != true) {
             val base = history.size
             history = history + HistoryLine("local:$base", SessionLineRole.User, turn.text) +
                 (if (partial != null) listOf(HistoryLine("local:${base + 1}", SessionLineRole.Assistant, partial)) else emptyList())
@@ -1143,7 +1144,8 @@ class ChatController(
             fromCache = true
         }
         // O que estava "enviando" quando o app fechou é incerto: sai de novo com a MESMA chave (o motor não repete).
-        turns = savedTurns.map { if (it.state == TurnState.Sending) it.copy(state = TurnState.WaitingEngine, chatId = "") else it }
+        // Mensagens escritas enquanto o disco era lido ficam depois das guardadas.
+        turns = savedTurns.map { if (it.state == TurnState.Sending) it.copy(state = TurnState.WaitingEngine, chatId = "") else it } + turns
         if (sessionId.isNotEmpty()) {
             if (cache == null && turns.isEmpty()) loading = true else refreshing = true
         } else {
