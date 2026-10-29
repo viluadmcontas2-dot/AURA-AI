@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 
-from . import adapters, pathutil, routing
+from . import adapters, install_consent, pathutil, routing
 from .security import safe_argv, workspace_name
 
 UUID_RE = re.compile(r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}")
@@ -418,6 +418,7 @@ class ChatManager:
         argv += ["--resume", cli] if conv.get("started") else ["--session-id", cli]
         if total:
             argv.append("--dangerously-skip-permissions")  # mesmo gate do run_cli
+        argv.extend(install_consent.claude_guard_args())  # instalar pede consentimento, mesmo em autonomia total
         try:
             model, _ = routing.resolve({"kind": "claude_cli"}, self.engine.config.models())
         except routing.ModelRefused:
